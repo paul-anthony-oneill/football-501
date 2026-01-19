@@ -25,6 +25,11 @@ class Settings(BaseSettings):
         default="postgresql://football501:dev_password@localhost:5432/football501",
         env="DATABASE_URL"
     )
+    sql_echo: bool = Field(
+        default=False,
+        env="SQL_ECHO",
+        description="Enable SQLAlchemy query logging"
+    )
 
     # FBref Scraping
     fbref_wait_time: int = Field(
