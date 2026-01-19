@@ -1,0 +1,43 @@
+# Football 501 Scraping Service - Docker Compose
+
+version: '3.8'
+
+services:
+  scraper:
+    build: .
+    container_name: football501-scraper
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://football501:dev_password@postgres:5432/football501
+      - FBREF_WAIT_TIME=7
+      - ENABLE_SCHEDULER=true
+      - CURRENT_SEASON=2024-2025
+      - LOG_LEVEL=INFO
+    depends_on:
+      - postgres
+    volumes:
+      - ./logs:/var/log
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+    container_name: football501-postgres
+    environment:
+      - POSTGRES_DB=football501
+      - POSTGRES_USER=football501
+      - POSTGRES_PASSWORD=dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U football501"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

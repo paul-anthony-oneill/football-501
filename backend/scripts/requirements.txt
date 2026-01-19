@@ -1,0 +1,5 @@
+# Requirements for ScraperFC Proof of Concept
+# Install with: pip install -r requirements.txt
+
+ScraperFC>=4.0.0
+pandas>=2.0.0
