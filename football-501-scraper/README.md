@@ -1,15 +1,24 @@
 # Football 501 - Web Scraper
 
-Python web scraper for collecting football player statistics from FBRef and storing them in PostgreSQL with JSONB.
+Python web scraper for collecting football player statistics from FBRef and storing them in PostgreSQL with a **generic, domain-agnostic architecture**.
 
 ## Purpose
 
 This scraper is **ONLY** responsible for:
 1. Scraping player statistics from FBRef.com
-2. Storing data in PostgreSQL database
-3. Pre-computing valid answers for questions
+2. Storing data in PostgreSQL database with JSONB
+3. Creating generic questions
+4. Populating generic answers table
 
 **Game logic, answer validation, and real-time gameplay are handled by the Java/Spring Boot backend.**
+
+## Key Architecture Principle
+
+The database schema is **domain-agnostic** and **NOT tied to football-specific concepts**:
+- ✅ Answer keys are TEXT (not foreign keys to players)
+- ✅ Question filters use JSONB (flexible, no schema changes needed)
+- ✅ Java backend only does text matching (no domain knowledge)
+- ✅ Schema supports ANY domain (football, music, movies, etc.)
 
 ## Setup
 
@@ -29,76 +38,90 @@ pip install -r requirements.txt
 ### Database Initialization
 
 ```bash
-python init_db_v3.py
+python init_db_v3.py  # Creates tables with PostgreSQL extensions
 ```
 
 This creates:
-- Database tables (players, questions, question_valid_answers, etc.)
+- Database tables (players, categories, questions, answers)
 - PostgreSQL extensions (pg_trgm, uuid-ossp)
-- Required indexes (including trigram indexes)
+- Required indexes (including trigram indexes for fuzzy matching)
 
 ## Core Scripts
 
-### 1. Scrape All Premier League History
+### 1. Scrape Player Data
 
-Scrapes all Premier League seasons from 1992-1993 to 2025-2026:
-
-```bash
-python scrape_all_premier_league_history.py
-```
-
-**Duration**: ~30-40 minutes for all 34 seasons
-**Output**: All players and their career stats stored in JSONB
-
-### 2. Update Current Season
-
-Rescrapes and updates the current season (2025-2026):
+Scrapes player statistics and stores in JSONB `career_stats`:
 
 ```bash
-python update_current_season.py
+python scrape_all_premier_league_history.py  # Script name TBD - may need updating
 ```
 
-**Recommended**: Run weekly to keep current season data fresh
-**Duration**: ~1-2 minutes
+**Duration**: ~30-40 minutes for all seasons
+**Output**: Players with JSONB career statistics
 
-### 3. Populate Question Answers
+### 2. Create Questions
 
-Pre-computes valid answers for a question by querying JSONB career stats:
+Creates generic questions programmatically:
 
 ```bash
-python populate_question_answers.py
+python init_questions_v2.py
 ```
 
-**Usage**: Run after creating new questions
-**Output**: Populates `question_valid_answers` table
+**What it does**:
+- Creates category (e.g., "Premier League")
+- Creates questions for all teams with JSONB config
+- Example question types: goals, appearances, assists
+
+### 3. Populate Answers
+
+Populates the generic answers table:
+
+```bash
+python populate_answers_v2.py
+```
+
+**What it does**:
+- Reads active questions
+- Filters player career_stats by question.config (JSONB)
+- Calculates scores by summing metric_key
+- Creates Answer records with text-based answer_key
+- Pre-computes is_valid_darts and is_bust flags
+
+**Duration**: < 5 seconds per question
 
 ## Architecture
 
-### Database Models (JSONB)
+### Database Models (Generic Schema)
 
 ```python
-Player
+Category
   - id (UUID)
-  - fbref_id (unique identifier)
-  - name, normalized_name
+  - name (e.g., "Premier League")
+  - slug, description
+
+Question (Generic)
+  - id (UUID)
+  - category_id
+  - question_text
+  - metric_key (e.g., "goals", "appearances", "points")  # Generic!
+  - config (JSONB)  # Flexible filters {"team": "...", "season": "..."}
+  - min_score, is_active
+
+Answer (Generic - NOT tied to players!)
+  - id (UUID)
+  - question_id
+  - answer_key (VARCHAR)  # Normalized text, NOT player_id FK!
+  - display_text (VARCHAR)  # Display name
+  - score (INTEGER)
+  - is_valid_darts (BOOLEAN)  # Pre-computed
+  - is_bust (BOOLEAN)  # Pre-computed
+  - answer_metadata (JSONB)  # Flexible metadata (can include player_id optionally)
+
+Player (Data source only)
+  - id (UUID)
+  - fbref_id, name, normalized_name
   - nationality
   - career_stats (JSONB array)  # Flexible season data
-  - timestamps
-
-Question
-  - id (UUID)
-  - question_text
-  - stat_type (appearances, goals, combined, goalkeeper)
-  - filters (team_id, competition_id, season, nationality)
-  - is_active
-
-QuestionValidAnswer (pre-computed)
-  - id (UUID)
-  - question_id, player_id
-  - player_name, normalized_name
-  - score (the answer score)
-  - is_valid_darts_score (pre-computed)
-  - is_bust (pre-computed)
 ```
 
 ### JSONB Career Stats Structure
@@ -120,24 +143,58 @@ QuestionValidAnswer (pre-computed)
 ]
 ```
 
+### Example Question Config (JSONB)
+
+```json
+{
+  "team": "Manchester City",
+  "competition": "Premier League",
+  "season": "2023-2024"
+}
+```
+
+**Flexibility**: Add any filter without schema changes!
+
+```json
+{
+  "nationality": "Argentina",
+  "competition": "Premier League"
+}
+```
+
+### Example Answer
+
+```json
+{
+  "answer_key": "erling haaland",  // Just text!
+  "display_text": "Erling Haaland",
+  "score": 35,
+  "is_valid_darts": true,
+  "is_bust": false,
+  "answer_metadata": {
+    "player_id": "uuid",  // Optional
+    "team": "Manchester City"
+  }
+}
+```
+
 ## Project Structure
 
 ```
 football-501-scraper/
-├── config.py                              # Configuration
-├── init_db_v3.py                         # Database initialization
-├── scrape_all_premier_league_history.py  # Scrape all seasons
-├── update_current_season.py              # Update current season
-├── populate_question_answers.py          # Populate valid answers
+├── config.py                    # Configuration
+├── init_questions_v2.py         # Create generic questions
+├── populate_answers_v2.py       # Populate generic answers
 ├── database/
 │   ├── __init__.py
-│   ├── models_v3.py                      # SQLAlchemy models
-│   └── crud_v3.py                        # Database operations
+│   └── models_v4.py            # Generic SQLAlchemy models
+├── utils/
+│   └── darts.py                # Darts score validation
 ├── scrapers/
-│   ├── __init__.py
-│   ├── league_seeder_v3.py              # Season scraping logic
-│   └── player_scraper_v3.py             # Player scraping logic
-└── requirements.txt                      # Python dependencies
+│   └── __init__.py
+├── requirements.txt
+├── CURRENT_WORKFLOW.md         # Current workflow documentation
+└── SCHEMA_COMPARISON.md        # V3 vs Current comparison
 ```
 
 ## Configuration
@@ -158,36 +215,94 @@ DB_PASSWORD=your_password
 SQL_ECHO=false
 ```
 
-### Rate Limiting
-
-- **Wait time between players**: 5 seconds (configurable in scraper)
-- **Browser headless mode**: Enabled by default
-- **Parallel workers**: 1 (sequential scraping to respect rate limits)
-
 ## Data Flow
 
 ```
-FBRef.com → Selenium Scraper → Parse HTML → Transform Data → PostgreSQL (JSONB)
-                                                                     ↓
-                                                   Spring Boot Backend reads data
-                                                                     ↓
-                                                      Real-time answer validation
+FBRef.com → Scraper → Players (JSONB) → Create Questions → Populate Answers
+                                                                  ↓
+                                                Java Backend (domain-agnostic)
+                                                                  ↓
+                                                    Text matching only
 ```
 
-## Database Operations
+## Workflow
 
-### View Player Stats
+### 1. Initial Setup (One Time)
+
+```bash
+# 1. Initialize database
+python init_db_v3.py
+
+# 2. Scrape player data (30-40 minutes)
+python scrape_all_premier_league_history.py  # Script name TBD
+```
+
+### 2. Create Questions
+
+```bash
+# Create questions programmatically
+python init_questions_v2.py
+```
+
+Or create manually:
 
 ```python
-from database.crud_v3 import DatabaseManager
+from database.models_v4 import Category, Question
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
 
-db = DatabaseManager()
-with db.get_session() as session:
-    player = session.query(Player).filter_by(fbref_id='1f44ac21').first()
+engine = create_engine('postgresql://...')
+Session = sessionmaker(bind=engine)
+session = Session()
 
-    for season in player.career_stats:
-        print(f"{season['season']}: {season['team']} - {season['appearances']} apps")
+# Create category
+category = Category(
+    name="Premier League",
+    slug="premier-league",
+    description="English Premier League Questions"
+)
+session.add(category)
+session.commit()
+
+# Create question
+question = Question(
+    category_id=category.id,
+    question_text="Goals for Manchester City in Premier League 2023-2024",
+    metric_key="goals",  # Generic!
+    config={
+        "team": "Manchester City",
+        "competition": "Premier League",
+        "season": "2023-2024"
+    },
+    min_score=1,
+    is_active=True
+)
+session.add(question)
+session.commit()
 ```
+
+### 3. Populate Answers
+
+```bash
+python populate_answers_v2.py
+```
+
+### 4. Java Backend Reads Data
+
+The Java backend reads from the generic `answers` table:
+
+```java
+// Find answer by text matching (NOT player lookup!)
+Optional<Answer> answer = answerRepository
+    .findByQuestionIdAndAnswerKey(questionId, "erling haaland");
+
+// Return score
+return answer.getScore();  // 35
+```
+
+**Key Point**: Java backend is domain-agnostic. It doesn't know about "players" or "teams" - just text matching!
+
+## Database Operations
 
 ### Query JSONB Directly
 
@@ -204,41 +319,63 @@ WHERE season->>'season' = '2023-2024'
 ORDER BY (season->>'goals')::int DESC;
 ```
 
-## Maintenance
-
-### Weekly Update Schedule
-
-```bash
-# Every Sunday at 3 AM UTC
-0 3 * * 0 cd /path/to/football-501-scraper && python update_current_season.py
-```
-
-### Monitoring
-
-Check database statistics:
+### View Answer Data
 
 ```sql
--- Total players
-SELECT COUNT(*) FROM players;
-
--- Total season records
-SELECT COUNT(*) FROM (
-    SELECT jsonb_array_elements(career_stats) FROM players
-) AS seasons;
-
--- Questions with answers
+-- Check answers for a question
 SELECT
-    q.question_text,
-    COUNT(a.id) as answer_count
-FROM questions q
-LEFT JOIN question_valid_answers a ON q.id = a.question_id
-GROUP BY q.id, q.question_text;
+    display_text,
+    score,
+    is_valid_darts,
+    is_bust
+FROM answers
+WHERE question_id = 'uuid'
+ORDER BY score DESC;
+```
+
+## Key Benefits of Generic Schema
+
+### 1. Flexibility
+Add new question types without schema changes:
+```python
+metric_key="assists"  # No migration needed!
+metric_key="clean_sheets"
+metric_key="minutes_played"
+```
+
+### 2. Extensibility
+Store any metadata in JSONB:
+```python
+answer_metadata={
+    "player_id": "uuid",
+    "age": 27,
+    "position": "Forward",
+    "custom_field": "anything"
+}
+```
+
+### 3. Domain-Agnostic
+Schema supports ANY domain:
+```python
+# Music questions
+Question(
+    question_text="Songs by The Beatles",
+    metric_key="songs",
+    config={"artist": "The Beatles", "decade": "1960s"}
+)
+```
+
+### 4. Java Backend Simplicity
+```java
+// No domain knowledge needed!
+String userInput = "Erling Haaland";
+Answer answer = findByAnswerKey(questionId, normalize(userInput));
+return answer.getScore();  // That's it!
 ```
 
 ## Performance
 
 - **Initial scrape**: 30-40 minutes for all Premier League history
-- **Weekly update**: 1-2 minutes for current season
 - **Answer population**: < 5 seconds per question
 - **Database query performance**: < 10ms for answer validation (with indexes)
 
@@ -265,12 +402,10 @@ psql -h localhost -U football501 -d football501
 SELECT * FROM pg_extension WHERE extname = 'pg_trgm';
 ```
 
-### Rate Limiting
+## Documentation
 
-If you get blocked:
-- Increase wait time in scraper (5s → 10s)
-- Run during off-peak hours
-- Use VPN/proxy if necessary
+- **CURRENT_WORKFLOW.md** - Current workflow documentation
+- **SCHEMA_COMPARISON.md** - V3 vs Current architecture comparison
 
 ## License
 
@@ -281,4 +416,4 @@ This scraper is for educational/personal use only. Respect FBRef's terms of serv
 For issues with:
 - **Scraping**: Check this repository
 - **Game logic**: See Java/Spring Boot backend (`backend/`)
-- **Answer validation**: See `backend/ANSWER_EVALUATION_FRAMEWORK.md`
+- **Schema questions**: See `CURRENT_WORKFLOW.md`
