@@ -21,18 +21,10 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
     List<Question> findByIsActiveTrue();
 
     /**
-     * Find questions by stat type.
+     * Find active questions by category.
      *
-     * @param statType the stat type
+     * @param categoryId the category UUID
      * @return list of questions
      */
-    List<Question> findByStatType(String statType);
-
-    /**
-     * Find active questions by competition.
-     *
-     * @param competitionId the competition UUID
-     * @return list of questions
-     */
-    List<Question> findByCompetitionIdAndIsActiveTrue(UUID competitionId);
+    List<Question> findByCategoryIdAndIsActiveTrue(UUID categoryId);
 }

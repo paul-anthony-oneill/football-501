@@ -1,7 +1,7 @@
 package com.football501.engine;
 
-import com.football501.model.QuestionValidAnswer;
-import com.football501.repository.QuestionValidAnswerRepository;
+import com.football501.model.Answer;
+import com.football501.repository.AnswerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 class AnswerEvaluatorTest {
 
     @Mock
-    private QuestionValidAnswerRepository answerRepository;
+    private AnswerRepository answerRepository;
 
     @Mock
     private ScoringService scoringService;
@@ -40,8 +40,8 @@ class AnswerEvaluatorTest {
     private AnswerEvaluator evaluator;
 
     private static final UUID QUESTION_ID = UUID.randomUUID();
-    private static final UUID PLAYER_ID_HAALAND = UUID.randomUUID();
-    private static final UUID PLAYER_ID_DE_BRUYNE = UUID.randomUUID();
+    private static final UUID ANSWER_ID_HAALAND = UUID.randomUUID();
+    private static final UUID ANSWER_ID_DE_BRUYNE = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
@@ -56,11 +56,11 @@ class AnswerEvaluatorTest {
     @DisplayName("Exact match returns correct answer")
     void testExactMatchValidAnswer() {
         // Given
-        QuestionValidAnswer answer = createAnswer(
-            PLAYER_ID_HAALAND, "Erling Haaland", 35, true, false
+        Answer answer = createAnswer(
+            ANSWER_ID_HAALAND, "Erling Haaland", 35, true, false
         );
 
-        when(answerRepository.findByQuestionIdAndNormalizedName(QUESTION_ID, "erling haaland"))
+        when(answerRepository.findByQuestionIdAndAnswerKey(QUESTION_ID, "erling haaland"))
             .thenReturn(Optional.of(answer));
         when(scoringService.calculateScore(501, 35))
             .thenReturn(ScoreResult.validScore(466));
@@ -72,7 +72,7 @@ class AnswerEvaluatorTest {
 
         // Then
         assertThat(result.isValid()).isTrue();
-        assertThat(result.getPlayerName()).isEqualTo("Erling Haaland");
+        assertThat(result.getDisplayText()).isEqualTo("Erling Haaland");
         assertThat(result.getScore()).isEqualTo(35);
         assertThat(result.getNewTotal()).isEqualTo(466);
         assertThat(result.isBust()).isFalse();
@@ -83,11 +83,11 @@ class AnswerEvaluatorTest {
     @DisplayName("Case insensitive match works")
     void testCaseInsensitiveMatch() {
         // Given
-        QuestionValidAnswer answer = createAnswer(
-            PLAYER_ID_DE_BRUYNE, "Kevin De Bruyne", 28, true, false
+        Answer answer = createAnswer(
+            ANSWER_ID_DE_BRUYNE, "Kevin De Bruyne", 28, true, false
         );
 
-        when(answerRepository.findByQuestionIdAndNormalizedName(QUESTION_ID, "kevin de bruyne"))
+        when(answerRepository.findByQuestionIdAndAnswerKey(QUESTION_ID, "kevin de bruyne"))
             .thenReturn(Optional.of(answer));
         when(scoringService.calculateScore(501, 28))
             .thenReturn(ScoreResult.validScore(473));
@@ -99,19 +99,19 @@ class AnswerEvaluatorTest {
 
         // Then
         assertThat(result.isValid()).isTrue();
-        assertThat(result.getPlayerName()).isEqualTo("Kevin De Bruyne");
+        assertThat(result.getDisplayText()).isEqualTo("Kevin De Bruyne");
     }
 
     @Test
     @DisplayName("Fuzzy matching handles typos")
     void testFuzzyMatchTypo() {
         // Given - no exact match
-        when(answerRepository.findByQuestionIdAndNormalizedName(any(), any()))
+        when(answerRepository.findByQuestionIdAndAnswerKey(any(), any()))
             .thenReturn(Optional.empty());
 
         // Fuzzy match finds Haaland
-        QuestionValidAnswer answer = createAnswer(
-            PLAYER_ID_HAALAND, "Erling Haaland", 35, true, false
+        Answer answer = createAnswer(
+            ANSWER_ID_HAALAND, "Erling Haaland", 35, true, false
         );
 
         when(answerRepository.findBestMatchByFuzzyName(
@@ -128,7 +128,7 @@ class AnswerEvaluatorTest {
 
         // Then
         assertThat(result.isValid()).isTrue();
-        assertThat(result.getPlayerName()).isEqualTo("Erling Haaland");
+        assertThat(result.getDisplayText()).isEqualTo("Erling Haaland");
     }
 
     // ==========================================================================
@@ -136,10 +136,10 @@ class AnswerEvaluatorTest {
     // ==========================================================================
 
     @Test
-    @DisplayName("Player not found returns invalid")
-    void testPlayerNotFound() {
+    @DisplayName("Answer not found returns invalid")
+    void testAnswerNotFound() {
         // Given
-        when(answerRepository.findByQuestionIdAndNormalizedName(any(), any()))
+        when(answerRepository.findByQuestionIdAndAnswerKey(any(), any()))
             .thenReturn(Optional.empty());
         when(answerRepository.findBestMatchByFuzzyName(any(), any(), any(), anyDouble()))
             .thenReturn(Optional.empty());
@@ -151,7 +151,7 @@ class AnswerEvaluatorTest {
 
         // Then
         assertThat(result.isValid()).isFalse();
-        assertThat(result.getReason()).isEqualTo("Player not found or already used");
+        assertThat(result.getReason()).isEqualTo("Answer not found or already used");
     }
 
     @Test
@@ -168,24 +168,24 @@ class AnswerEvaluatorTest {
     }
 
     @Test
-    @DisplayName("Already used player returns invalid")
+    @DisplayName("Already used answer returns invalid")
     void testAlreadyUsedAnswer() {
         // Given
-        List<UUID> usedPlayers = List.of(PLAYER_ID_HAALAND);
+        List<UUID> usedAnswers = List.of(ANSWER_ID_HAALAND);
 
-        when(answerRepository.findByQuestionIdAndNormalizedName(any(), any()))
+        when(answerRepository.findByQuestionIdAndAnswerKey(any(), any()))
             .thenReturn(Optional.empty());
-        when(answerRepository.findBestMatchByFuzzyName(any(), any(), eq(usedPlayers), anyDouble()))
+        when(answerRepository.findBestMatchByFuzzyName(any(), any(), eq(usedAnswers), anyDouble()))
             .thenReturn(Optional.empty());
 
         // When
         AnswerResult result = evaluator.evaluateAnswer(
-            QUESTION_ID, "Erling Haaland", 501, usedPlayers
+            QUESTION_ID, "Erling Haaland", 501, usedAnswers
         );
 
         // Then
         assertThat(result.isValid()).isFalse();
-        assertThat(result.getReason()).isEqualTo("Player not found or already used");
+        assertThat(result.getReason()).isEqualTo("Answer not found or already used");
     }
 
     // ==========================================================================
@@ -196,11 +196,11 @@ class AnswerEvaluatorTest {
     @DisplayName("Invalid darts score 179 results in bust")
     void testInvalidDartsScore179() {
         // Given - answer with invalid darts score
-        QuestionValidAnswer answer = createAnswer(
+        Answer answer = createAnswer(
             UUID.randomUUID(), "Jack Grealish", 179, false, false
         );
 
-        when(answerRepository.findByQuestionIdAndNormalizedName(any(), any()))
+        when(answerRepository.findByQuestionIdAndAnswerKey(any(), any()))
             .thenReturn(Optional.of(answer));
 
         // ScoringService would validate, but we pre-check
@@ -223,11 +223,11 @@ class AnswerEvaluatorTest {
     @DisplayName("Score over 180 results in bust")
     void testScoreOver180Bust() {
         // Given
-        QuestionValidAnswer answer = createAnswer(
+        Answer answer = createAnswer(
             UUID.randomUUID(), "John Stones", 200, false, true
         );
 
-        when(answerRepository.findByQuestionIdAndNormalizedName(any(), any()))
+        when(answerRepository.findByQuestionIdAndAnswerKey(any(), any()))
             .thenReturn(Optional.of(answer));
         when(scoringService.calculateScore(501, 200))
             .thenReturn(ScoreResult.bust(501));
@@ -247,11 +247,11 @@ class AnswerEvaluatorTest {
     @DisplayName("Valid max darts score 180 works")
     void testValidDartsScoreMax() {
         // Given
-        QuestionValidAnswer answer = createAnswer(
+        Answer answer = createAnswer(
             UUID.randomUUID(), "Kyle Walker", 180, true, false
         );
 
-        when(answerRepository.findByQuestionIdAndNormalizedName(any(), any()))
+        when(answerRepository.findByQuestionIdAndAnswerKey(any(), any()))
             .thenReturn(Optional.of(answer));
         when(scoringService.calculateScore(501, 180))
             .thenReturn(ScoreResult.validScore(321));
@@ -276,11 +276,11 @@ class AnswerEvaluatorTest {
     @DisplayName("Exact checkout at 0 triggers win")
     void testExactCheckoutZero() {
         // Given
-        QuestionValidAnswer answer = createAnswer(
+        Answer answer = createAnswer(
             UUID.randomUUID(), "Ederson", 10, true, false
         );
 
-        when(answerRepository.findByQuestionIdAndNormalizedName(any(), any()))
+        when(answerRepository.findByQuestionIdAndAnswerKey(any(), any()))
             .thenReturn(Optional.of(answer));
         when(scoringService.calculateScore(10, 10))
             .thenReturn(ScoreResult.checkout(0));
@@ -301,11 +301,11 @@ class AnswerEvaluatorTest {
     @DisplayName("Checkout at -5 triggers win")
     void testCheckoutNegative5() {
         // Given
-        QuestionValidAnswer answer = createAnswer(
+        Answer answer = createAnswer(
             UUID.randomUUID(), "Phil Foden", 5, true, false
         );
 
-        when(answerRepository.findByQuestionIdAndNormalizedName(any(), any()))
+        when(answerRepository.findByQuestionIdAndAnswerKey(any(), any()))
             .thenReturn(Optional.of(answer));
         when(scoringService.calculateScore(0, 5))
             .thenReturn(ScoreResult.checkout(-5));
@@ -325,11 +325,11 @@ class AnswerEvaluatorTest {
     @DisplayName("Below checkout range results in bust")
     void testBelowCheckoutRangeBust() {
         // Given
-        QuestionValidAnswer answer = createAnswer(
+        Answer answer = createAnswer(
             UUID.randomUUID(), "Erling Haaland", 35, true, false
         );
 
-        when(answerRepository.findByQuestionIdAndNormalizedName(any(), any()))
+        when(answerRepository.findByQuestionIdAndAnswerKey(any(), any()))
             .thenReturn(Optional.of(answer));
         when(scoringService.calculateScore(20, 35))
             .thenReturn(ScoreResult.bust(20)); // Would be -15
@@ -367,7 +367,7 @@ class AnswerEvaluatorTest {
     @DisplayName("Get top answers returns sorted list")
     void testGetTopAnswers() {
         // Given
-        List<QuestionValidAnswer> topAnswers = List.of(
+        List<Answer> topAnswers = List.of(
             createAnswer(UUID.randomUUID(), "Player 1", 180, true, false),
             createAnswer(UUID.randomUUID(), "Player 2", 150, true, false),
             createAnswer(UUID.randomUUID(), "Player 3", 100, true, false)
@@ -377,7 +377,7 @@ class AnswerEvaluatorTest {
             .thenReturn(topAnswers);
 
         // When
-        List<QuestionValidAnswer> results = evaluator.getTopAnswers(QUESTION_ID, 3, true);
+        List<Answer> results = evaluator.getTopAnswers(QUESTION_ID, 3, true);
 
         // Then
         assertThat(results).hasSize(3);
@@ -389,7 +389,7 @@ class AnswerEvaluatorTest {
     void testGetAnswerStats() {
         // Given
         when(answerRepository.countByQuestionId(QUESTION_ID)).thenReturn(10L);
-        when(answerRepository.countByQuestionIdAndIsValidDartsScoreTrue(QUESTION_ID)).thenReturn(7L);
+        when(answerRepository.countByQuestionIdAndIsValidDartsTrue(QUESTION_ID)).thenReturn(7L);
 
         // When
         AnswerEvaluator.AnswerStats stats = evaluator.getAnswerStats(QUESTION_ID);
@@ -404,21 +404,20 @@ class AnswerEvaluatorTest {
     // HELPER METHODS
     // ==========================================================================
 
-    private QuestionValidAnswer createAnswer(
-        UUID playerId,
-        String playerName,
+    private Answer createAnswer(
+        UUID id,
+        String displayText,
         int score,
-        boolean validDartsScore,
+        boolean isValidDarts,
         boolean isBust
     ) {
-        return QuestionValidAnswer.builder()
-            .id(UUID.randomUUID())
+        return Answer.builder()
+            .id(id)
             .questionId(QUESTION_ID)
-            .playerId(playerId)
-            .playerName(playerName)
-            .normalizedName(playerName.toLowerCase())
+            .answerKey(displayText.toLowerCase())
+            .displayText(displayText)
             .score(score)
-            .isValidDartsScore(validDartsScore)
+            .isValidDarts(isValidDarts)
             .isBust(isBust)
             .build();
     }

@@ -3,6 +3,8 @@ package com.football501.engine;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.UUID;
+
 /**
  * Result of answer validation during gameplay.
  * Contains all information needed to update game state and notify players.
@@ -17,15 +19,15 @@ public class AnswerResult {
     private final boolean valid;
 
     /**
-     * The matched player name (null if invalid).
+     * The matched answer display text (null if invalid).
      */
-    private final String playerName;
+    private final String displayText;
 
     /**
-     * The player UUID (null if invalid).
+     * The answer UUID (null if invalid).
      * Used to track used answers.
      */
-    private final java.util.UUID playerId;
+    private final UUID answerId;
 
     /**
      * The score for this answer (appearances/goals/combined).
@@ -57,7 +59,7 @@ public class AnswerResult {
 
     /**
      * Reason for invalid/bust/win.
-     * Examples: "Player not found", "Already used", "Invalid darts score", "Win!"
+     * Examples: "Answer not found", "Already used", "Invalid darts score", "Win!"
      */
     private final String reason;
 
@@ -87,8 +89,8 @@ public class AnswerResult {
     /**
      * Create a valid answer result.
      *
-     * @param playerName the matched player name
-     * @param playerId the player UUID
+     * @param displayText the matched answer text
+     * @param answerId the answer UUID
      * @param score the answer score
      * @param validDartsScore whether score is valid in darts
      * @param bust whether turn is a bust
@@ -99,8 +101,8 @@ public class AnswerResult {
      * @return valid AnswerResult
      */
     public static AnswerResult valid(
-        String playerName,
-        java.util.UUID playerId,
+        String displayText,
+        UUID answerId,
         int score,
         boolean validDartsScore,
         boolean bust,
@@ -111,8 +113,8 @@ public class AnswerResult {
     ) {
         return AnswerResult.builder()
             .valid(true)
-            .playerName(playerName)
-            .playerId(playerId)
+            .displayText(displayText)
+            .answerId(answerId)
             .score(score)
             .validDartsScore(validDartsScore)
             .bust(bust)

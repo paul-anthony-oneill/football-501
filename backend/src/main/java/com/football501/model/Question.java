@@ -2,18 +2,20 @@ package com.football501.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 /**
- * Question entity with filter criteria.
- * Matches the Python SQLAlchemy model in models_v3.py
+ * Domain-agnostic Question entity.
  */
 @Entity
 @Table(name = "questions", indexes = {
-    @Index(name = "idx_questions_active", columnList = "is_active"),
-    @Index(name = "idx_questions_filters", columnList = "team_id, competition_id, season_filter")
+    @Index(name = "idx_questions_category", columnList = "category_id"),
+    @Index(name = "idx_questions_active", columnList = "is_active")
 })
 @Getter
 @Setter
@@ -26,28 +28,18 @@ public class Question {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "category_id", nullable = false)
+    private UUID categoryId;
+
     @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
     private String questionText;
 
-    /**
-     * Type of statistic to use for scoring.
-     * Values: 'appearances', 'goals', 'combined_apps_goals', 'goalkeeper'
-     */
-    @Column(name = "stat_type", nullable = false, length = 50)
-    private String statType;
+    @Column(name = "metric_key", nullable = false, length = 50)
+    private String metricKey;
 
-    // Filters (NULL = no filter)
-    @Column(name = "team_id")
-    private UUID teamId;
-
-    @Column(name = "competition_id")
-    private UUID competitionId;
-
-    @Column(name = "season_filter", length = 20)
-    private String seasonFilter;
-
-    @Column(name = "nationality_filter", length = 100)
-    private String nationalityFilter;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb", nullable = false)
+    private Map<String, Object> config;
 
     @Column(name = "min_score")
     private Integer minScore;

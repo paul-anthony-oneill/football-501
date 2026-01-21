@@ -1,7 +1,11 @@
 package com.football501.engine;
 
-import com.football501.model.QuestionValidAnswer;
-import com.football501.repository.QuestionValidAnswerRepository;
+import com.football501.model.Answer;
+import com.football501.model.Category;
+import com.football501.model.Question;
+import com.football501.repository.AnswerRepository;
+import com.football501.repository.CategoryRepository;
+import com.football501.repository.QuestionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -9,10 +13,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.jdbc.Sql;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,22 +38,31 @@ class AnswerEvaluatorIntegrationTest {
     private AnswerEvaluator evaluator;
 
     @Autowired
-    private QuestionValidAnswerRepository answerRepository;
+    private AnswerRepository answerRepository;
 
     @Autowired
-    private com.football501.repository.QuestionRepository questionRepository;
+    private QuestionRepository questionRepository;
 
     @Autowired
-    private com.football501.repository.PlayerRepository playerRepository;
+    private CategoryRepository categoryRepository;
 
     private UUID questionId;
 
     @BeforeEach
     void setUp() {
-        // Create and save a Question entity to satisfy foreign key constraints
-        com.football501.model.Question question = com.football501.model.Question.builder()
+        // Create Category
+        Category category = Category.builder()
+            .name("Test Category")
+            .slug("test-category")
+            .build();
+        category = categoryRepository.save(category);
+
+        // Create generic Question
+        Question question = Question.builder()
+            .categoryId(category.getId())
             .questionText("Test Question")
-            .statType("appearances")
+            .metricKey("points")
+            .config(Map.of())
             .isActive(true)
             .build();
         question = questionRepository.save(question);
@@ -64,43 +77,43 @@ class AnswerEvaluatorIntegrationTest {
     @Test
     @DisplayName("Full game sequence from 501 to win")
     void testFullGameSequence() {
-        List<UUID> usedPlayers = new ArrayList<>();
+        List<UUID> usedAnswers = new ArrayList<>();
         int currentScore = 501;
 
-        // Turn 1: Haaland (35) -> 466
+        // Turn 1: Answer A (35) -> 466
         AnswerResult result1 = evaluator.evaluateAnswer(
-            questionId, "Erling Haaland", currentScore, usedPlayers
+            questionId, "Answer A", currentScore, usedAnswers
         );
         assertThat(result1.isValid()).isTrue();
         assertThat(result1.isBust()).isFalse();
         assertThat(result1.getNewTotal()).isEqualTo(466);
         currentScore = result1.getNewTotal();
-        usedPlayers.add(result1.getPlayerId());
+        usedAnswers.add(result1.getAnswerId());
 
-        // Turn 2: De Bruyne (28) -> 438
+        // Turn 2: Answer B (28) -> 438
         AnswerResult result2 = evaluator.evaluateAnswer(
-            questionId, "Kevin De Bruyne", currentScore, usedPlayers
+            questionId, "Answer B", currentScore, usedAnswers
         );
         assertThat(result2.isValid()).isTrue();
         assertThat(result2.getNewTotal()).isEqualTo(438);
         currentScore = result2.getNewTotal();
-        usedPlayers.add(result2.getPlayerId());
+        usedAnswers.add(result2.getAnswerId());
 
         // Turn 3: Invalid score (179) -> Bust, score unchanged
         AnswerResult result3 = evaluator.evaluateAnswer(
-            questionId, "Jack Grealish", currentScore, usedPlayers
+            questionId, "Answer E", currentScore, usedAnswers
         );
         assertThat(result3.isValid()).isTrue();
         assertThat(result3.isBust()).isTrue();
         assertThat(result3.getNewTotal()).isEqualTo(438); // Unchanged
-        usedPlayers.add(result3.getPlayerId());
+        usedAnswers.add(result3.getAnswerId());
 
         // Turn 4: Attempt reuse -> Invalid
         AnswerResult result4 = evaluator.evaluateAnswer(
-            questionId, "Erling Haaland", currentScore, usedPlayers
+            questionId, "Answer A", currentScore, usedAnswers
         );
         assertThat(result4.isValid()).isFalse();
-        assertThat(result4.getReason()).isEqualTo("Player not found or already used");
+        assertThat(result4.getReason()).isEqualTo("Answer not found or already used");
     }
 
     @Test
@@ -108,7 +121,7 @@ class AnswerEvaluatorIntegrationTest {
     void testWinConditionExactZero() {
         // Setup: score is 10
         AnswerResult result = evaluator.evaluateAnswer(
-            questionId, "Ederson", 10, new ArrayList<>()
+            questionId, "Answer C", 10, new ArrayList<>()
         );
 
         assertThat(result.isValid()).isTrue();
@@ -122,7 +135,7 @@ class AnswerEvaluatorIntegrationTest {
     void testWinConditionNegative() {
         // Setup: score is 5
         AnswerResult result = evaluator.evaluateAnswer(
-            questionId, "Ederson", 5, new ArrayList<>()
+            questionId, "Answer C", 5, new ArrayList<>()
         );
 
         assertThat(result.isValid()).isTrue();
@@ -135,7 +148,7 @@ class AnswerEvaluatorIntegrationTest {
     void testBustBelowCheckoutRange() {
         // Setup: score is 5, answer is 35
         AnswerResult result = evaluator.evaluateAnswer(
-            questionId, "Erling Haaland", 5, new ArrayList<>()
+            questionId, "Answer A", 5, new ArrayList<>()
         );
 
         assertThat(result.isValid()).isTrue();
@@ -153,7 +166,7 @@ class AnswerEvaluatorIntegrationTest {
     @Test
     @DisplayName("Get top answers returns sorted results")
     void testGetTopAnswers() {
-        List<QuestionValidAnswer> topAnswers = evaluator.getTopAnswers(
+        List<Answer> topAnswers = evaluator.getTopAnswers(
             questionId, 5, true
         );
 
@@ -181,45 +194,33 @@ class AnswerEvaluatorIntegrationTest {
     // ==========================================================================
 
     private void createTestAnswers() {
-        List<TestPlayer> players = List.of(
-            new TestPlayer("Erling Haaland", 35, true, false),
-            new TestPlayer("Kevin De Bruyne", 28, true, false),
-            new TestPlayer("Ederson", 10, true, false),
-            new TestPlayer("Phil Foden", 5, true, false),
-            new TestPlayer("Jack Grealish", 179, false, false),
-            new TestPlayer("John Stones", 200, false, true),
-            new TestPlayer("Bernardo Silva", 163, false, false),
-            new TestPlayer("Manuel Akanji", 1, true, false),
-            new TestPlayer("Kyle Walker", 180, true, false)
+        List<TestAnswer> answers = List.of(
+            new TestAnswer("Answer A", 35, true, false),
+            new TestAnswer("Answer B", 28, true, false),
+            new TestAnswer("Answer C", 10, true, false),
+            new TestAnswer("Answer D", 5, true, false),
+            new TestAnswer("Answer E", 179, false, false),
+            new TestAnswer("Answer F", 200, false, true),
+            new TestAnswer("Answer G", 163, false, false),
+            new TestAnswer("Answer H", 1, true, false),
+            new TestAnswer("Answer I", 180, true, false)
         );
 
-        for (TestPlayer p : players) {
-            // Create and save Player first to satisfy FK
-            com.football501.model.Player playerEntity = com.football501.model.Player.builder()
-                .name(p.name)
-                .normalizedName(p.name.toLowerCase())
-                .fbrefId("test-" + p.name.toLowerCase().replace(" ", "-"))
-                .careerStats(new ArrayList<>())
-                .build();
-            playerEntity = playerRepository.save(playerEntity);
-
-            QuestionValidAnswer answer = QuestionValidAnswer.builder()
-                .id(UUID.randomUUID())
+        for (TestAnswer ta : answers) {
+            Answer answer = Answer.builder()
                 .questionId(questionId)
-                .playerId(playerEntity.getId())
-                .playerName(p.name)
-                .normalizedName(p.name.toLowerCase())
-                .score(p.score)
-                .isValidDartsScore(p.validDartsScore)
-                .isBust(p.isBust)
+                .displayText(ta.text)
+                .answerKey(ta.text.toLowerCase())
+                .score(ta.score)
+                .isValidDarts(ta.validDartsScore)
+                .isBust(ta.isBust)
                 .build();
 
             answerRepository.save(answer);
         }
 
-        playerRepository.flush();
         answerRepository.flush();
     }
 
-    private record TestPlayer(String name, int score, boolean validDartsScore, boolean isBust) {}
+    private record TestAnswer(String text, int score, boolean validDartsScore, boolean isBust) {}
 }

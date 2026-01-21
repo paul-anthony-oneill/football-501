@@ -1,6 +1,6 @@
 package com.football501.repository;
 
-import com.football501.model.QuestionValidAnswer;
+import com.football501.model.Answer;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,64 +11,64 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Repository for QuestionValidAnswer entity.
+ * Repository for Answer entity.
  * Provides fuzzy matching using PostgreSQL trigram similarity.
  */
 @Repository
-public interface QuestionValidAnswerRepository extends JpaRepository<QuestionValidAnswer, UUID> {
+public interface AnswerRepository extends JpaRepository<Answer, UUID> {
 
     /**
-     * Find valid answer by question and exact player name match.
+     * Find valid answer by question and exact answer key match.
      *
      * @param questionId the question UUID
-     * @param normalizedName the normalized player name (lowercase)
+     * @param answerKey the normalized answer key (lowercase)
      * @return optional answer
      */
-    Optional<QuestionValidAnswer> findByQuestionIdAndNormalizedName(UUID questionId, String normalizedName);
+    Optional<Answer> findByQuestionIdAndAnswerKey(UUID questionId, String answerKey);
 
     /**
      * Find best matching answer using PostgreSQL trigram similarity.
-     * Excludes already-used players and returns the best match above threshold.
+     * Excludes already-used answers and returns the best match above threshold.
      *
      * @param questionId the question UUID
-     * @param normalizedInput the normalized player input (lowercase)
-     * @param usedPlayerIds list of already-used player IDs
+     * @param normalizedInput the normalized input string (lowercase)
+     * @param usedAnswerIds list of already-used answer IDs
      * @param threshold minimum similarity threshold (0.0 to 1.0)
      * @return optional answer with best similarity score
      */
     @Query(value = """
         SELECT *,
-               similarity(normalized_name, :normalizedInput) as sim
-        FROM question_valid_answers
+               similarity(answer_key, :normalizedInput) as sim
+        FROM answers
         WHERE question_id = :questionId
-          AND (:usedPlayerIds IS NULL OR player_id NOT IN (:usedPlayerIds))
-          AND similarity(normalized_name, :normalizedInput) >= :threshold
+          AND (:usedAnswerIds IS NULL OR id NOT IN (:usedAnswerIds))
+          AND similarity(answer_key, :normalizedInput) >= :threshold
         ORDER BY sim DESC
         LIMIT 1
         """, nativeQuery = true)
-    Optional<QuestionValidAnswer> findBestMatchByFuzzyName(
+    Optional<Answer> findBestMatchByFuzzyName(
         @Param("questionId") UUID questionId,
         @Param("normalizedInput") String normalizedInput,
-        @Param("usedPlayerIds") List<UUID> usedPlayerIds,
+        @Param("usedAnswerIds") List<UUID> usedAnswerIds,
         @Param("threshold") double threshold
     );
 
     /**
-     * Count available answers for a question (excluding used players).
+     * Count available answers for a question (excluding used answers).
      *
      * @param questionId the question UUID
-     * @param usedPlayerIds list of already-used player IDs
+     * @param usedAnswerIds list of already-used answer IDs
      * @return count of available answers
      */
     @Query("""
         SELECT COUNT(a)
-        FROM QuestionValidAnswer a
+        FROM Answer a
         WHERE a.questionId = :questionId
-          AND (:usedPlayerIds IS NULL OR a.playerId NOT IN :usedPlayerIds)
+          AND (:usedAnswerIds IS NULL OR a.id NOT IN :usedAnswerIds)
         """)
     long countAvailableAnswers(
         @Param("questionId") UUID questionId,
-        @Param("usedPlayerIds") List<UUID> usedPlayerIds
+        @Param("usedAnswerIds") List<UUID> usedAnswerIds
     );
 
     /**
@@ -80,12 +80,12 @@ public interface QuestionValidAnswerRepository extends JpaRepository<QuestionVal
      */
     @Query("""
         SELECT a
-        FROM QuestionValidAnswer a
+        FROM Answer a
         WHERE a.questionId = :questionId
-          AND (:excludeInvalidDarts = false OR a.isValidDartsScore = true)
+          AND (:excludeInvalidDarts = false OR a.isValidDarts = true)
         ORDER BY a.score DESC
         """)
-    List<QuestionValidAnswer> findTopAnswers(
+    List<Answer> findTopAnswers(
         @Param("questionId") UUID questionId,
         @Param("excludeInvalidDarts") boolean excludeInvalidDarts
     );
@@ -104,5 +104,5 @@ public interface QuestionValidAnswerRepository extends JpaRepository<QuestionVal
      * @param questionId the question UUID
      * @return count of valid darts scores
      */
-    long countByQuestionIdAndIsValidDartsScoreTrue(UUID questionId);
+    long countByQuestionIdAndIsValidDartsTrue(UUID questionId);
 }
