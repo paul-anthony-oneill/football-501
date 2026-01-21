@@ -36,11 +36,26 @@ class AnswerEvaluatorIntegrationTest {
     @Autowired
     private QuestionValidAnswerRepository answerRepository;
 
+    @Autowired
+    private com.football501.repository.QuestionRepository questionRepository;
+
+    @Autowired
+    private com.football501.repository.PlayerRepository playerRepository;
+
     private UUID questionId;
 
     @BeforeEach
     void setUp() {
-        questionId = UUID.randomUUID();
+        // Create and save a Question entity to satisfy foreign key constraints
+        com.football501.model.Question question = com.football501.model.Question.builder()
+            .questionText("Test Question")
+            .statType("appearances")
+            .isActive(true)
+            .build();
+        question = questionRepository.save(question);
+        questionRepository.flush();
+        
+        this.questionId = question.getId();
 
         // Create test data
         createTestAnswers();
@@ -178,21 +193,31 @@ class AnswerEvaluatorIntegrationTest {
             new TestPlayer("Kyle Walker", 180, true, false)
         );
 
-        for (TestPlayer player : players) {
+        for (TestPlayer p : players) {
+            // Create and save Player first to satisfy FK
+            com.football501.model.Player playerEntity = com.football501.model.Player.builder()
+                .name(p.name)
+                .normalizedName(p.name.toLowerCase())
+                .fbrefId("test-" + p.name.toLowerCase().replace(" ", "-"))
+                .careerStats(new ArrayList<>())
+                .build();
+            playerEntity = playerRepository.save(playerEntity);
+
             QuestionValidAnswer answer = QuestionValidAnswer.builder()
                 .id(UUID.randomUUID())
                 .questionId(questionId)
-                .playerId(UUID.randomUUID())
-                .playerName(player.name)
-                .normalizedName(player.name.toLowerCase())
-                .score(player.score)
-                .isValidDartsScore(player.validDartsScore)
-                .isBust(player.isBust)
+                .playerId(playerEntity.getId())
+                .playerName(p.name)
+                .normalizedName(p.name.toLowerCase())
+                .score(p.score)
+                .isValidDartsScore(p.validDartsScore)
+                .isBust(p.isBust)
                 .build();
 
             answerRepository.save(answer);
         }
 
+        playerRepository.flush();
         answerRepository.flush();
     }
 
