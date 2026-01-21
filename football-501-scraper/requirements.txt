@@ -15,6 +15,7 @@ ScraperFC>=4.0.0
 pandas>=2.0.0
 beautifulsoup4>=4.11.0
 requests>=2.32.0
+botasaurus>=4.0.0
 
 # Scheduling
 apscheduler>=3.10.4
