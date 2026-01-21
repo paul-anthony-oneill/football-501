@@ -1,5 +1,7 @@
 package com.football501.engine;
 
+import org.springframework.stereotype.Service;
+
 /**
  * Service for calculating scores in Football 501.
  *
@@ -12,6 +14,7 @@ package com.football501.engine;
  * - Checkout range: -10 to 0 (inclusive)
  * - Once in checkout range, player cannot score again
  */
+@Service
 public class ScoringService {
 
     /**
