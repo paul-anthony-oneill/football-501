@@ -27,4 +27,14 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
      * @return list of questions
      */
     List<Question> findByCategoryIdAndIsActiveTrue(UUID categoryId);
+
+    /**
+     * Alias for findByCategoryIdAndIsActiveTrue.
+     *
+     * @param categoryId the category UUID
+     * @return list of active questions
+     */
+    default List<Question> findActiveByCategoryId(UUID categoryId) {
+        return findByCategoryIdAndIsActiveTrue(categoryId);
+    }
 }
