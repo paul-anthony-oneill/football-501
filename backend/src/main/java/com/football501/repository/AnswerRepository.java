@@ -105,4 +105,23 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
      * @return count of valid darts scores
      */
     long countByQuestionIdAndIsValidDartsTrue(UUID questionId);
+
+    /**
+     * Get top N scoring answers for a question.
+     *
+     * @param questionId the question UUID
+     * @param limit maximum number of results
+     * @return list of top N answers ordered by score descending
+     */
+    @Query(value = """
+        SELECT *
+        FROM answers
+        WHERE question_id = :questionId
+        ORDER BY score DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<Answer> findTopNByQuestionIdOrderByScoreDesc(
+        @Param("questionId") UUID questionId,
+        @Param("limit") int limit
+    );
 }
