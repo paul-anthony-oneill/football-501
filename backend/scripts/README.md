@@ -17,6 +17,7 @@ python poc_scraperfc.py
 ```
 
 **Expected Output**:
+
 - ✅ Successfully scrapes EPL 2023-24 player statistics
 - ✅ Demonstrates all Football 501 question types
 - ✅ Validates data quality for game engine
@@ -45,15 +46,18 @@ If the PoC succeeds:
 ## Troubleshooting
 
 ### "Module not found: ScraperFC"
+
 ```bash
 pip install ScraperFC
 ```
 
 ### Scraping takes too long
+
 - This is expected (7-second wait between requests)
 - FBref enforces rate limiting: max 10 requests/minute
 
 ### "Invalid league name"
+
 - Check available leagues with: `list(fb.comps.keys())`
 - See ScraperFC docs: https://scraperfc.readthedocs.io
 
