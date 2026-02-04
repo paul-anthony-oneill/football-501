@@ -352,7 +352,10 @@ public class GameService {
             int player1Score = game.getPlayer1Score();
             int player2Score = game.getPlayer2Score();
 
-            // Who's closer to 0?
+            // Determine winner based on distance to 0 (Standard 501 Rules).
+            // Since P1 checked out, their score is 0.
+            // P2 can only win if they also reach 0 (draws might favor P2 or result in draw depending on rules, 
+            // but here logic implies P2 wins ties/close finishes).
             if (Math.abs(player2Score) < Math.abs(player1Score)) {
                 log.info("Player 2 beat Player 1's checkout ({} vs {})", player2Score, player1Score);
                 game.setWinnerId(match.getPlayer2Id());

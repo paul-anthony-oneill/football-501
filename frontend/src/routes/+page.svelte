@@ -1,8 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import PlayerSearch from '$lib/components/PlayerSearch.svelte';
 
 	// API Base URL - adjust if backend runs on different port
-	const API_BASE = 'http://localhost:8080/api/practice';
+	const API_BASE = 'http://localhost:8080/api';
+
+	interface Category {
+		id: string;
+		name: string;
+		slug: string;
+		description: string;
+	}
 
 	// Game state
 	let gameId: string | null = null;
@@ -18,6 +26,11 @@
 	let loading = false;
 	let feedback = '';
 	let feedbackType: 'success' | 'error' | 'info' = 'info';
+	
+	// Category state
+	let categories: Category[] = [];
+	let selectedCategorySlug = 'football';
+	let categoriesLoading = true;
 
 	// Move history
 	let moves: Array<{ answer: string; result: string; scoreBefore: number; scoreAfter: number }> = [];
@@ -25,18 +38,38 @@
 	// Input element reference for focus management
 	let inputElement: HTMLInputElement;
 
+	onMount(async () => {
+		try {
+			const response = await fetch(`${API_BASE}/categories`);
+			if (response.ok) {
+				categories = await response.json();
+				if (categories.length > 0) {
+					// Default to 'football' if exists, otherwise first one
+					const defaultCat = categories.find(c => c.slug === 'football');
+					selectedCategorySlug = defaultCat ? defaultCat.slug : categories[0].slug;
+				}
+			}
+		} catch (error) {
+			console.error('Error fetching categories:', error);
+			feedback = 'Failed to load categories. Is the backend running?';
+			feedbackType = 'error';
+		} finally {
+			categoriesLoading = false;
+		}
+	});
+
 	async function startGame() {
 		loading = true;
 		feedback = '';
 		moves = [];
 
 		try {
-			const response = await fetch(`${API_BASE}/start`, {
+			const response = await fetch(`${API_BASE}/practice/start`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					playerId,
-					categorySlug: 'football'
+					categorySlug: selectedCategorySlug
 				})
 			});
 
@@ -71,7 +104,7 @@
 		answer = ''; // Clear input immediately
 
 		try {
-			const response = await fetch(`${API_BASE}/games/${gameId}/submit?playerId=${playerId}`, {
+			const response = await fetch(`${API_BASE}/practice/games/${gameId}/submit?playerId=${playerId}`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ answer: submittedAnswer })
@@ -143,7 +176,21 @@
 	{#if gameStatus === 'NOT_STARTED'}
 		<div class="start-screen">
 			<p>Welcome to Football 501! Get your score from 501 to 0 by naming football players.</p>
-			<button on:click={startGame} disabled={loading}>
+			
+			<div class="category-select">
+				<label for="category">Select Category:</label>
+				{#if categoriesLoading}
+					<span class="loading-text">Loading categories...</span>
+				{:else}
+					<select id="category" bind:value={selectedCategorySlug}>
+						{#each categories as category}
+							<option value={category.slug}>{category.name}</option>
+						{/each}
+					</select>
+				{/if}
+			</div>
+
+			<button on:click={startGame} disabled={loading || categoriesLoading}>
 				{loading ? 'Starting...' : 'Start Game'}
 			</button>
 		</div>
@@ -170,15 +217,14 @@
 			<!-- Answer Input -->
 			{#if gameStatus === 'IN_PROGRESS'}
 				<div class="answer-input">
-					<input
-						type="text"
-						bind:this={inputElement}
-						bind:value={answer}
-						on:keypress={handleKeyPress}
-						placeholder="Enter player name..."
-						disabled={loading}
-						autofocus
-					/>
+					<div class="search-container">
+						<PlayerSearch
+							bind:value={answer}
+							disabled={loading}
+							on:submit={submitAnswer}
+							placeholder="Type player name..."
+						/>
+					</div>
 					<button on:click={submitAnswer} disabled={loading || !answer.trim()}>
 						{loading ? 'Submitting...' : 'Submit'}
 					</button>
@@ -252,6 +298,41 @@
 		font-size: 1.2rem;
 		margin-bottom: 2rem;
 		color: #d1d5db;
+	}
+
+	.category-select {
+		margin-bottom: 2rem;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.category-select label {
+		color: #9ca3af;
+		font-size: 0.9rem;
+	}
+
+	.category-select select {
+		padding: 0.75rem 2rem;
+		font-size: 1rem;
+		background: #2a2a2a;
+		color: #fff;
+		border: 1px solid #4ade80;
+		border-radius: 8px;
+		cursor: pointer;
+		min-width: 200px;
+		outline: none;
+	}
+
+	.category-select select:focus {
+		border-color: #22c55e;
+		box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
+	}
+
+	.loading-text {
+		color: #9ca3af;
+		font-style: italic;
 	}
 
 	button {
@@ -328,22 +409,11 @@
 		display: flex;
 		gap: 1rem;
 		margin-bottom: 1rem;
+		align-items: flex-start;
 	}
 
-	input {
+	.search-container {
 		flex: 1;
-		padding: 0.75rem 1rem;
-		font-size: 1rem;
-		border: 2px solid #4ade80;
-		border-radius: 8px;
-		background: #1a1a1a;
-		color: #fff;
-	}
-
-	input:focus {
-		outline: none;
-		border-color: #22c55e;
-		box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
 	}
 
 	.feedback {

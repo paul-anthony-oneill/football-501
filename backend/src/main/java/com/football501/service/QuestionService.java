@@ -142,6 +142,16 @@ public class QuestionService {
     }
 
     /**
+     * Get all categories.
+     *
+     * @return list of all categories
+     */
+    @Transactional(readOnly = true)
+    public List<Category> getAllCategories() {
+        return categoryRepository.findAll();
+    }
+
+    /**
      * Get total count of answers for a question.
      *
      * @param questionId the question UUID
