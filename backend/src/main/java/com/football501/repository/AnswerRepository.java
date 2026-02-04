@@ -124,4 +124,7 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
         @Param("questionId") UUID questionId,
         @Param("limit") int limit
     );
+
+    List<Answer> findByQuestionIdOrderByScoreDesc(UUID questionId);
+    boolean existsByQuestionIdAndAnswerKey(UUID questionId, String answerKey);
 }
