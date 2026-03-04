@@ -6,30 +6,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Football 501 is a competitive football trivia game that combines football knowledge with darts 501 scoring mechanics. Players compete to reduce their score from 501 to exactly 0 by naming football players whose statistics match a given question.
 
-**Current Status**: Planning & Design phase complete. Ready to begin MVP development.
+**Current Status**: Game Engine & Admin UI Implemented (Phase 3 Complete).
 
 **Tech Stack**:
 - Frontend: SvelteKit + TypeScript + Tailwind CSS (Progressive Web App)
 - Backend: Spring Boot 3.x + Java 17+ + PostgreSQL 15+
-- Real-time: WebSocket (STOMP protocol)
-- External API: API-Football (api-football.com)
+- Data Source: ScraperFC (Python Microservice)
+- Real-time: WebSocket (STOMP protocol) - *In Progress*
 
 ## Architecture
 
 ### High-Level System Design
 
-The application follows a client-server architecture with WebSocket support for real-time multiplayer:
+The application follows a client-server architecture with a separate Python microservice for data scraping:
 
 ```
 PWA Client (SvelteKit) <--HTTPS + WSS--> Spring Boot Server
                                               |
-                                         PostgreSQL + Redis
+                                         PostgreSQL
+                                              ^
+                                              |
+                                    Python Scraper Service (ScraperFC)
 ```
 
 **Critical Architectural Principles**:
-1. **Zero API Calls During Gameplay**: All match validation uses pre-cached player data from the database. API-Football is only called during batch question population and weekly updates.
+1. **Zero API Calls During Gameplay**: All match validation uses pre-cached player data from the database.
 2. **Server-Side Validation**: All game logic (scoring rules, darts validation, win conditions) is validated server-side to prevent cheating.
-3. **Aggressive Caching**: Question/answer data is cached in PostgreSQL. Match state may be cached in Redis.
+3. **Aggressive Caching**: Question/answer data is cached in PostgreSQL.
+4. **Scraping Service**: A dedicated Python microservice uses ScraperFC to populate the database via batch jobs, keeping the main backend clean.
 
 ### Backend Module Structure
 
@@ -104,35 +108,34 @@ Key tables to understand:
 - `answers` table uses `gin_trgm_ops` index for fuzzy player name matching
 - Full-text search enabled on player names
 
-## API Integration (API-Football)
+## Data Source Integration (ScraperFC)
 
 ### Critical Rules
 
-1. **Free Tier Limits**: 100 requests/day during MVP
-2. **Batch Population Only**: Questions are populated in advance via scheduled jobs
-3. **Zero Live API Calls**: Matches NEVER call the API - all validation uses cached `answers` table
-4. **Weekly Updates**: Automated batch refresh of current season stats (Sunday 3 AM UTC)
+1. **Python Microservice**: All scraping logic resides in `football-501-scraper/`.
+2. **Batch Population**: Questions are populated in advance via scheduled jobs in the Python service.
+3. **Zero Live Calls**: The main Spring Boot backend NEVER calls external APIs. It only reads from the `answers` table.
+4. **Weekly Updates**: Automated batch refresh of current season stats.
 
-### Question Population Workflow
+### Data Flow
 
 ```
-1. Admin creates question (manual/admin panel)
-2. Scheduled job fetches player stats from API-Football (respects rate limits)
-3. Populate answers table with:
-   - Player names
-   - Statistics (appearances/goals/etc.)
-   - Pre-computed validity flags (isValidDartsScore, isBust)
-4. Mark question as active
+1. Admin creates question (or auto-generated)
+2. Python Service (ScraperFC) fetches player stats from FBref
+3. Service transforms data and populates `answers` table:
+   - Player names (normalized)
+   - Statistics (value)
+   - Validity flags (isValidDartsScore, isBust)
+4. Spring Boot Backend reads from `answers` table during gameplay
 ```
 
-### API Response Mapping
+### Schema Mapping
 
-Key fields from API-Football `/players` endpoint:
-- `response[].player.name` → Player display name
-- `response[].player.id` → Player API ID (unique identifier)
-- `response[].statistics[].games.appearences` → Appearances stat
-- `response[].statistics[].goals.total` → Goals stat
-- `response[].player.nationality` → For nationality filters
+ScraperFC data maps to the `answers` table:
+- Player Name → `player_name`
+- Statistic (e.g., Appearances) → `statistic_value`
+- Validation (1-180, no invalid darts) → `is_valid_darts_score`
+- Bust Check (>180) → `is_bust`
 
 ## WebSocket Protocol
 
