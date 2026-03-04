@@ -27,6 +27,7 @@ export interface Question {
     metricKey: string;
     config: Record<string, any>;
     minScore: number;
+    difficulty: number;
     isActive: boolean;
     answerCount: number;
     validDartsCount: number;
@@ -40,6 +41,7 @@ export interface CreateQuestionRequest {
     metricKey: string;
     config?: Record<string, any>;
     minScore?: number;
+    difficulty?: number;
 }
 
 export interface UpdateQuestionRequest {
@@ -48,6 +50,7 @@ export interface UpdateQuestionRequest {
     metricKey: string;
     config?: Record<string, any>;
     minScore?: number;
+    difficulty?: number;
 }
 
 export interface QuestionListResponse {

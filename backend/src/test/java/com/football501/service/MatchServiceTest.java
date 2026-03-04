@@ -106,7 +106,8 @@ class MatchServiceTest {
             player2Id,
             categoryId,
             Match.MatchType.CASUAL,
-            Match.MatchFormat.BEST_OF_3
+            Match.MatchFormat.BEST_OF_3,
+            2
         );
 
         // Then
@@ -512,7 +513,8 @@ class MatchServiceTest {
             null, // No player 2 yet
             categoryId,
             Match.MatchType.RANKED,
-            Match.MatchFormat.BEST_OF_3
+            Match.MatchFormat.BEST_OF_3,
+            2
         );
 
         // Then

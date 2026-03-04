@@ -198,6 +198,27 @@ class QuestionServiceTest {
     }
 
     @Test
+    @DisplayName("Should select question by difficulty")
+    void shouldSelectQuestionByDifficulty() {
+        // Given
+        question1.setDifficulty(1); // Easy
+        question2.setDifficulty(2); // Medium
+        
+        when(questionRepository.findByCategoryIdAndDifficultyAndIsActiveTrue(categoryId, 1))
+            .thenReturn(List.of(question1));
+        when(answerRepository.countByQuestionId(question1.getId()))
+            .thenReturn(50L);
+
+        // When
+        Optional<Question> result = questionService.selectRandomQuestion(categoryId, 1, 10);
+
+        // Then
+        assertThat(result).isPresent();
+        assertThat(result.get()).isEqualTo(question1);
+        verify(questionRepository).findByCategoryIdAndDifficultyAndIsActiveTrue(categoryId, 1);
+    }
+
+    @Test
     @DisplayName("Should get category by slug")
     void shouldGetCategoryBySlug() {
         // Given

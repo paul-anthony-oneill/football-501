@@ -61,9 +61,11 @@ public class MatchService {
         UUID player2Id,
         UUID categoryId,
         Match.MatchType type,
-        Match.MatchFormat format
+        Match.MatchFormat format,
+        Integer difficulty
     ) {
-        log.debug("Creating match: player1={}, player2={}, format={}", player1Id, player2Id, format);
+        log.debug("Creating match: player1={}, player2={}, format={}, difficulty={}", 
+            player1Id, player2Id, format, difficulty);
 
         Match match = Match.builder()
             .player1Id(player1Id)
@@ -71,13 +73,15 @@ public class MatchService {
             .categoryId(categoryId)
             .type(type)
             .format(format)
+            .difficulty(difficulty != null ? difficulty : 2)
             .status(Match.MatchStatus.IN_PROGRESS) // Practice mode starts immediately
             .player1GamesWon(0)
             .player2GamesWon(0)
             .build();
 
         Match savedMatch = matchRepository.save(match);
-        log.info("Match created: id={}, format={}", savedMatch.getId(), format);
+        log.info("Match created: id={}, format={}, difficulty={}", 
+            savedMatch.getId(), format, difficulty);
 
         return savedMatch;
     }
@@ -100,8 +104,12 @@ public class MatchService {
             throw new IllegalStateException("Match is not in progress");
         }
 
-        // Select random question
-        Optional<Question> questionOpt = questionService.selectRandomQuestion(match.getCategoryId());
+        // Select random question with match difficulty
+        Optional<Question> questionOpt = questionService.selectRandomQuestion(
+            match.getCategoryId(), 
+            match.getDifficulty(), 
+            10 // DEFAULT_MIN_ANSWERS
+        );
         if (questionOpt.isEmpty()) {
             throw new IllegalStateException("No question available for category");
         }

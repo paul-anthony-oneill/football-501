@@ -68,7 +68,8 @@ public class PracticeGameController {
             null, // No opponent in practice mode
             category.getId(),
             Match.MatchType.CASUAL,
-            Match.MatchFormat.BEST_OF_1
+            Match.MatchFormat.BEST_OF_1,
+            request.getDifficulty()
         );
 
         // Start first game

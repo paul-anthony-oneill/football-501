@@ -50,6 +50,7 @@ public class AdminQuestionService {
                 .metricKey(request.getMetricKey())
                 .config(request.getConfig())
                 .minScore(request.getMinScore())
+                .difficulty(request.getDifficulty() != null ? request.getDifficulty() : 2)
                 .isActive(false) // Default to inactive
                 .build();
 
@@ -74,6 +75,9 @@ public class AdminQuestionService {
         question.setMetricKey(request.getMetricKey());
         question.setConfig(request.getConfig());
         question.setMinScore(request.getMinScore());
+        if (request.getDifficulty() != null) {
+            question.setDifficulty(request.getDifficulty());
+        }
 
         Question saved = questionRepository.save(question);
         log.info("Updated question: {}", saved.getId());
@@ -147,6 +151,7 @@ public class AdminQuestionService {
         response.setMetricKey(question.getMetricKey());
         response.setConfig(question.getConfig());
         response.setMinScore(question.getMinScore());
+        response.setDifficulty(question.getDifficulty());
         response.setIsActive(question.getIsActive());
         response.setCreatedAt(question.getCreatedAt());
         response.setUpdatedAt(question.getUpdatedAt());

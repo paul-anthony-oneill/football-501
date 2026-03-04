@@ -30,6 +30,7 @@
     const columns = [
         { key: 'questionText', label: 'Question' },
         { key: 'categoryName', label: 'Category' },
+        { key: 'difficultyLabel', label: 'Difficulty' },
         { key: 'answerCount', label: 'Answers' },
         { key: 'isActive', label: 'Active' },
     ];
@@ -60,7 +61,10 @@
                 currentPage,
                 pageSize
             );
-            questions = response.content;
+            questions = response.content.map(q => ({
+                ...q,
+                difficultyLabel: q.difficulty === 1 ? 'Easy' : q.difficulty === 3 ? 'Hard' : 'Medium'
+            }));
             totalElements = response.totalElements;
         } catch (error: any) {
             showToast(error.message, 'error');

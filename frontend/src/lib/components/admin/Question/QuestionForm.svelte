@@ -13,6 +13,7 @@
     let questionText = question?.questionText || '';
     let metricKey = question?.metricKey || '';
     let minScore = question?.minScore?.toString() || '';
+    let difficulty = question?.difficulty?.toString() || '2';
     let configJson = question?.config ? JSON.stringify(question.config, null, 2) : '{}';
     
     let errors: Record<string, string> = {};
@@ -46,6 +47,7 @@
             questionText,
             metricKey,
             minScore: minScore ? Number(minScore) : undefined,
+            difficulty: Number(difficulty),
             config: JSON.parse(configJson)
         };
 
@@ -57,6 +59,12 @@
         { value: '', label: 'Select a Category' },
         ...categories.map(c => ({ value: c.id, label: c.name }))
     ];
+
+    const difficultyOptions = [
+        { value: '1', label: 'Easy' },
+        { value: '2', label: 'Medium' },
+        { value: '3', label: 'Hard' }
+    ];
 </script>
 
 <form on:submit|preventDefault={handleSubmit}>
@@ -66,6 +74,14 @@
         options={categoryOptions}
         required
         error={errors.categoryId}
+        disabled={loading}
+    />
+
+    <Select
+        label="Difficulty"
+        bind:value={difficulty}
+        options={difficultyOptions}
+        required
         disabled={loading}
     />
 

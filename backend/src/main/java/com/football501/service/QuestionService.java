@@ -56,25 +56,32 @@ public class QuestionService {
      */
     @Transactional(readOnly = true)
     public Optional<Question> selectRandomQuestion(UUID categoryId) {
-        return selectRandomQuestion(categoryId, DEFAULT_MIN_ANSWERS);
+        return selectRandomQuestion(categoryId, null, DEFAULT_MIN_ANSWERS);
     }
 
     /**
-     * Select a random active question for a category with minimum answer requirement.
+     * Select a random active question for a category with difficulty and minimum answer requirement.
      *
      * @param categoryId the category UUID
+     * @param difficulty the difficulty level (optional)
      * @param minAnswers minimum number of answers required
      * @return optional question (empty if none available)
      */
     @Transactional(readOnly = true)
-    public Optional<Question> selectRandomQuestion(UUID categoryId, int minAnswers) {
-        log.debug("Selecting random question for category {} with minAnswers {}", categoryId, minAnswers);
+    public Optional<Question> selectRandomQuestion(UUID categoryId, Integer difficulty, int minAnswers) {
+        log.debug("Selecting random question for category {} with difficulty {} and minAnswers {}", 
+            categoryId, difficulty, minAnswers);
 
-        // Get all active questions for category
-        List<Question> activeQuestions = questionRepository.findActiveByCategoryId(categoryId);
+        // Get active questions for category (filtered by difficulty if provided)
+        List<Question> activeQuestions;
+        if (difficulty != null) {
+            activeQuestions = questionRepository.findByCategoryIdAndDifficultyAndIsActiveTrue(categoryId, difficulty);
+        } else {
+            activeQuestions = questionRepository.findActiveByCategoryId(categoryId);
+        }
 
         if (activeQuestions.isEmpty()) {
-            log.warn("No active questions found for category {}", categoryId);
+            log.warn("No active questions found for category {} (difficulty: {})", categoryId, difficulty);
             return Optional.empty();
         }
 

@@ -60,6 +60,7 @@ class Team(Base):
     team_type = Column(String(50), nullable=False)  # 'club', 'national'
     country = Column(String(100))
     fbref_id = Column(String(100), unique=True)
+    popularity_rank = Column(Integer, default=10)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (
@@ -68,7 +69,7 @@ class Team(Base):
     )
 
     def __repr__(self):
-        return f"<Team(id={self.id}, name='{self.name}', type='{self.team_type}')>"
+        return f"<Team(id={self.id}, name='{self.name}', type='{self.team_type}', rank={self.popularity_rank})>"
 
 
 class Competition(Base):
@@ -150,6 +151,7 @@ class Question(Base):
     metric_key = Column(String(50), nullable=False)  # e.g., 'goals', 'appearances'
     config = Column(JSONB, nullable=False, default=dict)  # e.g., {'team_id': '...', 'season': '2023'}
     min_score = Column(Integer)
+    difficulty = Column(Integer, default=2)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

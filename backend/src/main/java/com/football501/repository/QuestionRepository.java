@@ -31,6 +31,15 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
     List<Question> findByCategoryIdAndIsActiveTrue(UUID categoryId);
 
     /**
+     * Find active questions by category and difficulty.
+     *
+     * @param categoryId the category UUID
+     * @param difficulty the difficulty level
+     * @return list of questions
+     */
+    List<Question> findByCategoryIdAndDifficultyAndIsActiveTrue(UUID categoryId, Integer difficulty);
+
+    /**
      * Alias for findByCategoryIdAndIsActiveTrue.
      *
      * @param categoryId the category UUID

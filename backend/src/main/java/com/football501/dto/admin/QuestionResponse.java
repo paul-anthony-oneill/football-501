@@ -15,6 +15,7 @@ public class QuestionResponse {
     private String metricKey;
     private Map<String, Object> config;
     private Integer minScore;
+    private Integer difficulty;
     private Boolean isActive;
     private long answerCount;
     private long validDartsCount;

@@ -49,6 +49,18 @@ def run():
     questions_created = 0
     
     for team in teams:
+        # Determine difficulty based on popularity rank
+        # 1-2 -> Easy (1)
+        # 3-5 -> Medium (2)
+        # > 5 -> Hard (3)
+        # Note: In migration we seeded 1 and 2. Default is 10.
+        if team.popularity_rank <= 2:
+            difficulty = 1
+        elif team.popularity_rank <= 5:
+            difficulty = 2
+        else:
+            difficulty = 3
+
         # Check if question exists
         # Goals
         q_text_goals = f"{team.name} - Premier League Goals"
@@ -64,6 +76,7 @@ def run():
                     "competition": "Premier League"
                 },
                 min_score=1, # Ignore 0 goals
+                difficulty=difficulty,
                 is_active=True
             )
             session.add(q_goals)
@@ -83,6 +96,7 @@ def run():
                     "competition": "Premier League"
                 },
                 min_score=1,
+                difficulty=difficulty,
                 is_active=True
             )
             session.add(q_apps)

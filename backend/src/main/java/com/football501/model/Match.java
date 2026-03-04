@@ -62,6 +62,10 @@ public class Match {
     @Column(name = "category_id")
     private UUID categoryId;
 
+    @Column(name = "difficulty")
+    @Builder.Default
+    private Integer difficulty = 2;
+
     @Column(name = "started_at")
     private LocalDateTime startedAt;
 

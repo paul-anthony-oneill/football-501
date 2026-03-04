@@ -26,4 +26,10 @@ public class StartPracticeRequest {
      * If not provided, defaults to "football".
      */
     private String categorySlug;
+
+    /**
+     * Difficulty level (1 = Easy, 2 = Medium, 3 = Hard).
+     * Defaults to 2 (Medium) if not provided.
+     */
+    private Integer difficulty;
 }

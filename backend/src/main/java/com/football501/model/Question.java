@@ -44,6 +44,10 @@ public class Question {
     @Column(name = "min_score")
     private Integer minScore;
 
+    @Column(name = "difficulty", nullable = false)
+    @Builder.Default
+    private Integer difficulty = 2;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;

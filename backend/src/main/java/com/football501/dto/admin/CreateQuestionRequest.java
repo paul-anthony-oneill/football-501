@@ -23,4 +23,7 @@ public class CreateQuestionRequest {
 
     @Min(value = 0, message = "Minimum score must be non-negative")
     private Integer minScore;
+
+    @Min(value = 1, message = "Difficulty must be between 1 and 3")
+    private Integer difficulty;
 }
