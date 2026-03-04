@@ -64,11 +64,11 @@ class Settings(BaseSettings):
         "France Ligue 1",
         "UEFA Champions League"
     ]
-    current_season: str = Field(default="2024-2025", env="CURRENT_SEASON")
+    current_season: str = Field(default="2025-2026", env="CURRENT_SEASON")
     historical_seasons: List[str] = [
+        "2024-2025",
         "2023-2024",
-        "2022-2023",
-        "2021-2022"
+        "2022-2023"
     ]
 
     # Admin API
