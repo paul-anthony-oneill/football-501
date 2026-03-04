@@ -49,13 +49,13 @@
     .admin-layout {
         display: flex;
         min-height: 100vh;
-        background: #111;
+        background: var(--color-background);
     }
 
     main {
         flex: 1;
         margin-left: 250px; /* Sidebar width */
-        padding: 2rem;
+        padding: var(--space-xl);
         width: calc(100% - 250px);
     }
 
@@ -63,6 +63,7 @@
         main {
             margin-left: 0;
             width: 100%;
+            padding: var(--space-md);
         }
     }
 </style>

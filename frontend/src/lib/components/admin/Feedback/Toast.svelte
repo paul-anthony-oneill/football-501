@@ -19,55 +19,68 @@
 </script>
 
 <div class="toast {type}" transition:fly={{ y: -50, duration: 300 }}>
+    <div class="icon">
+        {#if type === 'success'}✅{:else if type === 'error'}❌{:else}ℹ️{/if}
+    </div>
     <div class="content">{message}</div>
-    <button on:click={() => dispatch('close')}>&times;</button>
+    <button class="close-btn" on:click={() => dispatch('close')} aria-label="Close">&times;</button>
 </div>
 
 <style>
     .toast {
         position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 1rem 1.5rem;
-        border-radius: 8px;
-        color: #fff;
+        top: var(--space-lg);
+        right: var(--space-lg);
+        padding: var(--space-md) var(--space-lg);
+        border-radius: var(--radius-md);
+        color: white;
         display: flex;
         align-items: center;
-        gap: 1rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        gap: var(--space-md);
+        box-shadow: var(--shadow-3);
         z-index: 2000;
-        min-width: 300px;
+        min-width: 320px;
+        max-width: 450px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .success {
-        background: #059669;
-        border-left: 4px solid #34d399;
+        background: #00522b;
+        border-left: 6px solid var(--color-primary);
     }
 
     .error {
-        background: #dc2626;
-        border-left: 4px solid #f87171;
+        background: #93000a;
+        border-left: 6px solid var(--color-error);
     }
 
     .info {
-        background: #2563eb;
-        border-left: 4px solid #60a5fa;
+        background: #004a77;
+        border-left: 6px solid #7fcfff;
+    }
+
+    .icon {
+        font-size: 1.25rem;
     }
 
     .content {
         flex: 1;
+        font-weight: 600;
+        font-size: 0.95rem;
     }
 
-    button {
+    .close-btn {
         background: none;
         border: none;
-        color: rgba(255, 255, 255, 0.8);
-        font-size: 1.25rem;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1.5rem;
         cursor: pointer;
-        padding: 0;
+        padding: var(--space-xs);
+        line-height: 1;
+        transition: color 0.2s;
     }
 
-    button:hover {
-        color: #fff;
+    .close-btn:hover {
+        color: white;
     }
 </style>

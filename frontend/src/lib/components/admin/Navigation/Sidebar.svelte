@@ -45,8 +45,8 @@
     aside {
         width: 250px;
         height: 100vh;
-        background: #1a1a1a;
-        border-right: 1px solid #333;
+        background: var(--color-surface);
+        border-right: 1px solid var(--color-outline);
         display: flex;
         flex-direction: column;
         transition: transform 0.3s ease;
@@ -54,34 +54,38 @@
         left: 0;
         top: 0;
         z-index: 100;
+        box-shadow: var(--shadow-2);
     }
 
     .logo {
-        padding: 1.5rem;
-        border-bottom: 1px solid #333;
+        padding: var(--space-lg);
+        border-bottom: 1px solid var(--color-outline);
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: var(--space-sm);
     }
 
     h2 {
         margin: 0;
         font-size: 1.25rem;
-        color: #4ade80;
+        color: var(--color-primary);
+        font-weight: 800;
     }
 
     .badge {
-        background: #333;
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        color: #9ca3af;
+        background: var(--color-primary-container);
+        padding: 0.2rem 0.5rem;
+        border-radius: var(--radius-xs);
+        font-size: 0.65rem;
+        color: var(--color-on-primary-container);
         text-transform: uppercase;
+        font-weight: 800;
+        letter-spacing: 0.5px;
     }
 
     nav {
         flex: 1;
-        padding: 1rem;
+        padding: var(--space-md);
     }
 
     ul {
@@ -91,29 +95,29 @@
     }
 
     li {
-        margin-bottom: 0.5rem;
+        margin-bottom: var(--space-xs);
     }
 
     a {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem 1rem;
-        color: #9ca3af;
+        gap: var(--space-md);
+        padding: var(--space-md);
+        color: var(--color-on-surface-variant);
         text-decoration: none;
-        border-radius: 6px;
+        border-radius: var(--radius-sm);
         transition: all 0.2s;
+        font-weight: 500;
     }
 
     a:hover {
-        background: #2a2a2a;
-        color: #fff;
+        background: var(--color-surface-variant);
+        color: var(--color-on-surface);
     }
 
     a.active {
-        background: rgba(74, 222, 128, 0.1);
-        color: #4ade80;
-        border-left: 3px solid #4ade80;
+        background: var(--color-primary-container);
+        color: var(--color-on-primary-container);
     }
 
     .icon {
@@ -121,16 +125,17 @@
     }
 
     .footer {
-        padding: 1rem;
-        border-top: 1px solid #333;
+        padding: var(--space-md);
+        border-top: 1px solid var(--color-outline);
     }
 
     .back-link {
-        color: #ef4444;
+        color: var(--color-error);
+        font-weight: 600;
     }
 
     .back-link:hover {
-        background: rgba(239, 68, 68, 0.1);
-        color: #ef4444;
+        background: var(--color-error-container);
+        color: var(--color-on-error-container);
     }
 </style>

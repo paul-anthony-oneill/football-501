@@ -2,6 +2,8 @@
 
 > A competitive football trivia game with darts 501 scoring mechanics
 
+**📍 [Gemini Project Roadmap & Status](.gemini/GEMINI.md)**
+
 [![Status](https://img.shields.io/badge/status-in%20development-yellow)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
