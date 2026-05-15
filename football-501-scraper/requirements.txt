@@ -11,7 +11,7 @@ psycopg2-binary>=2.9.9
 sqlalchemy>=2.0.25
 
 # Scraping
-ScraperFC>=4.0.0
+ScraperFC>=3.0.0,<4.0.0
 pandas>=2.0.0
 beautifulsoup4>=4.11.0
 requests>=2.32.0
