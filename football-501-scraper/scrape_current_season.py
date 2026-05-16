@@ -75,14 +75,43 @@ def upsert_teams(session, squad_names: set) -> None:
 
 def run_scrape():
     from ScraperFC.fbref import FBref
+    import undetected_chromedriver as uc
+    import time
+
 
     print(f"Starting scrape for {settings.current_season}...")
+    print("Launching Chrome (undetected) to bypass Cloudflare...")
+
+    driver = uc.Chrome(headless=False)
 
     engine = create_engine(settings.database_url)
     Session = sessionmaker(bind=engine)
     session = Session()
 
     fb = FBref(wait_time=settings.fbref_wait_time)
+
+    def _wait_for_cloudflare(url: str) -> None:
+        driver.get(url)
+        for _ in range(30):
+            if "Just a moment" not in driver.title:
+                break
+            time.sleep(1)
+        time.sleep(fb.wait_time)
+
+    def chrome_get(url: str):
+        class R: pass
+        _wait_for_cloudflare(url)
+        r = R()
+        r.status_code = 200
+        r.content = driver.page_source.encode("utf-8")
+        return r
+
+    # Patch all HTTP methods so every FBref request goes through undetected Chrome
+    fb._get = chrome_get
+    fb._driver_init = lambda: None        # prevent ScraperFC opening its own Chrome
+    fb.driver = driver                    # hand our driver to ScraperFC
+    fb._driver_get = _wait_for_cloudflare # ScraperFC's driver.get goes through ours
+    fb._driver_close = lambda: None       # don't let ScraperFC close our driver
 
     # ScraperFC v3 requires the short league code, not the full name
     leagues = [
@@ -186,8 +215,10 @@ def run_scrape():
         except Exception as e:
             print(f"Error scraping {league_name}: {e}")
             session.rollback()
+            driver.quit()
             raise
 
+    driver.quit()
     print("\nScrape complete.")
     print("Next steps:")
     print("  python init_questions_v2.py")
