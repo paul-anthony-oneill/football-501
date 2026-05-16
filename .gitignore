@@ -34,6 +34,10 @@ hs_err_pid*
 .vscode/
 *.iml
 
+# Scraper runtime artifacts
+football-501-scraper/error_logs/
+football-501-scraper/output/
+
 # Logs
 *.log
 npm-debug.log*
