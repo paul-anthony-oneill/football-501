@@ -1,0 +1,127 @@
+{
+    "version": "1.0",
+    "description": "Skill activation triggers for Football-501. Controls when skills automatically suggest or block actions.",
+    "skills": {
+        "skill-developer": {
+            "type": "domain",
+            "enforcement": "suggest",
+            "priority": "high",
+            "description": "Meta-skill for creating and managing Claude Code skills",
+            "promptTriggers": {
+                "keywords": [
+                    "skill system",
+                    "create skill",
+                    "add skill",
+                    "skill triggers",
+                    "skill rules",
+                    "hook system",
+                    "skill development",
+                    "skill-rules.json"
+                ],
+                "intentPatterns": [
+                    "(how do|how does|explain).*?skill",
+                    "(create|add|modify|build).*?skill",
+                    "skill.*?(work|trigger|activate|system)"
+                ]
+            }
+        },
+        "sveltekit-dev-guidelines": {
+            "type": "domain",
+            "enforcement": "suggest",
+            "priority": "high",
+            "description": "SvelteKit + Tailwind CSS frontend patterns for Football-501 PWA",
+            "promptTriggers": {
+                "keywords": [
+                    "svelte",
+                    "sveltekit",
+                    "component",
+                    "frontend",
+                    "UI",
+                    "page",
+                    "store",
+                    "tailwind",
+                    "routing",
+                    "load function",
+                    "pwa",
+                    "interface"
+                ],
+                "intentPatterns": [
+                    "(create|add|make|build|update|modify).*?(component|page|store|UI|route)",
+                    "(how to|best practice).*?(svelte|sveltekit|tailwind|component)",
+                    "(style|design|layout).*?(component|UI)"
+                ]
+            },
+            "fileTriggers": {
+                "pathPatterns": [
+                    "frontend/src/**/*.svelte",
+                    "frontend/src/**/*.ts",
+                    "frontend/src/lib/**/*.ts",
+                    "src/**/*.svelte"
+                ],
+                "pathExclusions": [
+                    "**/*.test.ts",
+                    "**/*.spec.ts",
+                    "**/*.test.svelte"
+                ]
+            }
+        },
+        "spring-boot-dev-guidelines": {
+            "type": "domain",
+            "enforcement": "suggest",
+            "priority": "high",
+            "description": "Spring Boot 3.x / Java 17 backend patterns for Football-501",
+            "promptTriggers": {
+                "keywords": [
+                    "spring boot",
+                    "controller",
+                    "service",
+                    "repository",
+                    "endpoint",
+                    "rest api",
+                    "java",
+                    "jpa",
+                    "hibernate",
+                    "spring security",
+                    "websocket",
+                    "stomp",
+                    "bean validation",
+                    "game engine",
+                    "testcontainers",
+                    "scheduler"
+                ],
+                "intentPatterns": [
+                    "(create|add|implement|build).*?(endpoint|controller|service|repository|API)",
+                    "(fix|handle|debug).*?(error|exception|backend)",
+                    "(implement|add).*?(validation|security|websocket|game.*?logic)",
+                    "(organize|structure|refactor).*?(backend|service|API)",
+                    "(how to|best practice).*?(spring|java|jpa|controller)"
+                ]
+            },
+            "fileTriggers": {
+                "pathPatterns": [
+                    "backend/src/**/*.java",
+                    "backend/src/main/**/*.java",
+                    "backend/src/test/**/*.java"
+                ],
+                "pathExclusions": [
+                    "**/*Test.java",
+                    "**/test/**/*.java"
+                ],
+                "contentPatterns": [
+                    "@RestController",
+                    "@Service",
+                    "@Repository",
+                    "@SpringBootApplication",
+                    "@MessageMapping"
+                ]
+            }
+        }
+    },
+    "notes": {
+        "enforcement_types": {
+            "suggest": "Skill suggestion appears but doesn't block execution",
+            "block": "Requires skill to be used before proceeding (guardrail)",
+            "warn": "Shows warning but allows proceeding"
+        }
+    }
+}

@@ -1,0 +1,25 @@
+{
+    "hooks": {
+        "UserPromptSubmit": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "/Users/pauloneill/Documents/GitHub/football-501/.claude/hooks/skill-activation-prompt.sh"
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Edit|MultiEdit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "/Users/pauloneill/Documents/GitHub/football-501/.claude/hooks/post-tool-use-tracker.sh"
+                    }
+                ]
+            }
+        ]
+    }
+}
