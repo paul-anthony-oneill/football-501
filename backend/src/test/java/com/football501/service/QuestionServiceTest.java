@@ -121,7 +121,7 @@ class QuestionServiceTest {
             .thenReturn(List.of(question1));
 
         // When
-        Optional<Question> result = questionService.selectRandomQuestion(categoryId, 20);
+        Optional<Question> result = questionService.selectRandomQuestion(categoryId, null, 20);
 
         // Then
         assertThat(result).isPresent();
