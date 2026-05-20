@@ -113,6 +113,7 @@ def run_scrape():
     fb._driver_get = _wait_for_cloudflare # ScraperFC's driver.get goes through ours
     fb._driver_close = lambda: None       # don't let ScraperFC close our driver
 
+
     # ScraperFC v3 requires the short league code, not the full name
     leagues = [
         ("EPL", "EPL"),
@@ -219,6 +220,7 @@ def run_scrape():
             raise
 
     driver.quit()
+
     print("\nScrape complete.")
     print("Next steps:")
     print("  python init_questions_v2.py")

@@ -4,10 +4,10 @@ import com.football501.dto.admin.AnswerResponse;
 import com.football501.dto.admin.BulkCreateAnswersRequest;
 import com.football501.dto.admin.BulkCreateAnswersResponse;
 import com.football501.dto.admin.CreateAnswerRequest;
+import com.football501.engine.DartsValidator;
 import com.football501.model.Answer;
 import com.football501.repository.AnswerRepository;
 import com.football501.repository.QuestionRepository;
-import com.football501.util.DartsScoreValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -59,39 +60,34 @@ public class AdminAnswerService {
             throw new IllegalArgumentException("Question not found with id: " + questionId);
         }
 
-        BulkCreateAnswersResponse response = new BulkCreateAnswersResponse();
-        response.setErrors(new ArrayList<>());
-        int created = 0;
+        Set<String> existingKeys = answerRepository.findAnswerKeysByQuestionId(questionId);
+        List<Answer> toSave = new ArrayList<>();
         int skipped = 0;
 
         for (CreateAnswerRequest item : request.getAnswers()) {
-            try {
-                String answerKey = normalizeAnswerKey(item.getDisplayText());
-                if (answerRepository.existsByQuestionIdAndAnswerKey(questionId, answerKey)) {
-                    skipped++;
-                    continue;
-                }
-
-                Answer answer = new Answer();
-                answer.setQuestionId(questionId);
-                answer.setDisplayText(item.getDisplayText());
-                answer.setAnswerKey(answerKey);
-                answer.setScore(item.getScore());
-                answer.setMetadata(item.getMetadata());
-                answer.setIsValidDarts(isValidDartsScore(item.getScore()));
-                answer.setIsBust(isBust(item.getScore()));
-                answer.setCreatedAt(LocalDateTime.now());
-                
-                answerRepository.save(answer);
-                created++;
-
-            } catch (Exception e) {
-                log.error("Error creating answer: {}", item.getDisplayText(), e);
-                response.getErrors().add("Error for '" + item.getDisplayText() + "': " + e.getMessage());
+            String answerKey = normalizeAnswerKey(item.getDisplayText());
+            if (existingKeys.contains(answerKey)) {
+                skipped++;
+                continue;
             }
+
+            Answer answer = new Answer();
+            answer.setQuestionId(questionId);
+            answer.setDisplayText(item.getDisplayText());
+            answer.setAnswerKey(answerKey);
+            answer.setScore(item.getScore());
+            answer.setMetadata(item.getMetadata());
+            answer.setIsValidDarts(isValidDartsScore(item.getScore()));
+            answer.setIsBust(isBust(item.getScore()));
+            answer.setCreatedAt(LocalDateTime.now());
+            toSave.add(answer);
         }
 
-        response.setCreated(created);
+        answerRepository.saveAll(toSave);
+
+        BulkCreateAnswersResponse response = new BulkCreateAnswersResponse();
+        response.setErrors(new ArrayList<>());
+        response.setCreated(toSave.size());
         response.setSkipped(skipped);
         return response;
     }
@@ -152,11 +148,11 @@ public class AdminAnswerService {
     }
 
     private boolean isValidDartsScore(int score) {
-        return DartsScoreValidator.isValid(score);
+        return DartsValidator.isValidDartsScore(score);
     }
 
     private boolean isBust(int score) {
-        return score > 180;
+        return !DartsValidator.isValidDartsScore(score);
     }
 
     private AnswerResponse mapToResponse(Answer answer) {

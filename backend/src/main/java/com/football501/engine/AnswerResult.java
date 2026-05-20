@@ -70,17 +70,19 @@ public class AnswerResult {
     private final Double similarity;
 
     /**
-     * Create an invalid answer result.
+     * Create an invalid answer result (player not found, already used, empty input).
+     * Score is unchanged — newTotal reflects the player's current score.
      *
      * @param reason the reason why answer is invalid
+     * @param currentScore the player's score before this turn
      * @return invalid AnswerResult
      */
-    public static AnswerResult invalid(String reason) {
+    public static AnswerResult invalid(String reason, int currentScore) {
         return AnswerResult.builder()
             .valid(false)
             .bust(false)
             .win(false)
-            .newTotal(0)
+            .newTotal(currentScore)
             .validDartsScore(false)
             .reason(reason)
             .build();

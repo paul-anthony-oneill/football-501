@@ -7,7 +7,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -56,28 +58,30 @@ public interface GameMoveRepository extends JpaRepository<GameMove, UUID> {
     long countByGameIdAndResult(UUID gameId, MoveResult result);
 
     /**
-     * Count successful moves (VALID or CHECKOUT) for a player in a game.
+     * Count moves matching any of the given result types for a player in a game.
      *
      * @param gameId the game UUID
      * @param playerId the player UUID
-     * @return count of successful moves
+     * @param results the result types to include
+     * @return count of matching moves
      */
     @Query("""
         SELECT COUNT(m) FROM GameMove m
         WHERE m.gameId = :gameId
           AND m.playerId = :playerId
-          AND (m.result = 'VALID' OR m.result = 'CHECKOUT')
+          AND m.result IN :results
         """)
     long countSuccessfulMovesByPlayer(
         @Param("gameId") UUID gameId,
-        @Param("playerId") UUID playerId
+        @Param("playerId") UUID playerId,
+        @Param("results") Collection<MoveResult> results
     );
 
     /**
      * Get the last move in a game.
      *
      * @param gameId the game UUID
-     * @return list with single move or empty
+     * @return optional latest move
      */
     @Query("""
         SELECT m FROM GameMove m
@@ -85,7 +89,7 @@ public interface GameMoveRepository extends JpaRepository<GameMove, UUID> {
         ORDER BY m.moveNumber DESC
         LIMIT 1
         """)
-    List<GameMove> findLatestMoveByGameId(@Param("gameId") UUID gameId);
+    Optional<GameMove> findLatestMoveByGameId(@Param("gameId") UUID gameId);
 
     /**
      * Count total moves in a game.
