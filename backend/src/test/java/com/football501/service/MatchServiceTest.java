@@ -129,7 +129,7 @@ class MatchServiceTest {
     void shouldStartFirstGame() {
         // Given
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-        when(questionService.selectRandomQuestion(categoryId)).thenReturn(Optional.of(question));
+        when(questionService.selectRandomQuestion(categoryId, 2, 10)).thenReturn(Optional.of(question));
         when(gameRepository.countByMatchIdAndStatus(matchId, Game.GameStatus.COMPLETED))
             .thenReturn(0L);
 
@@ -151,7 +151,7 @@ class MatchServiceTest {
         assertThat(result.getGameNumber()).isEqualTo(1);
         assertThat(result.getQuestionId()).isEqualTo(questionId);
 
-        verify(questionService).selectRandomQuestion(categoryId);
+        verify(questionService).selectRandomQuestion(categoryId, 2, 10);
         verify(gameService).createGame(matchId, questionId, 1);
     }
 
@@ -160,7 +160,7 @@ class MatchServiceTest {
     void shouldStartNextGameAfterPreviousCompletes() {
         // Given - 1 game already completed
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-        when(questionService.selectRandomQuestion(categoryId)).thenReturn(Optional.of(question));
+        when(questionService.selectRandomQuestion(categoryId, 2, 10)).thenReturn(Optional.of(question));
         when(gameRepository.countByMatchIdAndStatus(matchId, Game.GameStatus.COMPLETED))
             .thenReturn(1L);
 
@@ -361,7 +361,7 @@ class MatchServiceTest {
     void shouldThrowExceptionWhenNoQuestionAvailable() {
         // Given
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-        when(questionService.selectRandomQuestion(categoryId)).thenReturn(Optional.empty());
+        when(questionService.selectRandomQuestion(categoryId, 2, 10)).thenReturn(Optional.empty());
         // Note: gameRepository stub not needed - exception thrown before it's accessed
 
         // When/Then

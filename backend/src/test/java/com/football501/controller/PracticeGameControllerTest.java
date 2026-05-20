@@ -1,6 +1,6 @@
 package com.football501.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.football501.dto.GameStateResponse;
 import com.football501.dto.StartPracticeRequest;
 import com.football501.dto.SubmitAnswerRequest;
@@ -12,8 +12,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -37,6 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 6. Start practice game with invalid category - returns 400
  */
 @WebMvcTest(PracticeGameController.class)
+@Import(JacksonAutoConfiguration.class)
 @DisplayName("PracticeGameController Tests")
 class PracticeGameControllerTest {
 
@@ -46,13 +49,13 @@ class PracticeGameControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private MatchService matchService;
 
-    @MockBean
+    @MockitoBean
     private GameService gameService;
 
-    @MockBean
+    @MockitoBean
     private QuestionService questionService;
 
     private UUID playerId;
@@ -122,7 +125,7 @@ class PracticeGameControllerTest {
 
         when(questionService.getCategoryBySlug("football")).thenReturn(Optional.of(category));
         when(matchService.createMatch(eq(playerId), isNull(), eq(categoryId),
-            eq(Match.MatchType.CASUAL), eq(Match.MatchFormat.BEST_OF_1)))
+            eq(Match.MatchType.CASUAL), eq(Match.MatchFormat.BEST_OF_1), isNull()))
             .thenReturn(match);
         when(matchService.startNextGame(matchId)).thenReturn(game);
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
@@ -365,7 +368,7 @@ class PracticeGameControllerTest {
 
         when(questionService.getCategoryBySlug("football")).thenReturn(Optional.of(category));
         when(matchService.createMatch(eq(playerId), isNull(), eq(categoryId),
-            eq(Match.MatchType.CASUAL), eq(Match.MatchFormat.BEST_OF_1)))
+            eq(Match.MatchType.CASUAL), eq(Match.MatchFormat.BEST_OF_1), isNull()))
             .thenReturn(match);
         when(matchService.startNextGame(matchId)).thenReturn(game);
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
