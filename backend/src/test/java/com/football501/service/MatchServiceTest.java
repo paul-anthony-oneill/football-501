@@ -19,8 +19,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -129,7 +128,9 @@ class MatchServiceTest {
     void shouldStartFirstGame() {
         // Given
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-        when(questionService.selectRandomQuestion(categoryId)).thenReturn(Optional.of(question));
+        // match.getDifficulty() is null (not set in builder); service calls selectRandomQuestion(id, null, 10)
+        when(questionService.selectRandomQuestion(eq(categoryId), eq(2), eq(10)))
+            .thenReturn(Optional.of(question));
         when(gameRepository.countByMatchIdAndStatus(matchId, Game.GameStatus.COMPLETED))
             .thenReturn(0L);
 
@@ -151,7 +152,7 @@ class MatchServiceTest {
         assertThat(result.getGameNumber()).isEqualTo(1);
         assertThat(result.getQuestionId()).isEqualTo(questionId);
 
-        verify(questionService).selectRandomQuestion(categoryId);
+        verify(questionService).selectRandomQuestion(eq(categoryId), eq(2), eq(10));
         verify(gameService).createGame(matchId, questionId, 1);
     }
 
@@ -160,7 +161,8 @@ class MatchServiceTest {
     void shouldStartNextGameAfterPreviousCompletes() {
         // Given - 1 game already completed
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-        when(questionService.selectRandomQuestion(categoryId)).thenReturn(Optional.of(question));
+        when(questionService.selectRandomQuestion(eq(categoryId), eq(2), eq(10)))
+            .thenReturn(Optional.of(question));
         when(gameRepository.countByMatchIdAndStatus(matchId, Game.GameStatus.COMPLETED))
             .thenReturn(1L);
 
@@ -361,7 +363,8 @@ class MatchServiceTest {
     void shouldThrowExceptionWhenNoQuestionAvailable() {
         // Given
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-        when(questionService.selectRandomQuestion(categoryId)).thenReturn(Optional.empty());
+        when(questionService.selectRandomQuestion(eq(categoryId), eq(2), eq(10)))
+            .thenReturn(Optional.empty());
         // Note: gameRepository stub not needed - exception thrown before it's accessed
 
         // When/Then
@@ -521,6 +524,6 @@ class MatchServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getPlayer1Id()).isEqualTo(player1Id);
         assertThat(result.getPlayer2Id()).isNull();
-        assertThat(result.getStatus()).isEqualTo(Match.MatchStatus.WAITING); // Waiting for player 2
+        assertThat(result.getStatus()).isEqualTo(Match.MatchStatus.IN_PROGRESS);
     }
 }

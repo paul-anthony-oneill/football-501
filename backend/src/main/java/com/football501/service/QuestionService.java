@@ -60,6 +60,18 @@ public class QuestionService {
     }
 
     /**
+     * Select a random active question for a category with a custom minimum answer count.
+     *
+     * @param categoryId the category UUID
+     * @param minAnswers minimum number of answers required
+     * @return optional question (empty if none available)
+     */
+    @Transactional(readOnly = true)
+    public Optional<Question> selectRandomQuestion(UUID categoryId, int minAnswers) {
+        return selectRandomQuestion(categoryId, null, minAnswers);
+    }
+
+    /**
      * Select a random active question for a category with difficulty and minimum answer requirement.
      *
      * @param categoryId the category UUID

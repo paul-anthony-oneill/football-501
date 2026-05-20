@@ -122,7 +122,7 @@ class PracticeGameControllerTest {
 
         when(questionService.getCategoryBySlug("football")).thenReturn(Optional.of(category));
         when(matchService.createMatch(eq(playerId), isNull(), eq(categoryId),
-            eq(Match.MatchType.CASUAL), eq(Match.MatchFormat.BEST_OF_1)))
+            eq(Match.MatchType.CASUAL), eq(Match.MatchFormat.BEST_OF_1), any()))
             .thenReturn(match);
         when(matchService.startNextGame(matchId)).thenReturn(game);
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
@@ -365,7 +365,7 @@ class PracticeGameControllerTest {
 
         when(questionService.getCategoryBySlug("football")).thenReturn(Optional.of(category));
         when(matchService.createMatch(eq(playerId), isNull(), eq(categoryId),
-            eq(Match.MatchType.CASUAL), eq(Match.MatchFormat.BEST_OF_1)))
+            eq(Match.MatchType.CASUAL), eq(Match.MatchFormat.BEST_OF_1), any()))
             .thenReturn(match);
         when(matchService.startNextGame(matchId)).thenReturn(game);
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
