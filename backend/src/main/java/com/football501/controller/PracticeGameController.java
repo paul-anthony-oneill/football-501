@@ -8,6 +8,7 @@ import com.football501.model.*;
 import com.football501.service.GameService;
 import com.football501.service.MatchService;
 import com.football501.service.QuestionService;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -51,7 +52,7 @@ public class PracticeGameController {
      * @return game state response
      */
     @PostMapping("/start")
-    public ResponseEntity<GameStateResponse> startPracticeGame(@RequestBody StartPracticeRequest request) {
+    public ResponseEntity<GameStateResponse> startPracticeGame(@Valid @RequestBody StartPracticeRequest request) {
         log.debug("Starting practice game for player {}", request.getPlayerId());
 
         // Get category (default to football if not specified)
@@ -96,7 +97,7 @@ public class PracticeGameController {
     public ResponseEntity<SubmitAnswerResponse> submitAnswer(
         @PathVariable UUID gameId,
         @RequestParam UUID playerId,
-        @RequestBody SubmitAnswerRequest request
+        @Valid @RequestBody SubmitAnswerRequest request
     ) {
         log.debug("Submitting answer for game {}: '{}'", gameId, request.getAnswer());
 
