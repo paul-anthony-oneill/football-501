@@ -11,8 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Service for managing questions and question selection.
@@ -29,7 +29,6 @@ public class QuestionService {
     private final QuestionRepository questionRepository;
     private final CategoryRepository categoryRepository;
     private final AnswerRepository answerRepository;
-    private final Random random;
 
     static final int DEFAULT_MIN_ANSWERS = 10;
 
@@ -41,7 +40,6 @@ public class QuestionService {
         this.questionRepository = questionRepository;
         this.categoryRepository = categoryRepository;
         this.answerRepository = answerRepository;
-        this.random = new Random();
     }
 
     /**
@@ -80,7 +78,7 @@ public class QuestionService {
             return Optional.empty();
         }
 
-        Question selected = eligibleQuestions.get(random.nextInt(eligibleQuestions.size()));
+        Question selected = eligibleQuestions.get(ThreadLocalRandom.current().nextInt(eligibleQuestions.size()));
         log.debug("Selected question: {} (ID: {})", selected.getQuestionText(), selected.getId());
 
         return Optional.of(selected);
