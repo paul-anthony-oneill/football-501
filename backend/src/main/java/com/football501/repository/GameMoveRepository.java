@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -80,7 +81,7 @@ public interface GameMoveRepository extends JpaRepository<GameMove, UUID> {
      * Get the last move in a game.
      *
      * @param gameId the game UUID
-     * @return list with single move or empty
+     * @return optional latest move
      */
     @Query("""
         SELECT m FROM GameMove m
@@ -88,7 +89,7 @@ public interface GameMoveRepository extends JpaRepository<GameMove, UUID> {
         ORDER BY m.moveNumber DESC
         LIMIT 1
         """)
-    List<GameMove> findLatestMoveByGameId(@Param("gameId") UUID gameId);
+    Optional<GameMove> findLatestMoveByGameId(@Param("gameId") UUID gameId);
 
     /**
      * Count total moves in a game.
