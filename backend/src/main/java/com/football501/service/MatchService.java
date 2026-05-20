@@ -74,7 +74,7 @@ public class MatchService {
             .type(type)
             .format(format)
             .difficulty(difficulty != null ? difficulty : 2)
-            .status(Match.MatchStatus.IN_PROGRESS) // Practice mode starts immediately
+            .status(player2Id != null ? Match.MatchStatus.IN_PROGRESS : Match.MatchStatus.WAITING)
             .player1GamesWon(0)
             .player2GamesWon(0)
             .build();

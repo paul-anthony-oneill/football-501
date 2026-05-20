@@ -124,7 +124,7 @@ class QuestionServiceTest {
         when(answerRepository.countByQuestionId(question2.getId())).thenReturn(5L); // Too few
 
         // When
-        Optional<Question> result = questionService.selectRandomQuestion(categoryId, 20);
+        Optional<Question> result = questionService.selectRandomQuestion(categoryId, null, 20);
 
         // Then
         assertThat(result).isPresent();
