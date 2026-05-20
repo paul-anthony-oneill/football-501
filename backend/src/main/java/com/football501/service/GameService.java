@@ -77,7 +77,7 @@ public class GameService {
         List<UUID> usedAnswerIds = gameMoveRepository.findUsedAnswerIdsByGameId(gameId);
 
         // Get current score
-        int currentScore = getPlayerScore(game, playerId);
+        int currentScore = getPlayerScore(game, match, playerId);
 
         // Evaluate answer
         AnswerResult answerResult = answerEvaluator.evaluateAnswer(
@@ -122,16 +122,16 @@ public class GameService {
         validateGameInProgress(game);
 
         // Increment consecutive timeouts
-        incrementConsecutiveTimeouts(game, playerId);
+        incrementConsecutiveTimeouts(game, match, playerId);
 
         // Check for forfeit (3+ consecutive timeouts)
-        if (getConsecutiveTimeouts(game, playerId) >= FORFEIT_TIMEOUT_THRESHOLD) {
+        if (getConsecutiveTimeouts(game, match, playerId) >= FORFEIT_TIMEOUT_THRESHOLD) {
             log.warn("Player {} forfeited due to {} consecutive timeouts", playerId, FORFEIT_TIMEOUT_THRESHOLD);
             game.setStatus(Game.GameStatus.COMPLETED);
             game.setWinnerId(getOpponentId(match, playerId));
         } else {
             // Reduce timer based on consecutive timeouts
-            updateTimerForTimeouts(game, playerId);
+            updateTimerForTimeouts(game, match, playerId);
         }
 
         // Create timeout move
@@ -238,8 +238,7 @@ public class GameService {
         }
     }
 
-    private int getPlayerScore(Game game, UUID playerId) {
-        Match match = getMatchOrThrow(game.getMatchId());
+    private int getPlayerScore(Game game, Match match, UUID playerId) {
         if (playerId.equals(match.getPlayer1Id())) {
             return game.getPlayer1Score();
         } else if (playerId.equals(match.getPlayer2Id())) {
@@ -248,8 +247,7 @@ public class GameService {
         throw new IllegalArgumentException("Player not in this match");
     }
 
-    private void setPlayerScore(Game game, UUID playerId, int newScore) {
-        Match match = getMatchOrThrow(game.getMatchId());
+    private void setPlayerScore(Game game, Match match, UUID playerId, int newScore) {
         if (playerId.equals(match.getPlayer1Id())) {
             game.setPlayer1Score(newScore);
         } else if (playerId.equals(match.getPlayer2Id())) {
@@ -313,8 +311,8 @@ public class GameService {
     ) {
         // Update score if valid or checkout
         if (moveResult == GameMove.MoveResult.VALID || moveResult == GameMove.MoveResult.CHECKOUT) {
-            setPlayerScore(game, playerId, answerResult.getNewTotal());
-            resetConsecutiveTimeouts(game, playerId);
+            setPlayerScore(game, match, playerId, answerResult.getNewTotal());
+            resetConsecutiveTimeouts(game, match, playerId);
         }
 
         // Handle checkout (win)
@@ -379,8 +377,7 @@ public class GameService {
         }
     }
 
-    private int getConsecutiveTimeouts(Game game, UUID playerId) {
-        Match match = getMatchOrThrow(game.getMatchId());
+    private int getConsecutiveTimeouts(Game game, Match match, UUID playerId) {
         if (playerId.equals(match.getPlayer1Id())) {
             return game.getPlayer1ConsecutiveTimeouts();
         } else {
@@ -388,8 +385,7 @@ public class GameService {
         }
     }
 
-    private void incrementConsecutiveTimeouts(Game game, UUID playerId) {
-        Match match = getMatchOrThrow(game.getMatchId());
+    private void incrementConsecutiveTimeouts(Game game, Match match, UUID playerId) {
         if (playerId.equals(match.getPlayer1Id())) {
             game.setPlayer1ConsecutiveTimeouts(game.getPlayer1ConsecutiveTimeouts() + 1);
         } else {
@@ -397,8 +393,7 @@ public class GameService {
         }
     }
 
-    private void resetConsecutiveTimeouts(Game game, UUID playerId) {
-        Match match = getMatchOrThrow(game.getMatchId());
+    private void resetConsecutiveTimeouts(Game game, Match match, UUID playerId) {
         if (playerId.equals(match.getPlayer1Id())) {
             game.setPlayer1ConsecutiveTimeouts(0);
         } else {
@@ -408,8 +403,8 @@ public class GameService {
         game.setTurnTimerSeconds(DEFAULT_TIMER);
     }
 
-    private void updateTimerForTimeouts(Game game, UUID playerId) {
-        int consecutiveTimeouts = getConsecutiveTimeouts(game, playerId);
+    private void updateTimerForTimeouts(Game game, Match match, UUID playerId) {
+        int consecutiveTimeouts = getConsecutiveTimeouts(game, match, playerId);
 
         // Timer reduction: 45s → 30s (after 1st timeout) → 15s (after 2nd timeout) → forfeit (3rd)
         if (consecutiveTimeouts == 1) {
