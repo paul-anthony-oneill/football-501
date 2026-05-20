@@ -127,4 +127,7 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
 
     List<Answer> findByQuestionIdOrderByScoreDesc(UUID questionId);
     boolean existsByQuestionIdAndAnswerKey(UUID questionId, String answerKey);
+
+    @Query("SELECT a.answerKey FROM Answer a WHERE a.questionId = :questionId")
+    java.util.Set<String> findAnswerKeysByQuestionId(@Param("questionId") UUID questionId);
 }
