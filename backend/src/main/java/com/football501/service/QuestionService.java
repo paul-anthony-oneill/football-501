@@ -31,10 +31,7 @@ public class QuestionService {
     private final AnswerRepository answerRepository;
     private final Random random;
 
-    /**
-     * Default minimum number of answers required for a question to be selectable.
-     */
-    private static final int DEFAULT_MIN_ANSWERS = 10;
+    static final int DEFAULT_MIN_ANSWERS = 10;
 
     public QuestionService(
         QuestionRepository questionRepository,
@@ -50,9 +47,6 @@ public class QuestionService {
     /**
      * Select a random active question for a category.
      * Uses default minimum answer count.
-     *
-     * @param categoryId the category UUID
-     * @return optional question (empty if none available)
      */
     @Transactional(readOnly = true)
     public Optional<Question> selectRandomQuestion(UUID categoryId) {
@@ -60,42 +54,32 @@ public class QuestionService {
     }
 
     /**
+     * Select a random active question for a category with a minimum answer requirement.
+     */
+    @Transactional(readOnly = true)
+    public Optional<Question> selectRandomQuestion(UUID categoryId, int minAnswers) {
+        return selectRandomQuestion(categoryId, null, minAnswers);
+    }
+
+    /**
      * Select a random active question for a category with difficulty and minimum answer requirement.
-     *
-     * @param categoryId the category UUID
-     * @param difficulty the difficulty level (optional)
-     * @param minAnswers minimum number of answers required
-     * @return optional question (empty if none available)
+     * Uses a single query to filter by answer count, avoiding N+1.
      */
     @Transactional(readOnly = true)
     public Optional<Question> selectRandomQuestion(UUID categoryId, Integer difficulty, int minAnswers) {
-        log.debug("Selecting random question for category {} with difficulty {} and minAnswers {}", 
+        log.debug("Selecting random question for category {} with difficulty {} and minAnswers {}",
             categoryId, difficulty, minAnswers);
 
-        // Get active questions for category (filtered by difficulty if provided)
-        List<Question> activeQuestions;
-        if (difficulty != null) {
-            activeQuestions = questionRepository.findByCategoryIdAndDifficultyAndIsActiveTrue(categoryId, difficulty);
-        } else {
-            activeQuestions = questionRepository.findActiveByCategoryId(categoryId);
-        }
-
-        if (activeQuestions.isEmpty()) {
-            log.warn("No active questions found for category {} (difficulty: {})", categoryId, difficulty);
-            return Optional.empty();
-        }
-
-        // Filter questions that have sufficient answers
-        List<Question> eligibleQuestions = activeQuestions.stream()
-            .filter(q -> hasMinimumAnswers(q.getId(), minAnswers))
-            .toList();
+        List<Question> eligibleQuestions = difficulty != null
+            ? questionRepository.findActiveWithMinAnswersByDifficulty(categoryId, difficulty, minAnswers)
+            : questionRepository.findActiveWithMinAnswers(categoryId, minAnswers);
 
         if (eligibleQuestions.isEmpty()) {
-            log.warn("No questions with sufficient answers ({}) for category {}", minAnswers, categoryId);
+            log.warn("No eligible questions for category {} (difficulty: {}, minAnswers: {})",
+                categoryId, difficulty, minAnswers);
             return Optional.empty();
         }
 
-        // Select random question
         Question selected = eligibleQuestions.get(random.nextInt(eligibleQuestions.size()));
         log.debug("Selected question: {} (ID: {})", selected.getQuestionText(), selected.getId());
 
