@@ -74,45 +74,37 @@ Requires Docker. Skips gracefully without it via `@Testcontainers(disabledWithou
 
 ### Prerequisites
 
-Homebrew installs Java 25 by default. The project targets Java 21 (Lombok + Spring Boot compatibility). You **must** set `JAVA_HOME` explicitly.
+The project targets Java 25. Homebrew installs Java 25 by default, so no `JAVA_HOME` override is needed. Lombok 1.18.42+ supports Java 25.
 
 ```bash
-# Verify you have Java 21 installed
-/usr/libexec/java_home -v 21
+# Verify Java 25 is active
+java -version
 ```
 
-If the above fails, install Java 21:
+If you are on an older JDK, install Java 25:
 ```bash
-brew install --cask temurin@21
+brew install --cask temurin@25
 ```
 
 ### Commands
 
 ```bash
 # All tests — unit, H2 integration, and container tests (if Docker is running)
-JAVA_HOME=$(/usr/libexec/java_home -v 21) mvn clean test
+mvn clean test
 
 # Unit tests only (fast, no DB)
-JAVA_HOME=$(/usr/libexec/java_home -v 21) mvn clean test -Dtest="DartsValidatorTest,ScoringServiceTest,AnswerEvaluatorTest,PracticeGameControllerTest,QuestionServiceTest,MatchServiceTest,GameServiceTest"
+mvn clean test -Dtest="DartsValidatorTest,ScoringServiceTest,AnswerEvaluatorTest,PracticeGameControllerTest,QuestionServiceTest,MatchServiceTest,GameServiceTest"
 
 # A single test class
-JAVA_HOME=$(/usr/libexec/java_home -v 21) mvn clean test -Dtest=PracticeGameIntegrationTest
+mvn clean test -Dtest=PracticeGameIntegrationTest
 
 # Tier 2 container tests only (requires Docker running)
-JAVA_HOME=$(/usr/libexec/java_home -v 21) mvn clean test -Dtest=FuzzyMatchingContainerTest
+mvn clean test -Dtest=FuzzyMatchingContainerTest
 ```
 
 ### Why `mvn clean test`, not `mvn test`
 
-Stale `.class` files compiled against the wrong JDK version cause silent failures. When you switch between Java versions or change compilation flags, leftover bytecode can mix incompatible class file versions. Always use `clean`.
-
-If you see a class file version error like:
-
-```
-UnsupportedClassVersionError: ... (class file version 69)
-```
-
-That means a `.class` file was compiled with Java 25. Run `mvn clean test` with the `JAVA_HOME` override.
+Stale `.class` files compiled against a different JDK can cause silent failures. Always use `clean` when switching JDK versions or changing compiler flags.
 
 ---
 
@@ -320,9 +312,12 @@ Flyway is disabled in the test profile (`spring.flyway.enabled: false`). Schema 
 
 ### How the container is configured
 
-`FuzzyMatchingContainerTest` spins up a real `postgres:15` Docker container for its Spring context. It does not extend `BaseTest`; it carries its own annotations:
+`FuzzyMatchingContainerTest` spins up a real `postgres:17` Docker container for its Spring context. It does not extend `BaseTest`; it carries its own annotations:
 
 ```java
+// Spring Boot 4 import (moved to webmvc module)
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -330,7 +325,7 @@ Flyway is disabled in the test profile (`spring.flyway.enabled: false`). Schema 
 class FuzzyMatchingContainerTest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17")
         .withInitScript("db/init-test-trgm.sql");
 
     @DynamicPropertySource
@@ -373,7 +368,7 @@ If you add a new repository method that uses a PostgreSQL-specific function:
 **If you need a different init script** (e.g., to add a custom PostgreSQL function or seed reference data), add the SQL file to `src/test/resources/db/` and change the `withInitScript` path in the container declaration:
 
 ```java
-static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
+static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17")
     .withInitScript("db/your-init-script.sql");
 ```
 
@@ -399,6 +394,19 @@ All unit tests use `@ExtendWith(MockitoExtension.class)`, which enables strict s
 **Diagnosing `PotentialStubbingProblem`:**
 
 This error means a stub was declared but never matched at runtime. The most common cause in this codebase is a mismatched argument value due to a `@Builder.Default` field. Read the full error message — Mockito prints both the declared stub and the actual invocation, showing you exactly which argument differed.
+
+### `@MockitoBean` (Spring Boot 4+)
+
+Spring Boot 4 removed `@MockBean` in favour of `@MockitoBean` from Spring Framework's own test support. Use:
+
+```java
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+@MockitoBean
+private GameService gameService;
+```
+
+`@MockitoBean` behaves identically to the old `@MockBean` for all practical purposes in `@WebMvcTest` slices.
 
 ### Stubbing with `@Builder.Default` fields
 
@@ -504,6 +512,11 @@ The full `@SpringBootTest` integration tests (`PracticeGameIntegrationTest`, `Ad
 `AnswerRepositoryTest` and `AnswerEvaluatorIntegrationTest` use:
 
 ```java
+// Spring Boot 4 — packages moved to modular jars
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager; // if needed
+
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")

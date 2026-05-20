@@ -1,6 +1,5 @@
 package com.football501.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.football501.dto.admin.CategoryResponse;
 import com.football501.dto.admin.CreateCategoryRequest;
 import com.football501.service.AdminCategoryService;
@@ -8,10 +7,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -23,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AdminCategoryController.class)
+@Import(JacksonAutoConfiguration.class)
 @DisplayName("AdminCategoryController Tests")
 class AdminCategoryControllerTest {
 
@@ -32,7 +35,7 @@ class AdminCategoryControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private AdminCategoryService adminCategoryService;
 
     private CreateCategoryRequest createRequest;

@@ -1,6 +1,6 @@
 package com.football501.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.football501.BaseTest;
 import com.football501.dto.admin.BulkCreateAnswersRequest;
 import com.football501.dto.admin.CreateAnswerRequest;
