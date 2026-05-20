@@ -4,10 +4,10 @@ import com.football501.dto.admin.AnswerResponse;
 import com.football501.dto.admin.BulkCreateAnswersRequest;
 import com.football501.dto.admin.BulkCreateAnswersResponse;
 import com.football501.dto.admin.CreateAnswerRequest;
+import com.football501.engine.DartsValidator;
 import com.football501.model.Answer;
 import com.football501.repository.AnswerRepository;
 import com.football501.repository.QuestionRepository;
-import com.football501.util.DartsScoreValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -152,7 +152,7 @@ public class AdminAnswerService {
     }
 
     private boolean isValidDartsScore(int score) {
-        return DartsScoreValidator.isValid(score);
+        return DartsValidator.isValidDartsScore(score);
     }
 
     private boolean isBust(int score) {
