@@ -156,7 +156,7 @@ public class AdminAnswerService {
     }
 
     private boolean isBust(int score) {
-        return score > 180;
+        return !DartsValidator.isValidDartsScore(score);
     }
 
     private AnswerResponse mapToResponse(Answer answer) {

@@ -162,7 +162,7 @@ class GameServiceTest {
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
         when(gameMoveRepository.findUsedAnswerIdsByGameId(gameId)).thenReturn(List.of());
 
-        AnswerResult answerResult = AnswerResult.invalid("Answer not found or already used");
+        AnswerResult answerResult = AnswerResult.invalid("Answer not found or already used", 501);
         when(answerEvaluator.evaluateAnswer(eq(questionId), eq(playerAnswer), eq(501), anyList()))
             .thenReturn(answerResult);
 
