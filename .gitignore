@@ -13,6 +13,8 @@ venv/
 .venv
 pip-log.txt
 pip-delete-this-directory.txt
+football-501-scraper/error_logs/
+football-501-scraper/output/
 
 # Java / Maven
 target/
