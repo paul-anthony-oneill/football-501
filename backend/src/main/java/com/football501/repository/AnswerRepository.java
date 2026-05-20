@@ -26,32 +26,49 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
      */
     Optional<Answer> findByQuestionIdAndAnswerKey(UUID questionId, String answerKey);
 
-    /**
-     * Find best matching answer using PostgreSQL trigram similarity.
-     * Excludes already-used answers and returns the best match above threshold.
-     *
-     * @param questionId the question UUID
-     * @param normalizedInput the normalized input string (lowercase)
-     * @param usedAnswerIds list of already-used answer IDs
-     * @param threshold minimum similarity threshold (0.0 to 1.0)
-     * @return optional answer with best similarity score
-     */
+    // Split into two native queries to avoid PostgreSQL type-inference failure
+    // when :usedAnswerIds is NULL/empty (Hibernate 7 + pg can't type a null list param).
+
     @Query(value = """
         SELECT *,
                similarity(answer_key, :normalizedInput) as sim
         FROM answers
         WHERE question_id = :questionId
-          AND (:usedAnswerIds IS NULL OR id NOT IN (:usedAnswerIds))
           AND similarity(answer_key, :normalizedInput) >= :threshold
         ORDER BY sim DESC
         LIMIT 1
         """, nativeQuery = true)
-    Optional<Answer> findBestMatchByFuzzyName(
+    Optional<Answer> findBestMatchByFuzzyNameNoExclusion(
+        @Param("questionId") UUID questionId,
+        @Param("normalizedInput") String normalizedInput,
+        @Param("threshold") double threshold
+    );
+
+    @Query(value = """
+        SELECT *,
+               similarity(answer_key, :normalizedInput) as sim
+        FROM answers
+        WHERE question_id = :questionId
+          AND id NOT IN (:usedAnswerIds)
+          AND similarity(answer_key, :normalizedInput) >= :threshold
+        ORDER BY sim DESC
+        LIMIT 1
+        """, nativeQuery = true)
+    Optional<Answer> findBestMatchByFuzzyNameWithExclusion(
         @Param("questionId") UUID questionId,
         @Param("normalizedInput") String normalizedInput,
         @Param("usedAnswerIds") List<UUID> usedAnswerIds,
         @Param("threshold") double threshold
     );
+
+    default Optional<Answer> findBestMatchByFuzzyName(
+        UUID questionId, String normalizedInput, List<UUID> usedAnswerIds, double threshold
+    ) {
+        if (usedAnswerIds == null || usedAnswerIds.isEmpty()) {
+            return findBestMatchByFuzzyNameNoExclusion(questionId, normalizedInput, threshold);
+        }
+        return findBestMatchByFuzzyNameWithExclusion(questionId, normalizedInput, usedAnswerIds, threshold);
+    }
 
     /**
      * Count available answers for a question (excluding used answers).
