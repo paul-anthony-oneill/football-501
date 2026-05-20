@@ -300,16 +300,38 @@ class GameServiceTest {
     }
 
     @Test
-    @DisplayName("Should reduce timer on consecutive timeouts")
-    void shouldReduceTimerOnConsecutiveTimeouts() {
-        // Given - Player 1 has 1 consecutive timeout
-        game.setPlayer1ConsecutiveTimeouts(1);
+    @DisplayName("Should reduce timer to 30s after 1st consecutive timeout")
+    void shouldReduceTimerTo30sAfterFirstTimeout() {
+        // Given - Player 1 has no prior timeouts
+        game.setPlayer1ConsecutiveTimeouts(0);
         game.setTurnTimerSeconds(45);
 
         when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
 
-        // When - Second consecutive timeout
+        // When - First timeout
+        gameService.handleTimeout(gameId, player1Id);
+
+        // Then
+        ArgumentCaptor<Game> gameCaptor = ArgumentCaptor.forClass(Game.class);
+        verify(gameRepository).save(gameCaptor.capture());
+        Game savedGame = gameCaptor.getValue();
+
+        assertThat(savedGame.getPlayer1ConsecutiveTimeouts()).isEqualTo(1);
+        assertThat(savedGame.getTurnTimerSeconds()).isEqualTo(30); // 45s → 30s
+    }
+
+    @Test
+    @DisplayName("Should reduce timer to 15s after 2nd consecutive timeout")
+    void shouldReduceTimerTo15sAfterSecondTimeout() {
+        // Given - Player 1 has 1 consecutive timeout
+        game.setPlayer1ConsecutiveTimeouts(1);
+        game.setTurnTimerSeconds(30);
+
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        // When - Second timeout
         gameService.handleTimeout(gameId, player1Id);
 
         // Then
@@ -318,7 +340,7 @@ class GameServiceTest {
         Game savedGame = gameCaptor.getValue();
 
         assertThat(savedGame.getPlayer1ConsecutiveTimeouts()).isEqualTo(2);
-        assertThat(savedGame.getTurnTimerSeconds()).isEqualTo(30); // Reduced from 45s to 30s
+        assertThat(savedGame.getTurnTimerSeconds()).isEqualTo(15); // 30s → 15s
     }
 
     @Test

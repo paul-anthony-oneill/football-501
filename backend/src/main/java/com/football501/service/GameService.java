@@ -411,10 +411,10 @@ public class GameService {
     private void updateTimerForTimeouts(Game game, UUID playerId) {
         int consecutiveTimeouts = getConsecutiveTimeouts(game, playerId);
 
-        // Timer reduction: 45s → 30s (after 2 timeouts) → 15s (after 3+ timeouts)
-        if (consecutiveTimeouts == 2) {
+        // Timer reduction: 45s → 30s (after 1st timeout) → 15s (after 2nd timeout) → forfeit (3rd)
+        if (consecutiveTimeouts == 1) {
             game.setTurnTimerSeconds(REDUCED_TIMER_1); // 30s
-        } else if (consecutiveTimeouts >= 3) {
+        } else if (consecutiveTimeouts == 2) {
             game.setTurnTimerSeconds(REDUCED_TIMER_2); // 15s
         }
     }
