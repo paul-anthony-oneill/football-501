@@ -1,0 +1,199 @@
+@import "tailwindcss";
+
+/* ─── Design Tokens ─────────────────────────────────────────────────────────── */
+/* Tailwind v4 @theme block — exposes these as utility classes (bg-primary, etc.) */
+@theme inline {
+  /* Brand colours (Material Design 3, dark theme) */
+  --color-primary:                 #4ade80;
+  --color-on-primary:              #00391c;
+  --color-primary-container:       #00522b;
+  --color-on-primary-container:    #67ff9a;
+
+  --color-secondary:               #b6ccb8;
+  --color-on-secondary:            #223526;
+  --color-secondary-container:     #384b3c;
+  --color-on-secondary-container:  #d2e8d4;
+
+  --color-error:                   #ffb4ab;
+  --color-on-error:                #690005;
+  --color-error-container:         #93000a;
+  --color-on-error-container:      #ffdad6;
+
+  --color-background:              #1a1c1a;
+  --color-on-background:           #e2e3de;
+  --color-surface:                 #1a1c1a;
+  --color-on-surface:              #e2e3de;
+  --color-surface-variant:         #414941;
+  --color-on-surface-variant:      #c1c9be;
+  --color-outline:                 #8b9389;
+
+  /* Spacing */
+  --spacing-xs:   0.25rem;
+  --spacing-sm:   0.5rem;
+  --spacing-md:   1rem;
+  --spacing-lg:   1.5rem;
+  --spacing-xl:   2rem;
+  --spacing-xxl:  3rem;
+
+  /* Border radius */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 28px;
+}
+
+/* ─── CSS custom properties (for non-Tailwind usage inside globals) ──────────── */
+:root {
+  --color-primary:                 #4ade80;
+  --color-on-primary:              #00391c;
+  --color-primary-container:       #00522b;
+  --color-on-primary-container:    #67ff9a;
+
+  --color-secondary:               #b6ccb8;
+  --color-on-secondary:            #223526;
+  --color-secondary-container:     #384b3c;
+  --color-on-secondary-container:  #d2e8d4;
+
+  --color-error:                   #ffb4ab;
+  --color-on-error:                #690005;
+  --color-error-container:         #93000a;
+  --color-on-error-container:      #ffdad6;
+
+  --color-background:              #1a1c1a;
+  --color-on-background:           #e2e3de;
+  --color-surface:                 #1a1c1a;
+  --color-on-surface:              #e2e3de;
+  --color-surface-variant:         #414941;
+  --color-on-surface-variant:      #c1c9be;
+  --color-outline:                 #8b9389;
+
+  --space-xs:  0.25rem;
+  --space-sm:  0.5rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2rem;
+  --space-xxl: 3rem;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 28px;
+
+  --shadow-1: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06);
+  --shadow-2: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  --shadow-3: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+}
+
+/* ─── Base styles ────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-background);
+  color: var(--color-on-background);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-primary);
+  margin-top: 0;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+  transition: border-color 0.2s;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar           { width: 8px; }
+::-webkit-scrollbar-track     { background: var(--color-background); }
+::-webkit-scrollbar-thumb     { background: var(--color-surface-variant); border-radius: var(--radius-xs); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-outline); }
+
+/* ─── Game animations ────────────────────────────────────────────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes tension-pulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.05); }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes shaking {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80%      { transform: translateX(4px); }
+}
+
+@keyframes busting {
+  0%   { transform: scale(1) rotate(0deg);   opacity: 1; }
+  50%  { transform: scale(1.2) rotate(5deg); opacity: 0.7; }
+  100% { transform: scale(0) rotate(-10deg); opacity: 0; }
+}
+
+@keyframes point-counter {
+  0%   { transform: translateY(0);    opacity: 1; }
+  100% { transform: translateY(-40px); opacity: 0; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Animation utility classes ──────────────────────────────────────────────── */
+.animate-spin-slow       { animation: spin 1s linear infinite; }
+.animate-tension-pulse   { animation: tension-pulse 1s ease-in-out infinite; }
+.animate-slide-up        { animation: slide-up 0.3s ease-out; }
+.animate-shaking         { animation: shaking 0.5s ease-in-out; }
+.animate-busting         { animation: busting 0.6s ease-in-out forwards; }
+.animate-point-counter   { animation: point-counter 1s ease-out forwards; }
+.animate-fade-in         { animation: fade-in 0.3s ease-out; }
+.animate-slide-down      { animation: slide-down 0.2s ease-out; }
