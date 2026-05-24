@@ -76,7 +76,7 @@ class AnswerRepositoryTest {
     }
 
     @Test
-    @Disabled("Requires PostgreSQL pg_trgm extension (similarity function) - use TestContainers for this test")
+    @Disabled("Requires pg_trgm on PostgreSQL — covered by FuzzyMatchingContainerTest")
     @DisplayName("Fuzzy match finds answer with typo")
     void shouldFindBestMatchByFuzzyName() {
         // "haland" should match "erling haaland" with decent threshold
@@ -89,7 +89,7 @@ class AnswerRepositoryTest {
     }
 
     @Test
-    @Disabled("Requires PostgreSQL pg_trgm extension (similarity function) - use TestContainers for this test")
+    @Disabled("Requires pg_trgm on PostgreSQL — covered by FuzzyMatchingContainerTest")
     @DisplayName("Fuzzy match respects used answers")
     void shouldExcludeUsedAnswersInFuzzyMatch() {
         Optional<Answer> firstMatch = answerRepository.findBestMatchByFuzzyName(

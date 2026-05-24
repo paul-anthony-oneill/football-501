@@ -70,4 +70,10 @@ public class AdminAnswerController {
             adminAnswerService.deleteAnswers(ids);
         }
     }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> handleBadRequest(IllegalArgumentException e) {
+        log.warn("Bad request: {}", e.getMessage());
+        return ResponseEntity.badRequest().body(e.getMessage());
+    }
 }

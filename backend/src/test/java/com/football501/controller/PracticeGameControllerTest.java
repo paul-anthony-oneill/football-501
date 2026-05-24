@@ -1,6 +1,5 @@
 package com.football501.controller;
 
-import tools.jackson.databind.ObjectMapper;
 import com.football501.dto.GameStateResponse;
 import com.football501.dto.StartPracticeRequest;
 import com.football501.dto.SubmitAnswerRequest;
@@ -11,12 +10,13 @@ import com.football501.service.QuestionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Optional;

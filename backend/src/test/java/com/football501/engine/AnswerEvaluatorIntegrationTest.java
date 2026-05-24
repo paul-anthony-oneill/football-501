@@ -7,10 +7,10 @@ import com.football501.repository.AnswerRepository;
 import com.football501.repository.CategoryRepository;
 import com.football501.repository.QuestionRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.junit.jupiter.api.Disabled;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
 @Import({AnswerEvaluator.class, ScoringService.class})
+@ActiveProfiles("test")
 @DisplayName("Answer Evaluator Integration Tests")
 class AnswerEvaluatorIntegrationTest {
 
@@ -71,7 +72,7 @@ class AnswerEvaluatorIntegrationTest {
     }
 
     @Test
-    @Disabled("Requires PostgreSQL pg_trgm extension (similarity function) - use TestContainers for this test")
+    @Disabled("Contains fuzzy matching step requiring pg_trgm — covered by FuzzyMatchingContainerTest")
     @DisplayName("Full game flow: Match -> Score -> Fuzzy Match -> Bust -> Win")
     void testFullGameFlow() {
         List<UUID> usedAnswers = new ArrayList<>();
