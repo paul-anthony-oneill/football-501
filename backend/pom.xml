@@ -87,7 +87,7 @@
         <!-- Testing — core + MVC slice + JPA slice (no security-test to avoid classpath requirement for security) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
+            <artifactId>spring-boot-test</artifactId>
             <scope>test</scope>
         </dependency>
 
@@ -101,6 +101,13 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa-test</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        <!-- Migration helper for properties (optional, remove after migration) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-properties-migrator</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>
@@ -170,6 +177,7 @@
                     </includes>
                 </configuration>
             </plugin>
+
         </plugins>
     </build>
 </project>

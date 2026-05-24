@@ -17,8 +17,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.football501.service.QuestionService.DEFAULT_MIN_ANSWERS;
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
@@ -83,10 +83,8 @@ class QuestionServiceTest {
     @DisplayName("Should select random active question by category")
     void shouldSelectRandomQuestionByCategory() {
         // Given
-        when(questionRepository.findActiveByCategoryId(categoryId))
+        when(questionRepository.findActiveWithMinAnswers(categoryId, DEFAULT_MIN_ANSWERS))
             .thenReturn(List.of(question1, question2));
-        when(answerRepository.countByQuestionId(any(UUID.class)))
-            .thenReturn(50L); // Sufficient answers
 
         // When
         Optional<Question> result = questionService.selectRandomQuestion(categoryId);
@@ -94,14 +92,15 @@ class QuestionServiceTest {
         // Then
         assertThat(result).isPresent();
         assertThat(result.get()).isIn(question1, question2);
-        verify(questionRepository).findActiveByCategoryId(categoryId);
+        verify(questionRepository).findActiveWithMinAnswers(categoryId, DEFAULT_MIN_ANSWERS);
+        verifyNoInteractions(answerRepository);
     }
 
     @Test
     @DisplayName("Should return empty when no active questions exist")
     void shouldReturnEmptyWhenNoActiveQuestions() {
         // Given
-        when(questionRepository.findActiveByCategoryId(categoryId))
+        when(questionRepository.findActiveWithMinAnswers(categoryId, DEFAULT_MIN_ANSWERS))
             .thenReturn(List.of());
 
         // When
@@ -109,26 +108,25 @@ class QuestionServiceTest {
 
         // Then
         assertThat(result).isEmpty();
-        verify(questionRepository).findActiveByCategoryId(categoryId);
+        verify(questionRepository).findActiveWithMinAnswers(categoryId, DEFAULT_MIN_ANSWERS);
+        verifyNoInteractions(answerRepository);
     }
 
     @Test
     @DisplayName("Should filter out questions with insufficient answers")
     void shouldFilterInsufficientAnswers() {
-        // Given
-        when(questionRepository.findActiveByCategoryId(categoryId))
-            .thenReturn(List.of(question1, question2));
-
-        // question1 has enough answers, question2 doesn't
-        when(answerRepository.countByQuestionId(question1.getId())).thenReturn(50L);
-        when(answerRepository.countByQuestionId(question2.getId())).thenReturn(5L); // Too few
+        // The repository now handles the filtering in a single query — only qualifying
+        // questions are returned, so question2 (too few answers) never appears.
+        when(questionRepository.findActiveWithMinAnswers(categoryId, 20))
+            .thenReturn(List.of(question1));
 
         // When
-        Optional<Question> result = questionService.selectRandomQuestion(categoryId, 20);
+        Optional<Question> result = questionService.selectRandomQuestion(categoryId, null, 20);
 
         // Then
         assertThat(result).isPresent();
-        assertThat(result.get()).isEqualTo(question1); // Only question1 qualifies
+        assertThat(result.get()).isEqualTo(question1);
+        verifyNoInteractions(answerRepository);
     }
 
     @Test
@@ -183,31 +181,25 @@ class QuestionServiceTest {
     @DisplayName("Should use default minimum answer count when not specified")
     void shouldUseDefaultMinimumAnswerCount() {
         // Given
-        when(questionRepository.findActiveByCategoryId(categoryId))
+        when(questionRepository.findActiveWithMinAnswers(categoryId, DEFAULT_MIN_ANSWERS))
             .thenReturn(List.of(question1));
-        when(answerRepository.countByQuestionId(question1.getId()))
-            .thenReturn(30L);
 
         // When
         Optional<Question> result = questionService.selectRandomQuestion(categoryId);
 
         // Then
         assertThat(result).isPresent();
-        // Should have checked answer count with default minimum (10)
-        verify(answerRepository).countByQuestionId(question1.getId());
+        verify(questionRepository).findActiveWithMinAnswers(categoryId, DEFAULT_MIN_ANSWERS);
+        verifyNoInteractions(answerRepository);
     }
 
     @Test
     @DisplayName("Should select question by difficulty")
     void shouldSelectQuestionByDifficulty() {
         // Given
-        question1.setDifficulty(1); // Easy
-        question2.setDifficulty(2); // Medium
-        
-        when(questionRepository.findByCategoryIdAndDifficultyAndIsActiveTrue(categoryId, 1))
+        question1.setDifficulty(1);
+        when(questionRepository.findActiveWithMinAnswersByDifficulty(categoryId, 1, 10))
             .thenReturn(List.of(question1));
-        when(answerRepository.countByQuestionId(question1.getId()))
-            .thenReturn(50L);
 
         // When
         Optional<Question> result = questionService.selectRandomQuestion(categoryId, 1, 10);
@@ -215,7 +207,8 @@ class QuestionServiceTest {
         // Then
         assertThat(result).isPresent();
         assertThat(result.get()).isEqualTo(question1);
-        verify(questionRepository).findByCategoryIdAndDifficultyAndIsActiveTrue(categoryId, 1);
+        verify(questionRepository).findActiveWithMinAnswersByDifficulty(categoryId, 1, 10);
+        verifyNoInteractions(answerRepository);
     }
 
     @Test

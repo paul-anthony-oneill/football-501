@@ -1,5 +1,6 @@
 package com.football501.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,8 +15,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SubmitAnswerRequest {
 
-    /**
-     * The player's answer (e.g., "Erling Haaland").
-     */
+    @NotBlank
     private String answer;
 }

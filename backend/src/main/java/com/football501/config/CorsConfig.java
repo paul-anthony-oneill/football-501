@@ -20,7 +20,9 @@ public class CorsConfig {
         config.setAllowCredentials(true);
         config.addAllowedOriginPattern("http://localhost:*"); // Allow all localhost ports for development
         config.addAllowedOriginPattern("http://127.0.0.1:*");
-        config.setAllowedHeaders(Arrays.asList("*"));
+        config.setAllowedHeaders(Arrays.asList(
+            "Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"
+        ));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

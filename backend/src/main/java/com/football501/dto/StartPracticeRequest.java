@@ -1,5 +1,6 @@
 package com.football501.dto;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,20 +17,10 @@ import java.util.UUID;
 @AllArgsConstructor
 public class StartPracticeRequest {
 
-    /**
-     * Player ID (can be guest ID or authenticated user ID).
-     */
+    @NotNull
     private UUID playerId;
 
-    /**
-     * Category slug (e.g., "football").
-     * If not provided, defaults to "football".
-     */
     private String categorySlug;
 
-    /**
-     * Difficulty level (1 = Easy, 2 = Medium, 3 = Hard).
-     * Defaults to 2 (Medium) if not provided.
-     */
     private Integer difficulty;
 }

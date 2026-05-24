@@ -65,7 +65,7 @@ public class AnswerEvaluator {
         String normalizedInput = normalizeInput(userInput);
 
         if (normalizedInput.isEmpty()) {
-            return AnswerResult.invalid("Empty answer");
+            return AnswerResult.invalid("Empty answer", currentScore);
         }
 
         // Find matching answer using fuzzy matching
@@ -76,7 +76,7 @@ public class AnswerEvaluator {
         );
 
         if (matchOpt.isEmpty()) {
-            return AnswerResult.invalid("Answer not found or already used");
+            return AnswerResult.invalid("Answer not found or already used", currentScore);
         }
 
         Answer answer = matchOpt.get();
@@ -85,7 +85,7 @@ public class AnswerEvaluator {
         ScoreResult scoreResult = scoringService.calculateScore(currentScore, answer.getScore());
 
         // Determine bust condition
-        boolean isBust = scoreResult.isBust() || !answer.getIsValidDarts();
+        boolean isBust = scoreResult.isBust() || answer.getIsBust();
         String reason = null;
 
         if (isBust) {

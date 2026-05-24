@@ -12,7 +12,7 @@ services:
       - DATABASE_URL=postgresql://football501:dev_password@postgres:5432/football501
       - FBREF_WAIT_TIME=7
       - ENABLE_SCHEDULER=true
-      - CURRENT_SEASON=2024-2025
+      - CURRENT_SEASON=2025-2026
       - LOG_LEVEL=INFO
     depends_on:
       - postgres
@@ -31,7 +31,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U football501"]
