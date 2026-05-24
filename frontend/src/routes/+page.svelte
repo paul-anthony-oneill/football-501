@@ -46,6 +46,41 @@
 	// Move history
 	let moves: Array<{ answer: string; result: string; scoreBefore: number; scoreAfter: number; matchedAnswer?: string; scoreValue?: number }> = [];
 
+	// Debug mode
+	let debugMode = false;
+	let debugAnswers: Array<{ displayText: string; score: number; isValidDarts: boolean; isBust: boolean }> = [];
+	let debugLoading = false;
+
+	async function toggleDebug() {
+		debugMode = !debugMode;
+		if (debugMode && debugAnswers.length === 0 && gameId) {
+			await loadDebugAnswers();
+		}
+	}
+
+	async function loadDebugAnswers() {
+		if (!gameId) return;
+		debugLoading = true;
+		try {
+			const stateRes = await fetch(`${API_BASE}/practice/games/${gameId}?playerId=${playerId}`);
+			if (!stateRes.ok) return;
+			const state = await stateRes.json();
+			const res = await fetch(`${API_BASE}/admin/questions/${state.questionId}/answers`);
+			if (!res.ok) return;
+			const data = await res.json();
+			debugAnswers = data.sort((a: any, b: any) => b.score - a.score);
+		} catch (e) {
+			console.error('Debug load failed', e);
+		} finally {
+			debugLoading = false;
+		}
+	}
+
+	function pickDebugAnswer(displayText: string) {
+		answer = displayText;
+		inputElement?.focus();
+	}
+
 	// Input element reference for focus management
 	let inputElement: HTMLInputElement;
 
@@ -114,6 +149,8 @@
 			gameStatus = data.status;
 			isWin = data.isWin;
 
+			debugAnswers = [];
+			debugMode = false;
 			feedback = 'Game started! Good luck!';
 			feedbackType = 'success';
 		} catch (error) {
@@ -349,14 +386,57 @@
 								Submit
 							{/if}
 						</button>
+						<button class="debug-toggle-btn" class:active={debugMode} on:click={toggleDebug} title="Toggle debug answers">
+							🐛
+						</button>
 					</div>
-					
+
 					{#if feedback && !showPoints && !isBusting}
 						<div class="feedback-toast {feedbackType}">
 							{feedback}
 						</div>
 					{/if}
 				</div>
+
+				{#if debugMode}
+					<div class="debug-panel card">
+						<div class="debug-header">
+							<span class="debug-title">🐛 DEBUG — All Answers ({debugAnswers.length})</span>
+							<span class="debug-hint">Click any row to auto-fill</span>
+						</div>
+						{#if debugLoading}
+							<p class="debug-loading">Loading answers...</p>
+						{:else}
+							<div class="debug-table-wrap">
+								<table class="debug-table">
+									<thead>
+										<tr>
+											<th>Player</th>
+											<th>Score</th>
+											<th>Valid</th>
+											<th>Bust</th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each debugAnswers as a}
+											<tr
+												class="debug-row"
+												class:debug-bust={a.isBust}
+												class:debug-invalid={!a.isValidDarts && !a.isBust}
+												on:click={() => pickDebugAnswer(a.displayText)}
+											>
+												<td class="debug-name">{a.displayText}</td>
+												<td class="debug-score">{a.score}</td>
+												<td>{a.isValidDarts ? '✓' : '✗'}</td>
+												<td>{a.isBust ? 'BUST' : '—'}</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{/if}
+					</div>
+				{/if}
 			{/if}
 
 			<!-- Win State Summary -->
@@ -728,6 +808,71 @@
 		text-decoration: none;
 		font-weight: 600;
 	}
+
+	.debug-toggle-btn {
+		background: transparent;
+		border: 1px solid var(--color-outline);
+		border-radius: var(--radius-sm);
+		padding: 0.5rem 0.6rem;
+		font-size: 1rem;
+		cursor: pointer;
+		opacity: 0.5;
+		transition: opacity 0.2s;
+	}
+
+	.debug-toggle-btn:hover { opacity: 1; }
+	.debug-toggle-btn.active { opacity: 1; border-color: #f59e0b; background: rgba(245,158,11,0.1); }
+
+	.debug-panel {
+		border: 1px solid #f59e0b;
+		background: rgba(245,158,11,0.05);
+		padding: var(--space-md);
+	}
+
+	.debug-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: var(--space-md);
+	}
+
+	.debug-title { font-size: 0.8rem; font-weight: 800; color: #f59e0b; letter-spacing: 0.5px; }
+	.debug-hint { font-size: 0.75rem; opacity: 0.5; }
+	.debug-loading { font-size: 0.85rem; opacity: 0.6; }
+
+	.debug-table-wrap { max-height: 300px; overflow-y: auto; }
+
+	.debug-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.85rem;
+	}
+
+	.debug-table th {
+		text-align: left;
+		padding: 0.3rem 0.5rem;
+		font-size: 0.7rem;
+		color: var(--color-on-surface-variant);
+		letter-spacing: 0.5px;
+		border-bottom: 1px solid var(--color-outline);
+		position: sticky;
+		top: 0;
+		background: var(--color-surface-variant);
+	}
+
+	.debug-row {
+		cursor: pointer;
+		border-bottom: 1px solid rgba(255,255,255,0.05);
+	}
+
+	.debug-row:hover { background: rgba(255,255,255,0.07); }
+	.debug-row td { padding: 0.35rem 0.5rem; }
+
+	.debug-bust td { color: #ef4444; opacity: 0.7; }
+	.debug-invalid td { color: #f59e0b; opacity: 0.7; }
+
+	.debug-name { font-weight: 600; }
+	.debug-score { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--color-primary); }
 
 	@media (max-width: 600px) {
 		.game-header { flex-direction: column; align-items: flex-start; gap: var(--space-md); }

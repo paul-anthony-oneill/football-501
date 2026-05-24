@@ -4,6 +4,8 @@ import com.football501.model.Question;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -48,6 +50,38 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
     default List<Question> findActiveByCategoryId(UUID categoryId) {
         return findByCategoryIdAndIsActiveTrue(categoryId);
     }
+
+    /**
+     * Find active questions for a category that have at least minAnswers answers.
+     * Single query — avoids N+1 from per-question COUNT calls.
+     */
+    @Query("""
+        SELECT q FROM Question q
+        WHERE q.categoryId = :categoryId
+          AND q.isActive = true
+          AND (SELECT COUNT(a) FROM Answer a WHERE a.questionId = q.id) >= :minAnswers
+        """)
+    List<Question> findActiveWithMinAnswers(
+        @Param("categoryId") UUID categoryId,
+        @Param("minAnswers") int minAnswers
+    );
+
+    /**
+     * Find active questions for a category + difficulty that have at least minAnswers answers.
+     * Single query — avoids N+1 from per-question COUNT calls.
+     */
+    @Query("""
+        SELECT q FROM Question q
+        WHERE q.categoryId = :categoryId
+          AND q.isActive = true
+          AND q.difficulty = :difficulty
+          AND (SELECT COUNT(a) FROM Answer a WHERE a.questionId = q.id) >= :minAnswers
+        """)
+    List<Question> findActiveWithMinAnswersByDifficulty(
+        @Param("categoryId") UUID categoryId,
+        @Param("difficulty") Integer difficulty,
+        @Param("minAnswers") int minAnswers
+    );
 
     /**
      * Count questions by category ID.
