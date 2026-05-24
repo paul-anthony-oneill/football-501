@@ -9,8 +9,9 @@ Football 501 is a competitive football trivia game that combines football knowle
 **Current Status**: Game Engine & Admin UI Implemented (Phase 3 Complete).
 
 **Tech Stack**:
-- Frontend: SvelteKit + TypeScript + Tailwind CSS (Progressive Web App)
-- Backend: Spring Boot 3.x + Java 17+ + PostgreSQL 15+
+- Frontend: Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS 4 — `frontend-react/`
+- Frontend (legacy reference): SvelteKit — `frontend/` (kept intact, not actively developed)
+- Backend: Spring Boot 4.0.6 + Java 25 + PostgreSQL 15+
 - Data Source: ScraperFC (Python Microservice)
 - Real-time: WebSocket (STOMP protocol) - *In Progress*
 
@@ -21,12 +22,12 @@ Football 501 is a competitive football trivia game that combines football knowle
 The application follows a client-server architecture with a separate Python microservice for data scraping:
 
 ```
-PWA Client (SvelteKit) <--HTTPS + WSS--> Spring Boot Server
-                                              |
-                                         PostgreSQL
-                                              ^
-                                              |
-                                    Python Scraper Service (ScraperFC)
+PWA Client (Next.js/React) <--HTTPS + WSS--> Spring Boot Server
+                                                   |
+                                              PostgreSQL
+                                                   ^
+                                                   |
+                                       Python Scraper Service (ScraperFC)
 ```
 
 **Critical Architectural Principles**:
@@ -47,10 +48,12 @@ The Spring Boot application is organized into modules:
 
 ### Frontend Architecture
 
-- **SPA Architecture**: Single-page application with client-side routing
-- **State Management**: Svelte stores for reactive state
+- **App Router**: Next.js 16 App Router; all pages are `"use client"` (no SSR needed — data comes from Spring Boot)
+- **State Management**: Local `useState` + React Context API (`ToastContext`); no Redux/Zustand
+- **API Proxy**: `next.config.ts` rewrites `/api/*` → `http://localhost:8080/api/*` in dev
 - **WebSocket Client**: Native WebSocket for real-time game updates
 - **Optimistic UI**: Client updates UI immediately, then syncs with server
+- **Styling**: Tailwind v4 with `@theme inline` in `globals.css` (no `tailwind.config.ts`)
 
 ## Core Game Mechanics
 
@@ -205,11 +208,17 @@ ScraperFC data maps to the `answers` table:
 
 ## Development Workflow
 
-### Project Setup (Not Yet Implemented)
+### Project Setup
 
-When setting up the project for the first time:
+**Frontend (React — active)**:
+```bash
+cd frontend-react
+npm install
+npm run dev  # Dev server on http://localhost:3000
+# API calls proxied to http://localhost:8080 via next.config.ts
+```
 
-**Frontend**:
+**Frontend (SvelteKit — legacy reference only)**:
 ```bash
 cd frontend
 npm install
@@ -219,12 +228,8 @@ npm run dev  # Dev server on http://localhost:5173
 **Backend**:
 ```bash
 cd backend
-# If using Maven:
+# Requires Java 25 (set via JAVA_HOME or .mvn/jvm.config)
 mvn spring-boot:run
-
-# If using Gradle:
-./gradlew bootRun
-
 # Server runs on http://localhost:8080
 ```
 
@@ -311,11 +316,11 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 
 ## Key Design Decisions
 
-### Why SvelteKit?
-- Simpler syntax than React/Vue
-- Better performance (compiler-based)
-- Built-in PWA support
-- Easier learning curve for backend-focused developer
+### Why Next.js + React?
+- Migrated from SvelteKit (May 2026) for broader ecosystem and hiring pool
+- App Router with `"use client"` pages matches the SPA mental model from SvelteKit
+- Tailwind v4 `@theme` tokens map cleanly onto the existing CSS variable system
+- React Context replaces per-page Svelte store patterns with minimal overhead
 
 ### Why PostgreSQL?
 - ACID compliance for critical operations (rankings, match results)
