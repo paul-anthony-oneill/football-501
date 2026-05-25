@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
 @Import({AnswerEvaluator.class, ScoringService.class})
+@ActiveProfiles("test")
 @DisplayName("Answer Evaluator Integration Tests")
 class AnswerEvaluatorIntegrationTest {
 

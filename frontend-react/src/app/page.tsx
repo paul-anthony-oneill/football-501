@@ -355,6 +355,7 @@ export default function GamePage() {
             </div>
           )}
 
+
           <button
             onClick={startGame}
             disabled={loading || categoriesLoading}
