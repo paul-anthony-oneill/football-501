@@ -42,6 +42,7 @@ export default function GamePage() {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [feedbackType, setFeedbackType] = useState<FeedbackType>("info");
+  const [entityType, setEntityType] = useState("footballer");
 
   // Category state
   const [categories, setCategories] = useState<Category[]>([]);
@@ -158,6 +159,7 @@ export default function GamePage() {
       setGameId(data.gameId);
       setScore(data.currentScore);
       setQuestion(data.questionText);
+      setEntityType(data.entityType ?? "footballer");
       setTurnCount(data.turnCount);
       setGameStatus(data.status);
       setIsWin(data.isWin);
@@ -409,7 +411,7 @@ export default function GamePage() {
               <div className="flex gap-4">
                 <div className="flex-1">
                   <EntitySearch
-                    entityType={question?.config?.entity_type ?? "footballer"}
+                    entityType={entityType}
                     value={answer}
                     onChange={setAnswer}
                     onSubmit={submitAnswer}
