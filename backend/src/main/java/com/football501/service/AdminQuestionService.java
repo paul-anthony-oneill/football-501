@@ -10,6 +10,7 @@ import com.football501.repository.AnswerRepository;
 import com.football501.repository.CategoryRepository;
 import com.football501.repository.QuestionRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -28,18 +29,25 @@ public class AdminQuestionService {
         Question.STATUS_DRAFT, Question.STATUS_ACTIVE, Question.STATUS_RETIRED
     );
 
-    private final QuestionRepository questionRepository;
-    private final CategoryRepository categoryRepository;
-    private final AnswerRepository answerRepository;
+    private final QuestionRepository         questionRepository;
+    private final CategoryRepository         categoryRepository;
+    private final AnswerRepository           answerRepository;
+    private final QuestionMaterializerService materializerService;
 
+    /**
+     * {@code @Lazy} on the materializer service breaks the circular dependency
+     * that would occur if any materializer depends on question/answer services.
+     */
     public AdminQuestionService(
-            QuestionRepository questionRepository,
-            CategoryRepository categoryRepository,
-            AnswerRepository answerRepository
+            QuestionRepository          questionRepository,
+            CategoryRepository          categoryRepository,
+            AnswerRepository            answerRepository,
+            @Lazy QuestionMaterializerService materializerService
     ) {
-        this.questionRepository = questionRepository;
-        this.categoryRepository = categoryRepository;
-        this.answerRepository = answerRepository;
+        this.questionRepository  = questionRepository;
+        this.categoryRepository  = categoryRepository;
+        this.answerRepository    = answerRepository;
+        this.materializerService = materializerService;
     }
 
     /**
@@ -97,9 +105,12 @@ public class AdminQuestionService {
      * Transitions a question to a new lifecycle status.
      *
      * <p>Valid values: {@code "draft"}, {@code "active"}, {@code "retired"}.
-     * Promoting to {@code "active"} is the trigger point for future materialiser
-     * integration (not yet wired — materialisation is currently manual via
-     * the bulk-import endpoints).
+     *
+     * <p><b>Materialisation hook:</b> when a question transitions from
+     * {@code "draft"} to {@code "active"}, the materializer is automatically
+     * invoked to compute and upsert the answer set.  If no materializer is
+     * registered for the question's template key, the status is still updated
+     * (the question will have 0 answers until manually populated).
      */
     @Transactional
     public QuestionResponse updateStatus(UUID id, String newStatus) {
@@ -116,7 +127,37 @@ public class AdminQuestionService {
         question.setStatus(newStatus);
         Question saved = questionRepository.save(question);
         log.info("Question {} status: {} → {}", id, oldStatus, newStatus);
+
+        // Auto-materialise when promoting from draft → active.
+        if (Question.STATUS_DRAFT.equals(oldStatus) && Question.STATUS_ACTIVE.equals(newStatus)) {
+            triggerMaterialization(saved);
+        }
+
         return mapToResponse(saved);
+    }
+
+    /**
+     * Triggers materialisation for a question that has just been activated.
+     * Errors are caught and logged but do not roll back the status change.
+     */
+    private void triggerMaterialization(Question question) {
+        // Only attempt if the question has a template with a known materializer key.
+        if (question.getTemplateId() == null) {
+            log.info("Question {} is hand-curated — skipping auto-materialisation.", question.getId());
+            return;
+        }
+        try {
+            int count = materializerService.materialize(question);
+            log.info("Auto-materialised question {}: {} answers computed.", question.getId(), count);
+        } catch (IllegalStateException ex) {
+            // No materializer registered — log as a warning, not an error.
+            log.warn("Question {} activated but no materializer found: {}",
+                question.getId(), ex.getMessage());
+        } catch (Exception ex) {
+            // Non-fatal: status was saved, but answers must be populated manually.
+            log.error("Materialisation failed for question {} after activation: {}",
+                question.getId(), ex.getMessage(), ex);
+        }
     }
 
     /**

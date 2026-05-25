@@ -77,6 +77,28 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
         @Param("minAnswers") int minAnswers
     );
 
+    // ── Template-generator duplicate check ───────────────────────────────────
+
+    /**
+     * Returns {@code true} if a non-retired question exists for this template
+     * with matching params (to prevent the generator creating duplicates).
+     *
+     * <p>Uses a native JSONB equality check because Spring Data cannot
+     * auto-derive a {@code Map}-equality predicate from method names.
+     */
+    @Query(value = """
+        SELECT CASE WHEN COUNT(*) > 0 THEN TRUE ELSE FALSE END
+          FROM questions
+         WHERE template_id     = :templateId
+           AND template_params = :#{#params}::jsonb
+           AND status         != :status
+        """, nativeQuery = true)
+    boolean existsByTemplateIdAndTemplateParamsAndStatusNot(
+        @Param("templateId") UUID templateId,
+        @Param("params")     Object params,
+        @Param("status")     String status
+    );
+
     // ── Counts ────────────────────────────────────────────────────────────────
 
     long countByCategoryId(UUID categoryId);

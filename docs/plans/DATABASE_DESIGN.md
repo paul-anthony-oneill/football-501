@@ -1,6 +1,6 @@
 # Database Design — Source of Truth
 
-Status: **V6 + V7 implemented and merged** (`feature/db-schema-v6-v7`). V8–V10 pending.
+Status: **V6 + V7 implemented and merged**. **V8–V10 code complete** (`feature/db-schema-v6-v7`). V8 pending first run; V9 pending V8 verification gate.
 Last updated: 2026-05-25.
 
 This document supersedes the ad-hoc evolution in V1–V5. It defines the target shape of the database. V6 and V7 have been expressed as Flyway migrations and companion Java/frontend changes. V8–V10 are the remaining steps before the architecture is fully live.
@@ -14,9 +14,9 @@ This document supersedes the ad-hoc evolution in V1–V5. It defines the target 
 | **V1–V5** | Initial schema → autocomplete entities | ✅ Done (pre-existing) |
 | **V6** | Football source layer: `seasons`, `player_external_ids`, `team_external_ids`, `player_season_stints`; competition_type normalisation; `tier` column | ✅ Done — `V6__football_source_layer.sql` |
 | **V7** | `question_templates`; question lifecycle (`status`); drop `is_active`; `materialized_at` on answers; `scrape_run_logs` | ✅ Done — `V7__question_lifecycle_and_materialization.sql` |
-| **V8** | Python backfill: drain `players.career_stats` JSONB → `player_season_stints` | ⏳ Pending |
-| **V9** | Drop `players.career_stats`, `players.fbref_id`, `teams.fbref_id`; add NOT NULL guarantee on FBref external IDs | ⏳ Pending (after V8 verification) |
-| **V10** | Seed `question_templates`; run template generator for first draft batch | ⏳ Pending |
+| **V8** | Python backfill: drain `players.career_stats` JSONB → `player_season_stints` | ✅ Code done — `backfill_season_stints.py` + updated `scrape_current_season.py` + `database/models_v6.py`. **Run against live DB to complete.** |
+| **V9** | Drop `players.career_stats`, `players.fbref_id`, `teams.fbref_id`; add NOT NULL guarantee on FBref external IDs | ⏳ Pending (after `verify_parity.py` returns 0 rows) |
+| **V10** | Seed `question_templates`; template generator + materializer pipeline | ✅ Code done — `V10__seed_question_templates.sql` + `QuestionMaterializer` + `FootballTeamCompetitionMetricSinceMaterializer` + `QuestionGeneratorService` + `QuestionMaterializerService`. **Apply migration then hit `POST /api/admin/templates/generate`.** |
 
 ---
 

@@ -55,6 +55,29 @@ public interface PlayerSeasonStintRepository extends JpaRepository<PlayerSeasonS
     );
 
     /**
+     * Returns distinct team UUIDs that have at least one player-season-stint in
+     * the given competition where the season started on or after {@code startYear}.
+     *
+     * <p>Used by the template generator to enumerate valid (team, competition)
+     * parameter sets.
+     *
+     * @param competitionId the competition UUID
+     * @param startYear     inclusive lower bound on season start year
+     * @return list of distinct team UUIDs
+     */
+    @Query("""
+        SELECT DISTINCT s.teamId
+          FROM PlayerSeasonStint s
+          JOIN Season sn ON sn.id = s.seasonId
+         WHERE s.competitionId = :competitionId
+           AND sn.startYear   >= :startYear
+        """)
+    List<UUID> findDistinctTeamIdsByCompetitionSince(
+        @Param("competitionId") UUID competitionId,
+        @Param("startYear")     int  startYear
+    );
+
+    /**
      * Projection for {@link #aggregateByTeamCompetitionSince}.
      */
     interface StintAggregate {
