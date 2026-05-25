@@ -4,30 +4,41 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { adminApi } from "@/lib/api/admin";
-import type { Category, Question } from "@/lib/types/admin";
+import type { Category, Question, QuestionStatus } from "@/lib/types/admin";
 import DataTable from "@/components/admin/DataTable";
 import Select from "@/components/ui/Select";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 
-type QuestionRow = Question & { difficultyLabel: string };
+type QuestionRow = Question & { difficultyLabel: string; statusLabel: string };
+
+const statusBadgeClass: Record<QuestionStatus, string> = {
+  draft:   "bg-[rgba(156,163,175,0.15)] text-[#9ca3af] border-[#9ca3af]",
+  active:  "bg-[rgba(74,222,128,0.1)]  text-[#4ade80] border-[#4ade80]",
+  retired: "bg-[rgba(239,68,68,0.1)]   text-[#ef4444] border-[#ef4444]",
+};
 
 const columns = [
-  { key: "questionText", label: "Question" },
-  { key: "categoryName", label: "Category" },
+  { key: "questionText",  label: "Question" },
+  { key: "categoryName",  label: "Category" },
   { key: "difficultyLabel", label: "Difficulty" },
-  { key: "answerCount", label: "Answers" },
-  { key: "isActive", label: "Active" },
+  { key: "answerCount",   label: "Answers" },
+  { key: "statusLabel",   label: "Status" },
 ];
 
-const activeOptions = [
-  { value: "", label: "All Status" },
-  { value: "true", label: "Active" },
-  { value: "false", label: "Inactive" },
+const statusOptions = [
+  { value: "",         label: "All Status" },
+  { value: "draft",    label: "Draft" },
+  { value: "active",   label: "Active" },
+  { value: "retired",  label: "Retired" },
 ];
 
 function difficultyLabel(d: number) {
   return d === 1 ? "Easy" : d === 3 ? "Hard" : "Medium";
+}
+
+function statusLabel(s: QuestionStatus) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export default function QuestionsPage() {
@@ -37,7 +48,6 @@ export default function QuestionsPage() {
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
   const [totalElements, setTotalElements] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
   const pageSize = 10;
@@ -58,18 +68,18 @@ export default function QuestionsPage() {
     async (page: number, catId: string, status: string) => {
       setLoading(true);
       try {
-        let isActive: boolean | undefined;
-        if (status === "true") isActive = true;
-        if (status === "false") isActive = false;
-
         const res = await adminApi.listQuestions(
-          catId || undefined,
-          isActive,
+          catId    || undefined,
+          status   || undefined,
           page,
           pageSize
         );
         setQuestions(
-          res.content.map((q) => ({ ...q, difficultyLabel: difficultyLabel(q.difficulty) }))
+          res.content.map((q) => ({
+            ...q,
+            difficultyLabel: difficultyLabel(q.difficulty),
+            statusLabel: statusLabel(q.status),
+          }))
         );
         setTotalElements(res.totalElements);
       } catch (err) {
@@ -107,7 +117,6 @@ export default function QuestionsPage() {
 
   async function handleDelete() {
     if (!selectedQuestion) return;
-    setActionLoading(true);
     try {
       await adminApi.deleteQuestion(selectedQuestion.id);
       addToast("Question deleted successfully", "success");
@@ -115,8 +124,6 @@ export default function QuestionsPage() {
       loadQuestions(currentPage, appliedCategory, appliedStatus);
     } catch (err) {
       addToast((err as Error).message, "error");
-    } finally {
-      setActionLoading(false);
     }
   }
 
@@ -153,7 +160,7 @@ export default function QuestionsPage() {
             label="Status"
             value={selectedStatus}
             onChange={setSelectedStatus}
-            options={activeOptions}
+            options={statusOptions}
           />
         </div>
         <div className="mb-4">
@@ -164,6 +171,21 @@ export default function QuestionsPage() {
             Apply Filters
           </button>
         </div>
+      </div>
+
+      {/* Status legend */}
+      <div className="flex gap-3 mb-4">
+        {(["draft", "active", "retired"] as QuestionStatus[]).map((s) => (
+          <span
+            key={s}
+            className={`px-2 py-0.5 rounded text-[0.75rem] font-medium border ${statusBadgeClass[s]}`}
+          >
+            {statusLabel(s)}
+          </span>
+        ))}
+        <span className="text-[#6b7280] text-[0.75rem] self-center">
+          — new questions start as Draft
+        </span>
       </div>
 
       <DataTable

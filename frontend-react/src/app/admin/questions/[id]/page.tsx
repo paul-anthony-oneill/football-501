@@ -9,6 +9,7 @@ import type {
   CreateAnswerRequest,
   CreateQuestionRequest,
   Question,
+  QuestionStatus,
   UpdateQuestionRequest,
 } from "@/lib/types/admin";
 import DataTable from "@/components/admin/DataTable";
@@ -20,11 +21,37 @@ import FormModal from "@/components/ui/FormModal";
 import { useToast } from "@/context/ToastContext";
 
 const answerColumns = [
-  { key: "displayText", label: "Answer" },
-  { key: "score", label: "Score" },
+  { key: "displayText",  label: "Answer" },
+  { key: "score",        label: "Score" },
   { key: "isValidDarts", label: "Valid Darts" },
-  { key: "isBust", label: "Bust" },
+  { key: "isBust",       label: "Bust" },
 ];
+
+// ── Status helpers ──────────────────────────────────────────────────────────
+
+const statusConfig: Record<
+  QuestionStatus,
+  { label: string; badgeClass: string; nextStatus: QuestionStatus; actionLabel: string }
+> = {
+  draft: {
+    label:       "Draft",
+    badgeClass:  "bg-[rgba(156,163,175,0.15)] text-[#9ca3af] border-[#9ca3af]",
+    nextStatus:  "active",
+    actionLabel: "Activate",
+  },
+  active: {
+    label:       "Active",
+    badgeClass:  "bg-[rgba(74,222,128,0.1)] text-[#4ade80] border-[#4ade80]",
+    nextStatus:  "retired",
+    actionLabel: "Retire",
+  },
+  retired: {
+    label:       "Retired",
+    badgeClass:  "bg-[rgba(239,68,68,0.1)] text-[#ef4444] border-[#ef4444]",
+    nextStatus:  "active",
+    actionLabel: "Re-activate",
+  },
+};
 
 export default function QuestionDetailPage() {
   const { id: questionId } = useParams<{ id: string }>();
@@ -86,7 +113,10 @@ export default function QuestionDetailPage() {
   ) {
     setQuestionLoading(true);
     try {
-      const updated = await adminApi.updateQuestion(questionId, data as UpdateQuestionRequest);
+      const updated = await adminApi.updateQuestion(
+        questionId,
+        data as UpdateQuestionRequest
+      );
       setQuestion(updated);
       addToast("Question updated successfully", "success");
       setIsEditing(false);
@@ -97,15 +127,19 @@ export default function QuestionDetailPage() {
     }
   }
 
-  async function toggleActive() {
+  /**
+   * Advance the question through its lifecycle:
+   *   draft → active → retired → active → …
+   */
+  async function handleStatusTransition() {
     if (!question) return;
+    const { nextStatus, actionLabel } = statusConfig[question.status];
     try {
-      const updated = await adminApi.toggleQuestionActive(questionId);
+      const updated = await adminApi.updateQuestionStatus(questionId, {
+        status: nextStatus,
+      });
       setQuestion(updated);
-      addToast(
-        `Question is now ${updated.isActive ? "Active" : "Inactive"}`,
-        "success"
-      );
+      addToast(`Question is now ${statusConfig[nextStatus].label}`, "success");
     } catch (err) {
       addToast((err as Error).message, "error");
     }
@@ -200,6 +234,7 @@ export default function QuestionDetailPage() {
     );
   }
 
+  const sc = statusConfig[question.status];
   const coverage = Math.round(
     (question.validDartsCount / Math.max(1, question.answerCount)) * 100
   );
@@ -209,19 +244,17 @@ export default function QuestionDetailPage() {
       {/* Question header */}
       <div className="flex justify-between items-start mb-8">
         <div>
-          <h1 className="m-0 mb-2 text-[var(--color-primary)]">{question.questionText}</h1>
+          <h1 className="m-0 mb-2 text-[var(--color-primary)]">
+            {question.questionText}
+          </h1>
           <div className="flex gap-3 items-center flex-wrap">
             <span className="px-2 py-1 rounded text-[0.8rem] font-medium bg-[#333] text-[#d1d5db]">
               {question.categoryName}
             </span>
             <span
-              className={`px-2 py-1 rounded text-[0.8rem] font-medium border ${
-                question.isActive
-                  ? "bg-[rgba(74,222,128,0.1)] text-[#4ade80] border-[#4ade80]"
-                  : "bg-[rgba(239,68,68,0.1)] text-[#ef4444] border-[#ef4444]"
-              }`}
+              className={`px-2 py-1 rounded text-[0.8rem] font-medium border ${sc.badgeClass}`}
             >
-              {question.isActive ? "Active" : "Inactive"}
+              {sc.label}
             </span>
             <span className="text-[#9ca3af] text-[0.9rem]">
               Key: {question.metricKey}
@@ -229,11 +262,12 @@ export default function QuestionDetailPage() {
           </div>
         </div>
         <div className="flex gap-3">
+          {/* Status transition button */}
           <button
-            onClick={toggleActive}
+            onClick={handleStatusTransition}
             className="px-4 py-2 rounded-lg border border-[#444] bg-[#2a2a2a] text-white text-[0.9rem] cursor-pointer hover:opacity-80 transition-opacity"
           >
-            {question.isActive ? "Deactivate" : "Activate"}
+            {sc.actionLabel}
           </button>
           <button
             onClick={() => setIsEditing(!isEditing)}
@@ -260,9 +294,9 @@ export default function QuestionDetailPage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         {[
-          { value: question.answerCount, label: "Total Answers" },
+          { value: question.answerCount,    label: "Total Answers" },
           { value: question.validDartsCount, label: "Valid Darts" },
-          { value: `${coverage}%`, label: "Coverage" },
+          { value: `${coverage}%`,          label: "Coverage" },
         ].map((stat) => (
           <div key={stat.label} className="bg-[#2a2a2a] p-6 rounded-lg text-center">
             <div className="text-3xl font-bold text-white mb-1">{stat.value}</div>

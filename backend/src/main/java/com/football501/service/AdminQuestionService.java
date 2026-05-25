@@ -9,7 +9,6 @@ import com.football501.model.Question;
 import com.football501.repository.AnswerRepository;
 import com.football501.repository.CategoryRepository;
 import com.football501.repository.QuestionRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,12 +16,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 public class AdminQuestionService {
+
+    private static final Set<String> VALID_STATUSES = Set.of(
+        Question.STATUS_DRAFT, Question.STATUS_ACTIVE, Question.STATUS_RETIRED
+    );
 
     private final QuestionRepository questionRepository;
     private final CategoryRepository categoryRepository;
@@ -38,6 +42,11 @@ public class AdminQuestionService {
         this.answerRepository = answerRepository;
     }
 
+    /**
+     * Creates a new question with {@code status = 'draft'}.
+     * The admin must explicitly promote it to {@code 'active'} (which will trigger
+     * materialisation) before it enters the game rotation.
+     */
     @Transactional
     public QuestionResponse createQuestion(CreateQuestionRequest request) {
         if (!categoryRepository.existsById(request.getCategoryId())) {
@@ -51,11 +60,11 @@ public class AdminQuestionService {
                 .config(request.getConfig())
                 .minScore(request.getMinScore())
                 .difficulty(request.getDifficulty() != null ? request.getDifficulty() : 2)
-                .isActive(false) // Default to inactive
+                .status(Question.STATUS_DRAFT)
                 .build();
 
         Question saved = questionRepository.save(question);
-        log.info("Created new question: {}", saved.getId());
+        log.info("Created new question (draft): {}", saved.getId());
         return mapToResponse(saved);
     }
 
@@ -65,7 +74,7 @@ public class AdminQuestionService {
                 .orElseThrow(() -> new IllegalArgumentException("Question not found with id: " + id));
 
         if (!question.getCategoryId().equals(request.getCategoryId())) {
-             if (!categoryRepository.existsById(request.getCategoryId())) {
+            if (!categoryRepository.existsById(request.getCategoryId())) {
                 throw new IllegalArgumentException("Category not found with id: " + request.getCategoryId());
             }
         }
@@ -84,27 +93,49 @@ public class AdminQuestionService {
         return mapToResponse(saved);
     }
 
+    /**
+     * Transitions a question to a new lifecycle status.
+     *
+     * <p>Valid values: {@code "draft"}, {@code "active"}, {@code "retired"}.
+     * Promoting to {@code "active"} is the trigger point for future materialiser
+     * integration (not yet wired — materialisation is currently manual via
+     * the bulk-import endpoints).
+     */
     @Transactional
-    public QuestionResponse toggleActive(UUID id) {
+    public QuestionResponse updateStatus(UUID id, String newStatus) {
+        if (!VALID_STATUSES.contains(newStatus)) {
+            throw new IllegalArgumentException(
+                "Invalid status '" + newStatus + "'. Must be one of: " + VALID_STATUSES
+            );
+        }
+
         Question question = questionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Question not found with id: " + id));
 
-        question.setIsActive(!question.getIsActive());
+        String oldStatus = question.getStatus();
+        question.setStatus(newStatus);
         Question saved = questionRepository.save(question);
-        log.info("Toggled question active status to {}: {}", saved.getIsActive(), saved.getId());
+        log.info("Question {} status: {} → {}", id, oldStatus, newStatus);
         return mapToResponse(saved);
     }
 
+    /**
+     * Lists questions with optional filters on category and status.
+     *
+     * @param categoryId filter by category UUID (nullable)
+     * @param status     filter by status string, e.g. {@code "active"} (nullable)
+     * @param pageable   pagination / sorting
+     */
     @Transactional(readOnly = true)
-    public QuestionListResponse listQuestions(UUID categoryId, Boolean isActive, Pageable pageable) {
+    public QuestionListResponse listQuestions(UUID categoryId, String status, Pageable pageable) {
         Page<Question> page;
 
-        if (categoryId != null && isActive != null) {
-            page = questionRepository.findByCategoryIdAndIsActive(categoryId, isActive, pageable);
+        if (categoryId != null && status != null) {
+            page = questionRepository.findByCategoryIdAndStatus(categoryId, status, pageable);
         } else if (categoryId != null) {
             page = questionRepository.findByCategoryId(categoryId, pageable);
-        } else if (isActive != null) {
-            page = questionRepository.findByIsActive(isActive, pageable);
+        } else if (status != null) {
+            page = questionRepository.findByStatus(status, pageable);
         } else {
             page = questionRepository.findAll(pageable);
         }
@@ -132,11 +163,13 @@ public class AdminQuestionService {
     @Transactional
     public void deleteQuestion(UUID id) {
         if (!questionRepository.existsById(id)) {
-             throw new IllegalArgumentException("Question not found with id: " + id);
+            throw new IllegalArgumentException("Question not found with id: " + id);
         }
         questionRepository.deleteById(id);
-        log.info("Deleted question with id: {}", id);
+        log.info("Deleted question: {}", id);
     }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
 
     private QuestionResponse mapToResponse(Question question) {
         String categoryName = categoryRepository.findById(question.getCategoryId())
@@ -152,10 +185,10 @@ public class AdminQuestionService {
         response.setConfig(question.getConfig());
         response.setMinScore(question.getMinScore());
         response.setDifficulty(question.getDifficulty());
-        response.setIsActive(question.getIsActive());
+        response.setStatus(question.getStatus());
+        response.setTemplateId(question.getTemplateId());
         response.setCreatedAt(question.getCreatedAt());
         response.setUpdatedAt(question.getUpdatedAt());
-
         response.setAnswerCount(answerRepository.countByQuestionId(question.getId()));
         response.setValidDartsCount(answerRepository.countByQuestionIdAndIsValidDartsTrue(question.getId()));
 

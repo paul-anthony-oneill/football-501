@@ -75,6 +75,7 @@ public class QuestionService {
         List<Question> eligibleQuestions = difficulty != null
             ? questionRepository.findActiveWithMinAnswersByDifficulty(categoryId, difficulty, minAnswers)
             : questionRepository.findActiveWithMinAnswers(categoryId, minAnswers);
+        // Note: both repository methods filter on status = 'active' internally.
 
         if (eligibleQuestions.isEmpty()) {
             log.warn("No eligible questions for category {} (difficulty: {}, minAnswers: {})",
@@ -131,7 +132,7 @@ public class QuestionService {
      */
     @Transactional(readOnly = true)
     public List<Question> getActiveQuestions(UUID categoryId) {
-        return questionRepository.findActiveByCategoryId(categoryId);
+        return questionRepository.findActiveByCategoryId(categoryId); // filters status = 'active'
     }
 
     /**

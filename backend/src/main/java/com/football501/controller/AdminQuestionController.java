@@ -4,9 +4,9 @@ import com.football501.dto.admin.CreateQuestionRequest;
 import com.football501.dto.admin.QuestionListResponse;
 import com.football501.dto.admin.QuestionResponse;
 import com.football501.dto.admin.UpdateQuestionRequest;
+import com.football501.dto.admin.UpdateStatusRequest;
 import com.football501.service.AdminQuestionService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -29,18 +29,25 @@ public class AdminQuestionController {
     }
 
     @PostMapping
-    public ResponseEntity<QuestionResponse> createQuestion(@Valid @RequestBody CreateQuestionRequest request) {
-        log.info("Received request to create question for category: {}", request.getCategoryId());
-        QuestionResponse response = adminQuestionService.createQuestion(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    public ResponseEntity<QuestionResponse> createQuestion(
+            @Valid @RequestBody CreateQuestionRequest request) {
+        log.info("Create question for category: {}", request.getCategoryId());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(adminQuestionService.createQuestion(request));
     }
 
+    /**
+     * List questions with optional filters.
+     *
+     * @param categoryId filter by category UUID
+     * @param status     filter by lifecycle status: {@code draft}, {@code active}, {@code retired}
+     */
     @GetMapping
     public ResponseEntity<QuestionListResponse> listQuestions(
             @RequestParam(required = false) UUID categoryId,
-            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) String status,
             @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(adminQuestionService.listQuestions(categoryId, isActive, pageable));
+        return ResponseEntity.ok(adminQuestionService.listQuestions(categoryId, status, pageable));
     }
 
     @GetMapping("/{id}")
@@ -52,20 +59,31 @@ public class AdminQuestionController {
     public ResponseEntity<QuestionResponse> updateQuestion(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateQuestionRequest request) {
-        log.info("Received request to update question id: {}", id);
+        log.info("Update question: {}", id);
         return ResponseEntity.ok(adminQuestionService.updateQuestion(id, request));
     }
 
-    @PatchMapping("/{id}/toggle-active")
-    public ResponseEntity<QuestionResponse> toggleActive(@PathVariable UUID id) {
-        log.info("Received request to toggle active status for question id: {}", id);
-        return ResponseEntity.ok(adminQuestionService.toggleActive(id));
+    /**
+     * Transition a question's lifecycle status.
+     *
+     * <p>Body: {@code {"status": "active"}} — valid values: {@code draft}, {@code active},
+     * {@code retired}.
+     *
+     * <p>Promoting to {@code active} is the point at which the question enters the
+     * game rotation (future: triggers materialisation).
+     */
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<QuestionResponse> updateStatus(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateStatusRequest request) {
+        log.info("Update question {} status → {}", id, request.getStatus());
+        return ResponseEntity.ok(adminQuestionService.updateStatus(id, request.getStatus()));
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteQuestion(@PathVariable UUID id) {
-        log.info("Received request to delete question id: {}", id);
+        log.info("Delete question: {}", id);
         adminQuestionService.deleteQuestion(id);
     }
 }

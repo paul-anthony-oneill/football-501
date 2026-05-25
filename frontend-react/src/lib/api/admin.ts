@@ -4,8 +4,10 @@ import type {
   UpdateCategoryRequest,
   Question,
   QuestionListResponse,
+  QuestionStatus,
   CreateQuestionRequest,
   UpdateQuestionRequest,
+  UpdateStatusRequest,
   Answer,
   CreateAnswerRequest,
   BulkCreateAnswersRequest,
@@ -82,13 +84,13 @@ class AdminApiClient {
 
   async listQuestions(
     categoryId?: string,
-    isActive?: boolean,
+    status?: QuestionStatus | string,
     page = 0,
     size = 10
   ): Promise<QuestionListResponse> {
     const params = new URLSearchParams();
     if (categoryId) params.append("categoryId", categoryId);
-    if (isActive !== undefined) params.append("isActive", String(isActive));
+    if (status)     params.append("status", status);
     params.append("page", String(page));
     params.append("size", String(size));
 
@@ -116,9 +118,19 @@ class AdminApiClient {
     });
   }
 
-  async toggleQuestionActive(id: string): Promise<Question> {
-    return this.request<Question>(`/questions/${id}/toggle-active`, {
+  /**
+   * Transition a question's lifecycle status.
+   *
+   * @param id     question UUID
+   * @param status "draft" | "active" | "retired"
+   */
+  async updateQuestionStatus(
+    id: string,
+    data: UpdateStatusRequest
+  ): Promise<Question> {
+    return this.request<Question>(`/questions/${id}/status`, {
       method: "PATCH",
+      body: JSON.stringify(data),
     });
   }
 

@@ -19,6 +19,9 @@ export interface UpdateCategoryRequest {
   description?: string;
 }
 
+/** Lifecycle status values for a question. */
+export type QuestionStatus = "draft" | "active" | "retired";
+
 export interface Question {
   id: string;
   categoryId: string;
@@ -28,7 +31,9 @@ export interface Question {
   config: Record<string, unknown>;
   minScore: number;
   difficulty: number;
-  isActive: boolean;
+  /** Lifecycle status: "draft" | "active" | "retired" */
+  status: QuestionStatus;
+  templateId?: string;
   answerCount: number;
   validDartsCount: number;
   createdAt: string;
@@ -53,6 +58,10 @@ export interface UpdateQuestionRequest {
   difficulty?: number;
 }
 
+export interface UpdateStatusRequest {
+  status: QuestionStatus;
+}
+
 export interface QuestionListResponse {
   content: Question[];
   totalElements: number;
@@ -69,6 +78,7 @@ export interface Answer {
   isValidDarts: boolean;
   isBust: boolean;
   metadata?: Record<string, unknown>;
+  materializedAt: string;
   createdAt: string;
 }
 

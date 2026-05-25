@@ -10,12 +10,24 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Domain-agnostic Question entity.
+ * Domain-agnostic question entity.
+ *
+ * <h3>Lifecycle ({@link #status})</h3>
+ * <ul>
+ *   <li>{@code "draft"} — created but not yet materialised; not visible in the game.</li>
+ *   <li>{@code "active"} — materialised and in rotation; the game engine can select it.</li>
+ *   <li>{@code "retired"} — removed from rotation; answers are kept for match replay.</li>
+ * </ul>
+ *
+ * <p>Hand-curated questions have {@code templateId = null}.
+ * Auto-generated questions have {@code templateId} set and {@code templateParams}
+ * holding the concrete param bindings resolved from the template.
  */
 @Entity
 @Table(name = "questions", indexes = {
     @Index(name = "idx_questions_category", columnList = "category_id"),
-    @Index(name = "idx_questions_active", columnList = "is_active")
+    @Index(name = "idx_questions_status",   columnList = "status"),
+    @Index(name = "idx_questions_template", columnList = "template_id")
 })
 @Getter
 @Setter
@@ -23,6 +35,11 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class Question {
+
+    /** Valid values for the {@link #status} field. */
+    public static final String STATUS_DRAFT   = "draft";
+    public static final String STATUS_ACTIVE  = "active";
+    public static final String STATUS_RETIRED = "retired";
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -37,6 +54,12 @@ public class Question {
     @Column(name = "metric_key", nullable = false, length = 50)
     private String metricKey;
 
+    /**
+     * Dynamic configuration used by the materialiser.
+     * For hand-curated questions this is a free-form JSONB object.
+     * For auto-generated questions it is a denormalised snapshot of
+     * {@link #templateParams} merged with template defaults.
+     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
     private Map<String, Object> config;
@@ -48,9 +71,30 @@ public class Question {
     @Builder.Default
     private Integer difficulty = 2;
 
-    @Column(name = "is_active", nullable = false)
+    /**
+     * Question lifecycle status.
+     * Use the {@code STATUS_*} constants defined on this class.
+     */
+    @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
-    private Boolean isActive = true;
+    private String status = STATUS_DRAFT;
+
+    /**
+     * References the {@link QuestionTemplate} that generated this question.
+     * {@code null} for hand-curated questions.
+     */
+    @Column(name = "template_id")
+    private UUID templateId;
+
+    /**
+     * Concrete param bindings resolved from the template (denormalised snapshot
+     * for the materialiser so it does not need to re-join to the template).
+     * Empty ({@code {}}) for hand-curated questions.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "template_params", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private Map<String, Object> templateParams = Map.of();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -67,5 +111,19 @@ public class Question {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    // ── Convenience helpers ───────────────────────────────────────────────────
+
+    public boolean isActive() {
+        return STATUS_ACTIVE.equals(status);
+    }
+
+    public boolean isDraft() {
+        return STATUS_DRAFT.equals(status);
+    }
+
+    public boolean isRetired() {
+        return STATUS_RETIRED.equals(status);
     }
 }
