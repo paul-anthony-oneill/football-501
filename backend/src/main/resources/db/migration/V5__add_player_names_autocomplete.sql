@@ -59,10 +59,13 @@ COMMENT ON COLUMN entities.display_name    IS 'Formatted name shown in the autoc
 COMMENT ON COLUMN entities.normalized_name IS 'Lowercase, accent-stripped name used as the unique key and the search target.';
 COMMENT ON COLUMN entities.hint            IS 'Optional short label shown next to the name (e.g. country code for a flag emoji, or a continent for a city).';
 
--- GIN trigram index on the unaccented normalized form.
--- Enables fast LIKE ''%query%'' with accent stripping without a full-table scan.
+-- GIN trigram index on normalized_name.
+-- normalized_name is pre-stripped of accents in Java (via Normalizer.NFD) before
+-- being stored, so indexing the column directly is correct and avoids the
+-- IMMUTABLE requirement that blocks functional-index use of unaccent().
+-- Enables fast LIKE '%query%' substring matching without a full-table scan.
 CREATE INDEX idx_entities_unaccent_trgm
-    ON entities USING GIN (unaccent(normalized_name) gin_trgm_ops);
+    ON entities USING GIN (normalized_name gin_trgm_ops);
 
 -- Separate index for fast filtering by type before the text search.
 CREATE INDEX idx_entities_type

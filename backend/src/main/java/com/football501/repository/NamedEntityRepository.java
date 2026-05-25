@@ -15,8 +15,12 @@ public interface NamedEntityRepository extends JpaRepository<NamedEntity, UUID> 
 
     /**
      * Accent-insensitive substring search scoped to a specific entity type,
-     * using the PostgreSQL {@code unaccent()} function and the GIN trigram
-     * index on {@code unaccent(normalized_name)}.
+     * using the GIN trigram index on {@code normalized_name}.
+     * <p>
+     * {@code normalized_name} is pre-stripped of accents in Java (via
+     * {@code Normalizer.NFD}) before being stored, so the column is already
+     * clean.  We apply {@code unaccent(lower(:query))} only to the user-supplied
+     * search term so that typing "Agüero" or "aguero" both match "sergio aguero".
      * <p>
      * Results are ranked so that names beginning with the query come first,
      * with alphabetical ordering as a tiebreaker.
@@ -25,16 +29,16 @@ public interface NamedEntityRepository extends JpaRepository<NamedEntity, UUID> 
      * "Sergio Agüero" even though the query contains no accent.
      *
      * @param entityType the pool to search within (e.g. "footballer", "city")
-     * @param query      the raw, possibly accent-free search term
+     * @param query      the raw, possibly accent-bearing search term
      * @param limit      maximum number of results to return
      */
     @Query(value = """
             SELECT id, entity_type, display_name, normalized_name, hint, created_at
             FROM   entities
             WHERE  entity_type = :entityType
-            AND    unaccent(normalized_name) LIKE '%' || unaccent(lower(:query)) || '%'
+            AND    normalized_name LIKE '%' || unaccent(lower(:query)) || '%'
             ORDER BY
-                CASE WHEN unaccent(normalized_name) LIKE unaccent(lower(:query)) || '%'
+                CASE WHEN normalized_name LIKE unaccent(lower(:query)) || '%'
                      THEN 0 ELSE 1 END,
                 normalized_name
             LIMIT  :limit
