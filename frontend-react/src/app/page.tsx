@@ -343,6 +343,18 @@ export default function GamePage() {
             )}
           </div>
 
+          {feedback && (
+            <div
+              className={`mb-4 px-4 py-2 rounded-[var(--radius-sm)] font-semibold text-[0.9rem] text-left ${
+                feedbackType === "error"
+                  ? "bg-[rgba(239,68,68,0.15)] text-[#ffb4ab]"
+                  : "bg-[rgba(74,222,128,0.15)] text-[#4ade80]"
+              }`}
+            >
+              {feedback}
+            </div>
+          )}
+
           <button
             onClick={startGame}
             disabled={loading || categoriesLoading}
