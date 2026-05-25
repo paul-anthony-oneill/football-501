@@ -28,6 +28,7 @@ import re
 import logging
 import argparse
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
@@ -127,12 +128,12 @@ def get_or_create_season(session, raw_label: str) -> Season:
     return season
 
 
-def get_team_by_name(session, name: str) -> Team | None:
+def get_team_by_name(session, name: str) -> Optional[Team]:
     """Look up a team by exact name."""
     return session.query(Team).filter_by(name=name).first()
 
 
-def get_competition_by_name(session, name: str) -> Competition | None:
+def get_competition_by_name(session, name: str) -> Optional[Competition]:
     """Look up a competition by exact name."""
     return session.query(Competition).filter_by(name=name).first()
 
@@ -179,7 +180,7 @@ def ensure_team_external_id(session, team: Team) -> None:
 # ---------------------------------------------------------------------------
 # Scrape-job / run-log helpers
 # ---------------------------------------------------------------------------
-def emit_log(session, job: ScrapeJob, level: str, message: str, ctx: dict | None = None) -> None:
+def emit_log(session, job: ScrapeJob, level: str, message: str, ctx: Optional[dict] = None) -> None:
     session.add(ScrapeRunLog(
         job_id=job.id,
         level=level,

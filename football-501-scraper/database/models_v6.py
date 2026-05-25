@@ -385,7 +385,7 @@ class Answer(Base):
     score = Column(Integer, nullable=False)
     is_valid_darts = Column(Boolean, nullable=False)
     is_bust = Column(Boolean, nullable=False)
-    metadata = Column("metadata", JSONB)
+    answer_metadata = Column("metadata", JSONB)     # 'metadata' is reserved by SQLAlchemy declarative base
     materialized_at = Column(DateTime, default=datetime.utcnow)    # V7
     created_at = Column(DateTime, default=datetime.utcnow)
 

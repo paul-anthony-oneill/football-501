@@ -18,6 +18,7 @@ import os
 import sys
 import logging
 from datetime import datetime
+from typing import Optional, Tuple
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -123,7 +124,7 @@ def normalize_name(name: str) -> str:
 # ---------------------------------------------------------------------------
 # Team upsert
 # ---------------------------------------------------------------------------
-def upsert_team(session, fbref_squad_name: str) -> Team | None:
+def upsert_team(session, fbref_squad_name: str) -> Optional[Team]:
     """
     Find or create a Team row for the given FBref squad name.
     Returns the Team or None if the name cannot be resolved.
@@ -199,7 +200,7 @@ def upsert_stint(
     clean_sheets: int = 0,
     goals_conceded: int = 0,
     is_goalkeeper: bool = False,
-) -> tuple[PlayerSeasonStint, bool]:
+) -> Tuple[PlayerSeasonStint, bool]:
     """
     Upsert a ``player_season_stints`` row.
 
