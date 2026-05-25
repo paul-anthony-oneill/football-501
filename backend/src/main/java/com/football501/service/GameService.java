@@ -135,7 +135,7 @@ public class GameService {
         }
 
         // Create timeout move
-        int currentScore = getPlayerScore(game, playerId);
+        int currentScore = getPlayerScore(game, match, playerId);
         GameMove timeoutMove = GameMove.builder()
             .gameId(gameId)
             .playerId(playerId)

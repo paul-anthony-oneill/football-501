@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import PlayerSearch from "@/components/game/PlayerSearch";
+import EntitySearch from "@/components/game/EntitySearch";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -395,12 +395,13 @@ export default function GamePage() {
             <div className="bg-[var(--color-surface-variant)] rounded-[var(--radius-md)] p-4 shadow-[var(--shadow-2)]">
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <PlayerSearch
+                  <EntitySearch
+                    entityType={question?.config?.entity_type ?? "footballer"}
                     value={answer}
                     onChange={setAnswer}
                     onSubmit={submitAnswer}
                     disabled={loading}
-                    placeholder="Enter player name..."
+                    placeholder="Enter answer..."
                   />
                 </div>
                 <button
