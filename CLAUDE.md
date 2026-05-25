@@ -9,8 +9,9 @@ Football 501 is a competitive football trivia game that combines football knowle
 **Current Status**: Game Engine & Admin UI Implemented (Phase 3 Complete).
 
 **Tech Stack**:
-- Frontend: SvelteKit + TypeScript + Tailwind CSS (Progressive Web App)
-- Backend: Spring Boot 3.x + Java 17+ + PostgreSQL 15+
+- Frontend: Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS 4 — `frontend-react/`
+- Frontend (legacy reference): SvelteKit — `frontend/` (kept intact, not actively developed)
+- Backend: Spring Boot 4.0.6 + Java 25 + PostgreSQL 15+
 - Data Source: ScraperFC (Python Microservice)
 - Real-time: WebSocket (STOMP protocol) - *In Progress*
 
@@ -21,12 +22,12 @@ Football 501 is a competitive football trivia game that combines football knowle
 The application follows a client-server architecture with a separate Python microservice for data scraping:
 
 ```
-PWA Client (SvelteKit) <--HTTPS + WSS--> Spring Boot Server
-                                              |
-                                         PostgreSQL
-                                              ^
-                                              |
-                                    Python Scraper Service (ScraperFC)
+PWA Client (Next.js/React) <--HTTPS + WSS--> Spring Boot Server
+                                                   |
+                                              PostgreSQL
+                                                   ^
+                                                   |
+                                       Python Scraper Service (ScraperFC)
 ```
 
 **Critical Architectural Principles**:
@@ -45,12 +46,32 @@ The Spring Boot application is organized into modules:
 - **Scheduler Module**: Automated tasks (daily challenge generation, stats refresh)
 - **Integration Module**: External API client for API-Football
 
+### Named Entity Autocomplete
+
+The `entities` table is a global registry of named things that players can type as answers during gameplay. It powers the autocomplete dropdown that appears as the player types.
+
+**Key design constraint**: the `entities` table is intentionally decoupled from the `answers` table. A name appearing in autocomplete tells the player nothing about whether it is a valid answer to the current question. All answer validation happens server-side in `AnswerEvaluator` against the `answers` table only.
+
+**How it works**:
+- `entity_type` column (e.g. `"footballer"`, `"city"`, `"country"`) groups names into pools
+- Questions declare which pool to use via a `config` JSONB column: `{"entity_type": "footballer", ...}` or `{"entity_type": "city", ...}`
+- The frontend reads `question.config.entity_type` and passes it to the `EntitySearch` component, which calls `GET /api/entities/search?type={entityType}&query={query}`
+- Search uses PostgreSQL `unaccent()` + a GIN trigram index (`idx_entities_unaccent_trgm`) for accent-insensitive substring matching — typing "aguero" returns "Sergio Agüero"
+- The `entities` table is populated automatically: when answers are bulk-imported via `AdminAnswerService`, it calls `EntitySearchService.upsertEntity()` for each player name. The upsert is idempotent and uses `(entity_type, normalized_name)` as the unique key.
+
+**Naming note**: the Java model class is `NamedEntity` (not `Entity`) to avoid a name clash with the JPA `@Entity` annotation.
+
+See `docs/design/AUTOCOMPLETE_ENTITY_DESIGN.md` for the full design document, including how to add a new entity type.
+
 ### Frontend Architecture
 
-- **SPA Architecture**: Single-page application with client-side routing
-- **State Management**: Svelte stores for reactive state
+- **App Router**: Next.js 16 App Router; all pages are `"use client"` (no SSR needed — data comes from Spring Boot)
+- **State Management**: Local `useState` + React Context API (`ToastContext`); no Redux/Zustand
+- **API Proxy**: `next.config.ts` rewrites `/api/*` → `http://localhost:8080/api/*` in dev
 - **WebSocket Client**: Native WebSocket for real-time game updates
 - **Optimistic UI**: Client updates UI immediately, then syncs with server
+- **Styling**: Tailwind v4 with `@theme inline` in `globals.css` (no `tailwind.config.ts`)
+- **Entity Autocomplete**: `EntitySearch.tsx` (`frontend-react/src/components/game/EntitySearch.tsx`) is the autocomplete input component used during gameplay. It accepts an `entityType` prop — the caller reads `question.config.entity_type` and passes it through; the prop defaults to `"footballer"` for backward compatibility. The component fires a search after 4 characters are typed, shows a "Keep typing…" hint at 1–3 characters, and fills the input on selection without auto-submitting so the player can confirm.
 
 ## Core Game Mechanics
 
@@ -205,11 +226,17 @@ ScraperFC data maps to the `answers` table:
 
 ## Development Workflow
 
-### Project Setup (Not Yet Implemented)
+### Project Setup
 
-When setting up the project for the first time:
+**Frontend (React — active)**:
+```bash
+cd frontend-react
+npm install
+npm run dev  # Dev server on http://localhost:3000
+# API calls proxied to http://localhost:8080 via next.config.ts
+```
 
-**Frontend**:
+**Frontend (SvelteKit — legacy reference only)**:
 ```bash
 cd frontend
 npm install
@@ -219,12 +246,8 @@ npm run dev  # Dev server on http://localhost:5173
 **Backend**:
 ```bash
 cd backend
-# If using Maven:
+# Requires Java 25 (set via JAVA_HOME or .mvn/jvm.config)
 mvn spring-boot:run
-
-# If using Gradle:
-./gradlew bootRun
-
 # Server runs on http://localhost:8080
 ```
 
@@ -308,14 +331,17 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 5. **Fuzzy matching complexity** - Use PostgreSQL trigram indexes (`gin_trgm_ops`) for player name matching
 6. **Close finish rule** - Player 2 always gets final turn if Player 1 checks out first
 7. **Consecutive timeout tracking** - Non-consecutive timeouts reset the timer back to default
+8. **Never use `answers` as the autocomplete source** - It would reveal valid answers for the current question. Autocomplete must query the `entities` table only.
+9. **Always populate `entities` when adding answers** - `AdminAnswerService` does this automatically via `EntitySearchService.upsertEntity()`. If running a manual SQL backfill, see `docs/design/AUTOCOMPLETE_ENTITY_DESIGN.md`.
+10. **Match `entity_type` slug in question config to the `entities` pool** - If `config` says `"entity_type": "city"` but no city rows exist in `entities`, the autocomplete will silently return nothing. Seed the pool before activating the question type.
 
 ## Key Design Decisions
 
-### Why SvelteKit?
-- Simpler syntax than React/Vue
-- Better performance (compiler-based)
-- Built-in PWA support
-- Easier learning curve for backend-focused developer
+### Why Next.js + React?
+- Migrated from SvelteKit (May 2026) for broader ecosystem and hiring pool
+- App Router with `"use client"` pages matches the SPA mental model from SvelteKit
+- Tailwind v4 `@theme` tokens map cleanly onto the existing CSS variable system
+- React Context replaces per-page Svelte store patterns with minimal overhead
 
 ### Why PostgreSQL?
 - ACID compliance for critical operations (rankings, match results)
@@ -341,6 +367,7 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 - Game Rules: `docs/GAME_RULES.md`
 - Technical Design: `docs/design/TECHNICAL_DESIGN.md`
 - API Integration: `docs/api/API_INTEGRATION.md`
+- Autocomplete & Entity Architecture: `docs/design/AUTOCOMPLETE_ENTITY_DESIGN.md`
 
 ## Current Development Phase
 

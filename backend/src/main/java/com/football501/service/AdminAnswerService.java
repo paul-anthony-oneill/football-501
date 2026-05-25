@@ -27,6 +27,14 @@ public class AdminAnswerService {
 
     private final AnswerRepository answerRepository;
     private final QuestionRepository questionRepository;
+    private final EntitySearchService entitySearchService;
+
+    /**
+     * Entity type used when registering footballer answers for autocomplete.
+     * TODO: derive from the question's config JSONB (config.entity_type) once
+     * non-football question types are introduced.
+     */
+    private static final String DEFAULT_ENTITY_TYPE = "footballer";
 
     @Transactional
     public AnswerResponse createAnswer(UUID questionId, CreateAnswerRequest request) {
@@ -50,6 +58,8 @@ public class AdminAnswerService {
         answer.setCreatedAt(LocalDateTime.now());
 
         Answer saved = answerRepository.save(answer);
+        // Register in the global entity autocomplete registry (idempotent).
+        entitySearchService.upsertEntity(request.getDisplayText(), DEFAULT_ENTITY_TYPE, null);
         log.info("Created answer '{}' for question {}", saved.getDisplayText(), questionId);
         return mapToResponse(saved);
     }
@@ -84,6 +94,8 @@ public class AdminAnswerService {
         }
 
         answerRepository.saveAll(toSave);
+        // Register each new name in the global entity autocomplete registry (idempotent).
+        toSave.forEach(a -> entitySearchService.upsertEntity(a.getDisplayText(), DEFAULT_ENTITY_TYPE, null));
 
         BulkCreateAnswersResponse response = new BulkCreateAnswersResponse();
         response.setErrors(new ArrayList<>());

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import PlayerSearch from "@/components/game/PlayerSearch";
+import EntitySearch from "@/components/game/EntitySearch";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -343,6 +343,19 @@ export default function GamePage() {
             )}
           </div>
 
+          {feedback && (
+            <div
+              className={`mb-4 px-4 py-2 rounded-[var(--radius-sm)] font-semibold text-[0.9rem] text-left ${
+                feedbackType === "error"
+                  ? "bg-[rgba(239,68,68,0.15)] text-[#ffb4ab]"
+                  : "bg-[rgba(74,222,128,0.15)] text-[#4ade80]"
+              }`}
+            >
+              {feedback}
+            </div>
+          )}
+
+
           <button
             onClick={startGame}
             disabled={loading || categoriesLoading}
@@ -395,12 +408,13 @@ export default function GamePage() {
             <div className="bg-[var(--color-surface-variant)] rounded-[var(--radius-md)] p-4 shadow-[var(--shadow-2)]">
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <PlayerSearch
+                  <EntitySearch
+                    entityType={question?.config?.entity_type ?? "footballer"}
                     value={answer}
                     onChange={setAnswer}
                     onSubmit={submitAnswer}
                     disabled={loading}
-                    placeholder="Enter player name..."
+                    placeholder="Enter answer..."
                   />
                 </div>
                 <button

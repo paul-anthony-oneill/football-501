@@ -74,7 +74,10 @@ public class MatchService {
             .type(type)
             .format(format)
             .difficulty(difficulty != null ? difficulty : 2)
-            .status(player2Id != null ? Match.MatchStatus.IN_PROGRESS : Match.MatchStatus.WAITING)
+            // Practice (CASUAL with no opponent) starts immediately; ranked matchmaking waits for p2
+            .status(player2Id != null || type == Match.MatchType.CASUAL
+                ? Match.MatchStatus.IN_PROGRESS
+                : Match.MatchStatus.WAITING)
             .player1GamesWon(0)
             .player2GamesWon(0)
             .build();
