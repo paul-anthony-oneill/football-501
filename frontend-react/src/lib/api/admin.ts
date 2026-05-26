@@ -4,12 +4,17 @@ import type {
   UpdateCategoryRequest,
   Question,
   QuestionListResponse,
+  QuestionStatus,
   CreateQuestionRequest,
   UpdateQuestionRequest,
+  UpdateStatusRequest,
   Answer,
   CreateAnswerRequest,
   BulkCreateAnswersRequest,
   BulkCreateAnswersResponse,
+  QuestionTemplate,
+  GeneratorResult,
+  RematerializeResult,
 } from "@/lib/types/admin";
 
 // When running through the Next.js dev server the rewrites in next.config.ts
@@ -82,13 +87,13 @@ class AdminApiClient {
 
   async listQuestions(
     categoryId?: string,
-    isActive?: boolean,
+    status?: QuestionStatus | string,
     page = 0,
     size = 10
   ): Promise<QuestionListResponse> {
     const params = new URLSearchParams();
     if (categoryId) params.append("categoryId", categoryId);
-    if (isActive !== undefined) params.append("isActive", String(isActive));
+    if (status)     params.append("status", status);
     params.append("page", String(page));
     params.append("size", String(size));
 
@@ -116,9 +121,19 @@ class AdminApiClient {
     });
   }
 
-  async toggleQuestionActive(id: string): Promise<Question> {
-    return this.request<Question>(`/questions/${id}/toggle-active`, {
+  /**
+   * Transition a question's lifecycle status.
+   *
+   * @param id     question UUID
+   * @param status "draft" | "active" | "retired"
+   */
+  async updateQuestionStatus(
+    id: string,
+    data: UpdateStatusRequest
+  ): Promise<Question> {
+    return this.request<Question>(`/questions/${id}/status`, {
       method: "PATCH",
+      body: JSON.stringify(data),
     });
   }
 
@@ -170,6 +185,49 @@ class AdminApiClient {
     return this.request<void>("/answers/bulk", {
       method: "DELETE",
       body: JSON.stringify({ ids }),
+    });
+  }
+
+  // ── Templates ──────────────────────────────────────────────────────────────
+
+  /** List all question templates with live draft/active counts. */
+  async listTemplates(): Promise<QuestionTemplate[]> {
+    return this.request<QuestionTemplate[]>("/templates");
+  }
+
+  /** Get a single template by UUID. */
+  async getTemplate(id: string): Promise<QuestionTemplate> {
+    return this.request<QuestionTemplate>(`/templates/${id}`);
+  }
+
+  /**
+   * Run the question generator for all active templates.
+   * Creates draft questions for every valid param combination not yet in the DB.
+   */
+  async generateAll(): Promise<GeneratorResult> {
+    return this.request<GeneratorResult>("/templates/generate", { method: "POST" });
+  }
+
+  /**
+   * Run the question generator for a single template.
+   *
+   * @param templateId  the template UUID
+   */
+  async generateForTemplate(templateId: string): Promise<GeneratorResult> {
+    return this.request<GeneratorResult>(`/templates/${templateId}/generate`, {
+      method: "POST",
+    });
+  }
+
+  /**
+   * Re-materialize the answer set for an active question.
+   * Use after the scraper refreshes player_season_stints data.
+   *
+   * @param questionId the question UUID — must be status "active"
+   */
+  async rematerializeQuestion(questionId: string): Promise<RematerializeResult> {
+    return this.request<RematerializeResult>(`/questions/${questionId}/rematerialize`, {
+      method: "POST",
     });
   }
 }

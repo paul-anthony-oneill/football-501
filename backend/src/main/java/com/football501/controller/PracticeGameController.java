@@ -175,6 +175,15 @@ public class PracticeGameController {
             && game.getWinnerId() != null
             && game.getWinnerId().equals(match.getPlayer1Id());
 
+        // Extract entity_type from the question config JSONB; default to "footballer".
+        String entityType = "footballer";
+        if (question.getConfig() != null) {
+            Object configEntityType = question.getConfig().get("entity_type");
+            if (configEntityType instanceof String s && !s.isBlank()) {
+                entityType = s;
+            }
+        }
+
         return GameStateResponse.builder()
             .gameId(game.getId())
             .matchId(game.getMatchId())
@@ -185,6 +194,7 @@ public class PracticeGameController {
             .status(game.getStatus().name())
             .isWin(isWin)
             .turnTimerSeconds(game.getTurnTimerSeconds())
+            .entityType(entityType)
             .build();
     }
 

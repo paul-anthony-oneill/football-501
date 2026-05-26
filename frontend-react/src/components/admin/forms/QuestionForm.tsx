@@ -10,6 +10,7 @@ import type {
   CreateQuestionRequest,
   UpdateQuestionRequest,
 } from "@/lib/types/admin";
+import { METRIC_KEY_OPTIONS } from "@/lib/types/admin";
 
 interface QuestionFormProps {
   question?: Question;
@@ -23,6 +24,11 @@ const difficultyOptions = [
   { value: "1", label: "Easy" },
   { value: "2", label: "Medium" },
   { value: "3", label: "Hard" },
+];
+
+const metricKeyOptions = [
+  { value: "", label: "Select a metric" },
+  ...METRIC_KEY_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
 ];
 
 export default function QuestionForm({
@@ -112,14 +118,14 @@ export default function QuestionForm({
         placeholder="e.g. Which player has the most Premier League appearances?"
       />
 
-      <TextField
+      <Select
         label="Metric Key"
         value={metricKey}
         onChange={setMetricKey}
+        options={metricKeyOptions}
         required
         error={errors.metricKey}
         disabled={loading}
-        placeholder="e.g. appearances"
       />
 
       <TextField

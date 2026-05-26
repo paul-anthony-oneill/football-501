@@ -1,232 +1,249 @@
 """
 Scrape Current Season Statistics
 ---------------------------------
-Fetches player statistics from FBref using ScraperFC and updates
-the 'players' table (career_stats JSONB) and 'teams' table.
+Fetches player statistics from FBref for all Top-5 European leagues and
+writes directly to ``player_season_stints`` (post-V9 schema).
 
-After this script completes, run:
-    python init_questions_v2.py
-    python populate_answers_v2.py
+Two passes are made per league, mirroring the historical scraper:
+  1. Standard stats  — appearances, goals, assists, penalty stats, cards
+  2. Goalkeeping     — clean sheets, goals conceded (updates GK rows only)
+
+Run this script after each matchday (or weekly) to keep current-season
+data fresh.  After it completes, trigger the Java materializer to refresh
+any active questions whose underlying stints have changed:
+
+    POST /api/admin/questions/rematerialize-stale
+    POST /api/admin/templates/generate   ← only needed at start of a new season
+
+Post-V9 schema notes
+--------------------
+* ``players.fbref_id`` and ``players.career_stats`` no longer exist.
+* Player identity is keyed through ``player_external_ids`` (source='fbref').
+* All season stats live in ``player_season_stints``.
+
+Usage
+-----
+    python scrape_current_season.py [--season 2026-2027] [--leagues EPL,La Liga]
+
+Options
+-------
+  --season YYYY-YYYY   Season to scrape (default: settings.current_season)
+  --leagues KEY,...    Comma-separated FBref league keys (default: all five)
+  --dry-run            Parse and log but do not commit to the database
 """
 
-import os
+import argparse
+import logging
 import sys
-import pandas as pd
+import os
 from datetime import datetime
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from config import settings
-from database.models_v4 import Player, Team
+from database.models_v6 import Competition, ScrapeJob, ScrapeRunLog
+from backfill_season_stints import normalise_season_label, get_or_create_season
 
-# FBref uses abbreviated names. Map them to popularity ranks for difficulty scoring.
-# Teams not in this map get rank 10 (difficulty = hard).
-TEAM_POPULARITY_RANKS = {
-    "Manchester City": 1,
-    "Arsenal": 2,
-    "Liverpool": 3,
-    "Chelsea": 4,
-    "Manchester Utd": 5,
-    "Tottenham": 6,
-    "Newcastle Utd": 7,
-    "Aston Villa": 8,
-    "West Ham": 9,
-    "Brighton": 10,
-    "Brentford": 11,
-    "Fulham": 12,
-    "Wolves": 13,
-    "Crystal Palace": 14,
-    "Everton": 15,
-    "Nott'ham Forest": 16,
-    "Bournemouth": 17,
-    "Leicester City": 18,
-    "Ipswich Town": 19,
-    "Southampton": 20,
-}
+# Re-use all processing logic from the historical scraper.
+# This guarantees identical upsert behaviour: real FBref IDs, None-sentinel
+# GK fields, penalty stats, and correct country per league.
+from scrape_historical import (
+    ALL_LEAGUES,
+    build_fbref_client,
+    process_standard,
+    process_goalkeeping,
+)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger(__name__)
 
 
-def normalize_name(name: str) -> str:
-    return "".join(c for c in name.lower() if c.isalnum())
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
+def run_scrape(season_str: str, league_keys: list[str], dry_run: bool = False) -> None:
+    """
+    Scrape standard + goalkeeping stats for the given season across all
+    requested leagues.
 
-def upsert_teams(session, squad_names: set) -> None:
-    """Create Team entries for any squad name not already in the database."""
-    existing = {t.name for t in session.query(Team.name).all()}
-    new_teams = squad_names - existing
+    Args:
+        season_str:  FBref season string, e.g. "2025-2026"
+        league_keys: list of FBref league keys to scrape, e.g. ["EPL", "La Liga"]
+        dry_run:     if True, parse and log but do not commit to the database
+    """
+    leagues = [l for l in ALL_LEAGUES if l["fbref_key"] in league_keys]
+    if not leagues:
+        log.error("No matching leagues for keys: %s", league_keys)
+        sys.exit(1)
 
-    for name in sorted(new_teams):
-        rank = TEAM_POPULARITY_RANKS.get(name, 10)
-        team = Team(
-            name=name,
-            normalized_name=normalize_name(name),
-            team_type="club",
-            country="England",
-            popularity_rank=rank,
-        )
-        session.add(team)
+    season_label = normalise_season_label(season_str)
+    log.info("=== Current Season Scrape: %s ===", season_label)
+    log.info("Leagues : %s", [l["fbref_key"] for l in leagues])
+    if dry_run:
+        log.warning("DRY-RUN: no changes will be committed.")
 
-    if new_teams:
-        session.commit()
-        print(f"Added {len(new_teams)} teams to database: {sorted(new_teams)}")
-    else:
-        print("All teams already exist in database.")
-
-
-def run_scrape():
-    from ScraperFC.fbref import FBref
-    import undetected_chromedriver as uc
-    import time
-
-
-    print(f"Starting scrape for {settings.current_season}...")
-    print("Launching Chrome (undetected) to bypass Cloudflare...")
-
-    driver = uc.Chrome(headless=False)
-
-    engine = create_engine(settings.database_url)
+    engine  = create_engine(settings.database_url)
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    fb = FBref(wait_time=settings.fbref_wait_time)
+    season_row = get_or_create_season(session, season_str)
+    if not dry_run:
+        session.commit()
 
-    def _wait_for_cloudflare(url: str) -> None:
-        driver.get(url)
-        for _ in range(30):
-            if "Just a moment" not in driver.title:
-                break
-            time.sleep(1)
-        time.sleep(fb.wait_time)
+    driver, fb = build_fbref_client()
 
-    def chrome_get(url: str):
-        class R: pass
-        _wait_for_cloudflare(url)
-        r = R()
-        r.status_code = 200
-        r.content = driver.page_source.encode("utf-8")
-        return r
+    total_created = total_updated = total_failed = 0
 
-    # Patch all HTTP methods so every FBref request goes through undetected Chrome
-    fb._get = chrome_get
-    fb._driver_init = lambda: None        # prevent ScraperFC opening its own Chrome
-    fb.driver = driver                    # hand our driver to ScraperFC
-    fb._driver_get = _wait_for_cloudflare # ScraperFC's driver.get goes through ours
-    fb._driver_close = lambda: None       # don't let ScraperFC close our driver
+    try:
+        for league in leagues:
+            fbref_key = league["fbref_key"]
+            db_name   = league["db_name"]
+            country   = league["country"]
 
+            log.info("\n%s  (%s — %s)", "=" * 50, fbref_key, season_label)
 
-    # ScraperFC v3 requires the short league code, not the full name
-    leagues = [
-        ("EPL", "EPL"),
-    ]
+            competition = session.query(Competition).filter_by(name=db_name).first()
+            if competition is None:
+                log.error("Competition %r not found in DB — skipping.", db_name)
+                session.add(ScrapeRunLog(
+                    job_id=None, level="ERROR",
+                    message=f"Competition not found: {db_name}",
+                    context={"league": fbref_key, "season": season_label},
+                ))
+                continue
 
-    season = settings.current_season
+            league_created = league_updated = league_failed = 0
 
-    for league_name, league_slug in leagues:
-        print(f"\n--- Scraping {league_name} ({season}) ---")
-        try:
-            result = fb.scrape_stats(season, league_name, "standard")
+            for category in ("standard", "goalkeeping"):
+                log.info("  [%s] Fetching %s…", category, fbref_key)
 
-            # Handle varying return formats across ScraperFC versions
-            if isinstance(result, dict):
-                player_df = result.get("player")
-            elif isinstance(result, tuple) and len(result) == 3:
-                _, _, player_df = result
-            else:
-                player_df = result
+                # One ScrapeJob row per (league, category) for auditability.
+                job = ScrapeJob(
+                    job_type="weekly_update",
+                    season=season_label,
+                    competition_id=competition.id,
+                    status="running",
+                    started_at=datetime.utcnow(),
+                )
+                session.add(job)
+                session.flush()
 
-            if not isinstance(player_df, pd.DataFrame):
-                player_df = pd.DataFrame(player_df)
-
-            # Flatten multi-level columns produced by FBref HTML tables
-            if isinstance(player_df.columns, pd.MultiIndex):
-                player_df.columns = [
-                    f"{col[0]}_{col[1]}" if not col[0].startswith("Unnamed") else col[1]
-                    for col in player_df.columns.values
-                ]
-
-            # Drop repeated header rows FBref injects mid-table
-            player_df = player_df[player_df["Player"] != "Player"].reset_index(drop=True)
-
-            print(f"Found {len(player_df)} players. Processing...")
-
-            # Upsert teams before processing players so foreign references are clean
-            squad_names = {str(r) for r in player_df["Squad"].dropna().unique()}
-            upsert_teams(session, squad_names)
-
-            players_updated = 0
-            for _, row in player_df.iterrows():
-                name = str(row["Player"]).strip()
-                if not name:
+                try:
+                    raw = fb.scrape_stats(season_str, fbref_key, category)
+                except Exception as exc:
+                    log.error("  Error fetching %s [%s]: %s", fbref_key, category, exc)
+                    session.add(ScrapeRunLog(
+                        job_id=job.id, level="ERROR",
+                        message=f"scrape_stats failed: {exc}",
+                        context={"league": fbref_key, "season": season_label,
+                                 "category": category},
+                    ))
+                    job.status = "failed"
+                    job.completed_at = datetime.utcnow()
+                    if not dry_run:
+                        session.commit()
+                    league_failed += 1
                     continue
 
-                squad = str(row["Squad"]).strip()
-                nation = str(row.get("Nation", "")).strip()
-
-                # Column names vary with FBref layout; try both flattened forms
-                apps = int(row.get("Playing Time_MP", row.get("Playing_Time_MP", 0)) or 0)
-                goals = int(row.get("Performance_Gls", 0) or 0)
-                assists = int(row.get("Performance_Ast", 0) or 0)
-                minutes = int(row.get("Playing Time_Min", row.get("Playing_Time_Min", 0)) or 0)
-
-                if apps == 0:
-                    continue
-
-                norm_name = normalize_name(name)
-
-                new_stat = {
-                    "season": season,
-                    "team": squad,
-                    "competition": "Premier League",
-                    "appearances": apps,
-                    "goals": goals,
-                    "assists": assists,
-                    "minutes_played": minutes,
-                    "last_updated": datetime.utcnow().isoformat(),
-                }
-
-                player = session.query(Player).filter_by(normalized_name=norm_name).first()
-
-                if player:
-                    stats = [
-                        s for s in list(player.career_stats)
-                        if not (s.get("season") == season and s.get("team") == squad)
-                    ]
-                    stats.append(new_stat)
-                    player.career_stats = stats
-                    player.last_scraped_at = datetime.utcnow()
+                # Unpack (squad_df, opp_df, player_df) tuple from ScraperFC
+                if isinstance(raw, (tuple, list)) and len(raw) == 3:
+                    _, _, player_df = raw
                 else:
-                    player = Player(
-                        fbref_id=f"gen_{norm_name}",
-                        name=name,
-                        normalized_name=norm_name,
-                        nationality=nation,
-                        career_stats=[new_stat],
-                        last_scraped_at=datetime.utcnow(),
+                    player_df = raw
+
+                if player_df is None or player_df.empty:
+                    log.warning("  Empty data for %s [%s] — skipping.", fbref_key, category)
+                    job.status = "skipped"
+                    job.completed_at = datetime.utcnow()
+                    if not dry_run:
+                        session.commit()
+                    continue
+
+                # Delegate to the shared processing functions from the
+                # historical scraper.  These handle: real FBref player IDs,
+                # penalty stats, None-sentinel GK fields, country-aware
+                # team upsert, and player_external_ids maintenance.
+                if category == "standard":
+                    c, u, f = process_standard(
+                        session, player_df, season_row, competition, country, job
                     )
-                    session.add(player)
+                    log.info("    standard: %d created, %d updated, %d failed", c, u, f)
+                    league_created += c
+                    league_updated += u
+                    league_failed  += f
+                else:
+                    u, c_new, f = process_goalkeeping(
+                        session, player_df, season_row, competition, country, job
+                    )
+                    log.info("    goalkeeping: %d updated, %d new GKs, %d failed",
+                             u, c_new, f)
+                    league_updated += u + c_new
+                    league_failed  += f
 
-                players_updated += 1
-                if players_updated % 50 == 0:
+                job.status = "success" if f == 0 else "partial"
+                job.players_scraped = (c + u) if category == "standard" else (u + c_new)
+                job.players_failed  = f
+                job.completed_at    = datetime.utcnow()
+                if not dry_run:
                     session.commit()
-                    print(f"  Processed {players_updated} players...")
 
-            session.commit()
-            print(f"Finished {league_name}: {players_updated} players updated.")
+            log.info("  %s total: %d created, %d updated, %d failed",
+                     fbref_key, league_created, league_updated, league_failed)
+            total_created += league_created
+            total_updated += league_updated
+            total_failed  += league_failed
 
-        except Exception as e:
-            print(f"Error scraping {league_name}: {e}")
-            session.rollback()
+    finally:
+        try:
             driver.quit()
-            raise
+        except Exception:
+            pass
+        log.info("\nBrowser closed.")
 
-    driver.quit()
-
-    print("\nScrape complete.")
-    print("Next steps:")
-    print("  python init_questions_v2.py")
-    print("  python populate_answers_v2.py")
-    print("  python verify_2526.py")
+    log.info("\n=== Scrape complete ===")
+    log.info("Season : %s", season_label)
+    log.info("Total  : %d created, %d updated, %d failed",
+             total_created, total_updated, total_failed)
+    log.info("\nNext steps:")
+    log.info("  POST /api/admin/questions/rematerialize-stale"
+             "   ← refresh active question answers")
+    log.info("  POST /api/admin/templates/generate"
+             "              ← create drafts for new (team, season) combos")
 
 
 if __name__ == "__main__":
-    run_scrape()
+    parser = argparse.ArgumentParser(
+        description="Football 501 — Current Season Scraper"
+    )
+    parser.add_argument(
+        "--season",
+        type=str,
+        default=settings.current_season,
+        help=f"Season to scrape, e.g. '2026-2027' (default: {settings.current_season})",
+    )
+    parser.add_argument(
+        "--leagues",
+        type=str,
+        default=",".join(l["fbref_key"] for l in ALL_LEAGUES),
+        help="Comma-separated FBref league keys (default: all five)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Parse and log but do not commit to the database",
+    )
+    args = parser.parse_args()
+
+    run_scrape(
+        season_str=args.season,
+        league_keys=[k.strip() for k in args.leagues.split(",")],
+        dry_run=args.dry_run,
+    )

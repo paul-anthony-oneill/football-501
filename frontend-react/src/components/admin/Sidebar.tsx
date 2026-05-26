@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 
 const links = [
   { href: "/admin/categories", label: "Categories", icon: "📁" },
-  { href: "/admin/questions", label: "Questions", icon: "❓" },
+  { href: "/admin/questions",  label: "Questions",  icon: "❓" },
+  { href: "/admin/templates",  label: "Templates",  icon: "🧩" },
 ];
 
 export default function Sidebar() {

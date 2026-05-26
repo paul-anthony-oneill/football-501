@@ -1,591 +1,203 @@
-# Current Question & Answer Workflow
+# Football 501 Scraper — Current Workflow
 
-**Updated:** 2026-01-21
-**Schema:** Generic, domain-agnostic (V4 architecture)
+**Updated:** 2026-05-25
+**Schema:** V9 (post-migration) — `player_season_stints` is the keystone; `career_stats` and `fbref_id` columns have been dropped.
+
+---
 
 ## Overview
 
-The current implementation uses a **generic schema** that is NOT tied to football-specific concepts. This allows flexibility for different question types beyond just player statistics.
+The scraper layer is a set of Python scripts that write directly to PostgreSQL.
+There is no FastAPI microservice; scripts are invoked on-demand or on a schedule.
 
-## Architecture
+The **answers table is never written by Python**. Stats go into `player_season_stints`;
+the Java materializer pipeline translates stints → answers when an admin promotes a
+draft question to `active`.
 
 ```
-Generic JSONB Config → Dynamic Filtering → Generic Answer Table → Java Backend
+FBref → Python scripts → player_season_stints
+                                │
+                     Java materializer (on admin promote)
+                                │
+                           answers + entities
+                                │
+                     Spring Boot game engine (read-only)
 ```
-
-**Key Principle:** Questions and Answers are domain-agnostic. The Java backend doesn't know about "players" or "teams" - it only knows about "answers" and "scores".
 
 ---
 
-## Database Schema
+## Database Schema (post-V9)
 
-### Categories
+### Core source table: `player_season_stints`
 
-Groups of related questions (e.g., "Premier League", "La Liga").
+One row per (player, season, team, competition). This is the only table Python writes stats to.
 
 ```sql
-CREATE TABLE categories (
-    id UUID PRIMARY KEY,
-    name VARCHAR(255),
-    slug VARCHAR(100) UNIQUE,
-    description TEXT
+CREATE TABLE player_season_stints (
+    id               UUID PRIMARY KEY,
+    player_id        UUID REFERENCES players(id),
+    season_id        UUID REFERENCES seasons(id),
+    team_id          UUID REFERENCES teams(id),
+    competition_id   UUID REFERENCES competitions(id),
+    appearances      SMALLINT NOT NULL DEFAULT 0,
+    starts           SMALLINT NOT NULL DEFAULT 0,
+    minutes          INTEGER  NOT NULL DEFAULT 0,
+    goals            SMALLINT NOT NULL DEFAULT 0,
+    assists          SMALLINT NOT NULL DEFAULT 0,
+    penalty_goals    SMALLINT NOT NULL DEFAULT 0,
+    penalty_attempts SMALLINT NOT NULL DEFAULT 0,
+    yellow_cards     SMALLINT NOT NULL DEFAULT 0,
+    red_cards        SMALLINT NOT NULL DEFAULT 0,
+    clean_sheets     SMALLINT NOT NULL DEFAULT 0,
+    goals_conceded   SMALLINT NOT NULL DEFAULT 0,
+    is_goalkeeper    BOOLEAN  NOT NULL DEFAULT FALSE,
+    source           VARCHAR(32) NOT NULL,
+    source_scraped_at TIMESTAMP NOT NULL,
+    UNIQUE (player_id, season_id, team_id, competition_id)
 );
 ```
 
-### Questions (Generic)
+### Player identity (post-V9)
+
+`players.fbref_id` and `players.career_stats` have been **dropped**. Player identity
+is keyed through `player_external_ids`:
 
 ```sql
-CREATE TABLE questions (
-    id UUID PRIMARY KEY,
-    category_id UUID REFERENCES categories(id),
-    question_text TEXT,
-    metric_key VARCHAR(50),    -- 'goals', 'appearances', 'points', etc.
-    config JSONB,               -- Flexible filters
-    min_score INTEGER,
-    is_active BOOLEAN
-);
+-- Look up a player by FBref ID
+SELECT p.* FROM players p
+JOIN player_external_ids e ON e.player_id = p.id
+WHERE e.source = 'fbref' AND e.external_id = '<fbref_player_id>';
 ```
 
-**Example config:**
-```json
-{
-  "team": "Manchester City",
-  "competition": "Premier League",
-  "season": "2023-2024"
-}
-```
+### Question lifecycle tables
 
-### Answers (Generic - NOT tied to players)
-
-```sql
-CREATE TABLE answers (
-    id UUID PRIMARY KEY,
-    question_id UUID REFERENCES questions(id),
-    answer_key VARCHAR(255),    -- Normalized text (unique per question)
-    display_text VARCHAR(255),  -- Display name
-    score INTEGER,
-    is_valid_darts BOOLEAN,     -- Pre-computed
-    is_bust BOOLEAN,            -- Pre-computed
-    answer_metadata JSONB,      -- Flexible metadata
-    UNIQUE(question_id, answer_key)
-);
-```
-
-**Example answer:**
-```json
-{
-  "answer_key": "erling haaland",
-  "display_text": "Erling Haaland",
-  "score": 35,
-  "is_valid_darts": true,
-  "is_bust": false,
-  "answer_metadata": {
-    "player_id": "uuid-optional",
-    "team": "Manchester City"
-  }
-}
-```
-
-**Key Points:**
-- ✅ `answer_key` is just normalized text (not a foreign key to players table)
-- ✅ `answer_metadata` is flexible JSONB (can store anything)
-- ✅ No direct relationship to players, teams, or competitions tables
-- ✅ Java backend only needs to match `answer_key` and return `score`
+| Table | Purpose |
+|---|---|
+| `question_templates` | Template definitions with `materializer_key` and `param_schema` |
+| `questions` | Concrete questions (status: draft → active → retired) |
+| `answers` | Pre-computed answer rows — written by Java materializer only |
+| `entities` | Autocomplete pool — written by Java materializer alongside answers |
 
 ---
 
-## Workflow
+## Scripts
 
-### Step 1: Initialize Database
+### `scrape_historical.py` — historical backfill
+
+Scrapes all seasons for the five Top-5 leagues. Already run against the live DB
+(all 130 league × season pairs complete). Safe to re-run — all writes are upserts.
 
 ```bash
-python init_db_v3.py
+# Full backfill (all leagues, from settings.start_year)
+python scrape_historical.py
+
+# Specific subset
+python scrape_historical.py --leagues "EPL,La Liga" --from-year 2020
+
+# Dry-run (parse + log, no DB writes)
+python scrape_historical.py --dry-run
 ```
 
-Creates tables with PostgreSQL extensions (pg_trgm for fuzzy matching).
+Two passes per league × season:
+1. **Standard pass** — appearances, goals, assists, cards, penalty stats (all players)
+2. **Goalkeeping pass** — clean_sheets, goals_conceded, is_goalkeeper (GK rows only)
 
-### Step 2: Scrape Player Data
+The GK pass uses a `None`-sentinel pattern in `upsert_stint`: it **only** overwrites
+clean_sheets/goals_conceded/is_goalkeeper; it never zeros those fields on an outfield
+player who also happened to touch the standard sheet.
+
+---
+
+### `scrape_current_season.py` — weekly update
+
+Delegates to `scrape_historical.py`'s shared functions. Run after each matchday.
 
 ```bash
-python scrape_all_premier_league_history.py
+# Current season (from settings.current_season), all leagues
+python scrape_current_season.py
+
+# Override season/leagues
+python scrape_current_season.py --season 2026-2027 --leagues "EPL"
+
+# Dry-run
+python scrape_current_season.py --dry-run
 ```
 
-Populates `players` table with JSONB career stats (this is football-specific, but the schema supports any domain).
-
-### Step 3: Create Category
-
-```python
-from database.models_v4 import Category
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
-
-engine = create_engine('postgresql://...')
-Session = sessionmaker(bind=engine)
-session = Session()
-
-category = Category(
-    name="Premier League",
-    slug="premier-league",
-    description="English Premier League Questions"
-)
-session.add(category)
-session.commit()
+After running, trigger the Java materializer:
+```
+POST /api/admin/questions/rematerialize-stale
 ```
 
-### Step 4: Create Questions
+---
 
-**Script:** `init_questions_v2.py`
+### Utility scripts
 
-```python
-from database.models_v4 import Question
+| Script | Purpose |
+|---|---|
+| `verify_2526.py` | Count 2025-26 stints; print top scorer sample |
+| `inspect_player.py [name]` | Show all stints for a player name substring |
+| `inspect_fbref_season.py` | Dump FBref column names for a season (debug FBref changes) |
+| `populate_answers_v2.py` | **DEPRECATED** — raises SystemExit immediately |
 
-# Question with filters
-question = Question(
-    category_id=category.id,
-    question_text="Goals for Manchester City in Premier League 2023-2024",
-    metric_key="goals",
-    config={
-        "team": "Manchester City",
-        "competition": "Premier League",
-        "season": "2023-2024"
-    },
-    min_score=1,
-    is_active=True
-)
-session.add(question)
-session.commit()
-```
+---
 
-**Config is flexible - add any filters you want:**
+## Java Materializer Pipeline
 
-```python
-# Nationality filter
-config = {
-    "competition": "Premier League",
-    "nationality": "Argentina"
-}
+Python does not write to `answers`. The flow is:
 
-# Career stats (no season filter)
-config = {
-    "team": "Arsenal",
-    "competition": "Premier League"
-    # No season = all seasons
-}
+1. Admin calls `POST /api/admin/templates/generate`
+   → `QuestionGeneratorService` reads active `question_templates`, enumerates valid
+   param combos (team × competition × season/start_year), inserts draft `questions`.
 
-# Global stats
-config = {}  # Matches everything!
-```
+2. Admin promotes a draft: `PATCH /api/admin/questions/{id}/status {"status":"active"}`
+   → `QuestionMaterializerService` invokes the correct materializer:
 
-### Step 5: Populate Answers
+   | Materializer key | Java class | Question shape |
+   |---|---|---|
+   | `football.team_competition_metric_since` | `FootballTeamCompetitionMetricSinceMaterializer` | "Goals for Arsenal in the PL since 2000" |
+   | `football.team_competition_season_metric` | `FootballTeamCompetitionSeasonMaterializer` | "Goals for Arsenal in the UCL 2023-24" |
 
-**Script:** `populate_answers_v2.py`
+   The materializer aggregates `player_season_stints`, writes `answers`, and upserts
+   player display names into `entities` (entity_type=`'footballer'`).
+
+3. Active questions are re-materialized automatically when stints change:
+   `POST /api/admin/questions/rematerialize-stale`
+
+---
+
+## Quick Start (new environment)
 
 ```bash
-python populate_answers_v2.py
-```
+cd football-501-scraper
+pip install -r requirements.txt
 
-**What it does:**
+# Copy and fill in your DB credentials
+cp .env.example .env
 
-```python
-# For each question
-for question in questions:
-    # For each player
-    for player in players:
-        # Filter player's career_stats by question.config
-        relevant_stats = []
-        for season_stat in player.career_stats:
-            # Check if season matches ALL config filters
-            match = True
-            for filter_key, filter_val in question.config.items():
-                if str(season_stat.get(filter_key)) != str(filter_val):
-                    match = False
-                    break
-            if match:
-                relevant_stats.append(season_stat)
+# Verify the DB is reachable and stints exist
+python verify_2526.py
 
-        # Sum the metric_key across matching seasons
-        total_score = sum(
-            stat.get(question.metric_key, 0)
-            for stat in relevant_stats
-        )
+# If stints are missing, re-run historical scraper
+python scrape_historical.py
 
-        # Create generic Answer (NOT tied to player_id!)
-        if total_score > 0:
-            answer = Answer(
-                question_id=question.id,
-                answer_key=player.normalized_name,  # Just text!
-                display_text=player.name,
-                score=total_score,
-                is_valid_darts=is_valid_darts_score(total_score),
-                is_bust=(total_score > 180 or total_score <= 0),
-                answer_metadata={
-                    "player_id": str(player.id),  # Optional metadata
-                    "nationality": player.nationality
-                }
-            )
-            session.add(answer)
-```
-
-**Result:** Generic answers table populated with text-based keys.
-
----
-
-## Java Backend Integration
-
-### Java Entities
-
-**Answer.java:**
-```java
-@Entity
-@Table(name = "answers")
-public class Answer {
-    @Id
-    private UUID id;
-
-    private UUID questionId;
-
-    @Column(name = "answer_key")
-    private String answerKey;  // Normalized text (NOT player_id!)
-
-    @Column(name = "display_text")
-    private String displayText;
-
-    private Integer score;
-
-    @Column(name = "is_valid_darts")
-    private Boolean isValidDarts;
-
-    @Column(name = "is_bust")
-    private Boolean isBust;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "answer_metadata")
-    private Map<String, Object> answerMetadata;  // Flexible!
-}
-```
-
-**Question.java:**
-```java
-@Entity
-@Table(name = "questions")
-public class Question {
-    @Id
-    private UUID id;
-
-    private UUID categoryId;
-
-    @Column(name = "question_text")
-    private String questionText;
-
-    @Column(name = "metric_key")
-    private String metricKey;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    private Map<String, Object> config;  // Flexible filters!
-
-    private Integer minScore;
-    private Boolean isActive;
-}
-```
-
-### Java Validation
-
-**AnswerEvaluator.java:**
-```java
-@Service
-public class AnswerEvaluator {
-
-    public AnswerResult evaluateAnswer(
-        UUID questionId,
-        String userInput,
-        int currentScore,
-        List<UUID> usedAnswerIds
-    ) {
-        // Normalize input
-        String normalized = userInput.trim().toLowerCase();
-
-        // Find answer by text matching (NOT player lookup!)
-        Optional<Answer> answer = answerRepository
-            .findByQuestionIdAndAnswerKey(questionId, normalized);
-
-        // Or fuzzy match
-        if (answer.isEmpty()) {
-            answer = answerRepository.findBestMatchByFuzzyName(
-                questionId, normalized, usedAnswerIds, 0.5
-            );
-        }
-
-        // Validate and return result
-        // Java doesn't need to know about "players" - just text matching!
-    }
-}
-```
-
-**Key point:** Java backend is **domain-agnostic**. It doesn't know about football, players, or teams. It just matches text and returns scores.
-
----
-
-## Key Differences from V3
-
-### Old V3 Schema (Football-Specific)
-
-```sql
--- Tied to domain
-CREATE TABLE question_valid_answers (
-    player_id UUID REFERENCES players(id),  -- Foreign key!
-    team_id UUID,
-    competition_id UUID,
-    season_filter VARCHAR(20)
-);
-```
-
-❌ Hardcoded to football domain
-❌ Schema changes needed for new question types
-❌ Foreign key constraints to players table
-
-### Current Schema (Generic)
-
-```sql
--- Domain-agnostic
-CREATE TABLE answers (
-    answer_key VARCHAR(255),     -- Just text!
-    answer_metadata JSONB,       -- Flexible!
-    -- No foreign keys to domain tables
-);
-
-CREATE TABLE questions (
-    metric_key VARCHAR(50),      -- Any metric!
-    config JSONB                 -- Flexible filters!
-);
-```
-
-✅ Works with any domain (football, music, movies, etc.)
-✅ No schema changes for new question types
-✅ No foreign key dependencies
-✅ Easy to extend with new metadata
-
----
-
-## Example Questions
-
-### 1. Football: Team Season Goals
-
-```python
-Question(
-    category_id=premier_league_cat.id,
-    question_text="Goals for Arsenal in Premier League 2023-2024",
-    metric_key="goals",
-    config={
-        "team": "Arsenal",
-        "competition": "Premier League",
-        "season": "2023-2024"
-    },
-    is_active=True
-)
-```
-
-**Answers:**
-```
-answer_key: "bukayo saka", display_text: "Bukayo Saka", score: 14
-answer_key: "gabriel jesus", display_text: "Gabriel Jesus", score: 11
-```
-
-### 2. Football: Nationality Filter
-
-```python
-Question(
-    question_text="Appearances by Brazilian players in Premier League 2023-2024",
-    metric_key="appearances",
-    config={
-        "competition": "Premier League",
-        "season": "2023-2024",
-        "nationality": "Brazil"  # Flexible filter!
-    }
-)
-```
-
-### 3. Non-Football Example (Future)
-
-```python
-# Movie actors
-Question(
-    question_text="Movies starring Tom Hanks",
-    metric_key="appearances",
-    config={
-        "actor": "Tom Hanks",
-        "media_type": "movie"
-    }
-)
-
-# Answer
-Answer(
-    answer_key="forrest gump",
-    display_text="Forrest Gump",
-    score=1,  # 1 appearance
-    answer_metadata={"year": 1994, "genre": "Drama"}
-)
-```
-
-**The schema supports ANY domain!**
-
----
-
-## Advantages of Generic Schema
-
-### 1. Flexibility
-Add new question types without schema changes:
-```python
-# New metric types - no migration needed!
-metric_key="assists"
-metric_key="clean_sheets"
-metric_key="minutes_played"
-```
-
-### 2. Extensibility
-Store any metadata in JSONB:
-```python
-answer_metadata={
-    "player_id": "uuid",
-    "age": 27,
-    "position": "Forward",
-    "market_value": "150M",
-    "custom_field": "anything"
-}
-```
-
-### 3. Java Backend Simplicity
-```java
-// Java doesn't need domain knowledge!
-// It just matches text and returns scores
-String userInput = "Erling Haaland";
-Answer answer = findByAnswerKey(questionId, normalize(userInput));
-return answer.getScore();  // That's it!
-```
-
-### 4. Future-Proof
-Want to add music questions? Just change the data:
-```python
-# No code changes needed!
-config={"artist": "The Beatles", "decade": "1960s"}
-metric_key="songs"
+# Weekly cadence (after matchday)
+python scrape_current_season.py
+# then: POST /api/admin/questions/rematerialize-stale
 ```
 
 ---
 
-## Migration from Old V3
+## Deprecated files
 
-If you have old V3 data with `player_id` foreign keys:
-
-```python
-# Convert V3 to Generic
-from database.models_v3 import QuestionValidAnswer as V3Answer
-from database.models_v4 import Answer as GenericAnswer
-
-session = Session()
-
-v3_answers = session.query(V3Answer).all()
-
-for v3 in v3_answers:
-    # Create generic answer (no player_id FK!)
-    generic = GenericAnswer(
-        question_id=v3.question_id,
-        answer_key=v3.normalized_name,    # Text, not FK
-        display_text=v3.player_name,
-        score=v3.score,
-        is_valid_darts=v3.is_valid_darts_score,
-        is_bust=v3.is_bust,
-        answer_metadata={
-            "player_id": str(v3.player_id),  # Metadata, not FK
-            "original_source": "v3_migration"
-        }
-    )
-    session.add(generic)
-
-session.commit()
-```
+| File | Status | Replacement |
+|---|---|---|
+| `database/models_v4.py` | Superseded by `models_v6.py` | — |
+| `init_db_v3.py` | Superseded by Flyway migrations V1–V11 | — |
+| `init_questions_v2.py` | Superseded by Java `QuestionGeneratorService` | — |
+| `populate_answers_v2.py` | Superseded by Java materializer pipeline | — |
+| `backfill_season_stints.py` | One-off V8 migration script (do not re-run) | — |
+| `scrape_all_premier_league_history.py` | Superseded by `scrape_historical.py` | — |
 
 ---
 
-## Performance Considerations
-
-### Indexing
-
-```sql
--- Text matching (fast with trigram)
-CREATE INDEX idx_answers_key_trgm ON answers
-    USING gin(answer_key gin_trgm_ops);
-
--- JSONB queries
-CREATE INDEX idx_answers_metadata ON answers
-    USING gin(answer_metadata jsonb_path_ops);
-
-CREATE INDEX idx_questions_config ON questions
-    USING gin(config jsonb_path_ops);
-```
-
-### Query Performance
-
-**Exact match:** < 10ms
-```sql
-SELECT * FROM answers
-WHERE question_id = 'uuid'
-  AND answer_key = 'erling haaland';
-```
-
-**Fuzzy match:** < 50ms
-```sql
-SELECT *, similarity(answer_key, 'haland') as sim
-FROM answers
-WHERE question_id = 'uuid'
-  AND similarity(answer_key, 'haland') > 0.5
-ORDER BY sim DESC LIMIT 1;
-```
-
----
-
-## Summary
-
-### Current Implementation:
-- ✅ Generic, domain-agnostic schema
-- ✅ `answer_key` is text (NOT foreign key to players)
-- ✅ `config` is JSONB (flexible filters)
-- ✅ `answer_metadata` is JSONB (flexible data)
-- ✅ Java backend doesn't need domain knowledge
-- ✅ Easy to extend to new domains
-
-### When to Use This:
-- ✅ You want maximum flexibility
-- ✅ You plan to support multiple domains (football, music, etc.)
-- ✅ You want to avoid schema migrations for new question types
-- ✅ You're okay with slightly slower JSONB queries
-
-### Files:
-- **Models:** `database/models_v4.py`
-- **Create Questions:** `init_questions_v2.py`
-- **Populate Answers:** `populate_answers_v2.py`
-- **Java Backend:** Uses generic `Answer` entity with `answer_key` text matching
-
----
-
-## Quick Start
-
-```bash
-# 1. Init database
-python init_db_v3.py
-
-# 2. Scrape data
-python scrape_all_premier_league_history.py
-
-# 3. Create questions
-python init_questions_v2.py
-
-# 4. Populate answers
-python populate_answers_v2.py
-
-# 5. Java backend reads from generic 'answers' table
-# No knowledge of players, teams, or competitions needed!
-```
-
----
-
-This is the **current, production-ready workflow** that matches the generic schema architecture.
+*See also: `docs/plans/DATABASE_DESIGN.md` and `docs/design/SCRAPING_SERVICE_OPERATIONS.md`.*

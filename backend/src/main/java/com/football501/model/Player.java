@@ -32,11 +32,9 @@ public class Player {
     @Column(name = "normalized_name", nullable = false)
     private String normalizedName;
 
-    @Column(name = "fbref_id", nullable = false, unique = true)
-    private String fbrefId;
-
     @Column
     private String nationality;
 
-    // career_stats omitted for simplicity, can be added with JSONB mapping if needed
+    // fbref_id and career_stats dropped in V9 — external IDs live in player_external_ids,
+    // per-season stats live in player_season_stints.
 }

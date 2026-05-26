@@ -12,53 +12,48 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Repository for Question entity.
+ * Repository for the {@link Question} entity.
+ *
+ * <p>All "active question" queries filter on {@code status = 'active'}.
+ * Use {@link Question#STATUS_ACTIVE} rather than hard-coding the string in callers.
  */
 @Repository
 public interface QuestionRepository extends JpaRepository<Question, UUID> {
 
-    /**
-     * Find all active questions.
-     *
-     * @return list of active questions
-     */
-    List<Question> findByIsActiveTrue();
+    // ── Simple status/category lookups ────────────────────────────────────────
+
+    List<Question> findByStatus(String status);
+
+    List<Question> findByCategoryIdAndStatus(UUID categoryId, String status);
+
+    List<Question> findByCategoryIdAndDifficultyAndStatus(UUID categoryId, Integer difficulty, String status);
 
     /**
-     * Find active questions by category.
-     *
-     * @param categoryId the category UUID
-     * @return list of questions
-     */
-    List<Question> findByCategoryIdAndIsActiveTrue(UUID categoryId);
-
-    /**
-     * Find active questions by category and difficulty.
-     *
-     * @param categoryId the category UUID
-     * @param difficulty the difficulty level
-     * @return list of questions
-     */
-    List<Question> findByCategoryIdAndDifficultyAndIsActiveTrue(UUID categoryId, Integer difficulty);
-
-    /**
-     * Alias for findByCategoryIdAndIsActiveTrue.
-     *
-     * @param categoryId the category UUID
-     * @return list of active questions
+     * Convenience alias — returns all questions with {@code status = 'active'}
+     * for the given category.
      */
     default List<Question> findActiveByCategoryId(UUID categoryId) {
-        return findByCategoryIdAndIsActiveTrue(categoryId);
+        return findByCategoryIdAndStatus(categoryId, Question.STATUS_ACTIVE);
     }
 
+    // ── Paged lookups ─────────────────────────────────────────────────────────
+
+    Page<Question> findByCategoryId(UUID categoryId, Pageable pageable);
+
+    Page<Question> findByCategoryIdAndStatus(UUID categoryId, String status, Pageable pageable);
+
+    Page<Question> findByStatus(String status, Pageable pageable);
+
+    // ── Answer-count-aware lookups (avoids N+1) ───────────────────────────────
+
     /**
-     * Find active questions for a category that have at least minAnswers answers.
-     * Single query — avoids N+1 from per-question COUNT calls.
+     * Returns active questions for a category that have at least {@code minAnswers}
+     * pre-materialised answers. Uses a single correlated subquery to avoid N+1.
      */
     @Query("""
         SELECT q FROM Question q
         WHERE q.categoryId = :categoryId
-          AND q.isActive = true
+          AND q.status     = 'active'
           AND (SELECT COUNT(a) FROM Answer a WHERE a.questionId = q.id) >= :minAnswers
         """)
     List<Question> findActiveWithMinAnswers(
@@ -67,13 +62,12 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
     );
 
     /**
-     * Find active questions for a category + difficulty that have at least minAnswers answers.
-     * Single query — avoids N+1 from per-question COUNT calls.
+     * Same as {@link #findActiveWithMinAnswers} with an additional difficulty filter.
      */
     @Query("""
         SELECT q FROM Question q
         WHERE q.categoryId = :categoryId
-          AND q.isActive = true
+          AND q.status     = 'active'
           AND q.difficulty = :difficulty
           AND (SELECT COUNT(a) FROM Answer a WHERE a.questionId = q.id) >= :minAnswers
         """)
@@ -83,15 +77,39 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
         @Param("minAnswers") int minAnswers
     );
 
+    // ── Template-generator duplicate check ───────────────────────────────────
+
     /**
-     * Count questions by category ID.
+     * Returns {@code true} if a non-retired question exists for this template
+     * with matching params (to prevent the generator creating duplicates).
      *
-     * @param categoryId the category UUID
-     * @return count of questions
+     * <p>Uses a native JSONB equality check because Spring Data cannot
+     * auto-derive a {@code Map}-equality predicate from method names.
      */
+    @Query(value = """
+        SELECT CASE WHEN COUNT(*) > 0 THEN TRUE ELSE FALSE END
+          FROM questions
+         WHERE template_id     = :templateId
+           AND template_params = :#{#params}::jsonb
+           AND status         != :status
+        """, nativeQuery = true)
+    boolean existsByTemplateIdAndTemplateParamsAndStatusNot(
+        @Param("templateId") UUID templateId,
+        @Param("params")     Object params,
+        @Param("status")     String status
+    );
+
+    // ── Counts ────────────────────────────────────────────────────────────────
+
     long countByCategoryId(UUID categoryId);
 
-    Page<Question> findByCategoryId(UUID categoryId, Pageable pageable);
-    Page<Question> findByCategoryIdAndIsActive(UUID categoryId, Boolean isActive, Pageable pageable);
-    Page<Question> findByIsActive(Boolean isActive, Pageable pageable);
+    /**
+     * Count questions generated from a specific template, filtered by lifecycle
+     * status.  Used by the admin template list to show draft/active counts per
+     * template at a glance.
+     *
+     * @param templateId the template UUID
+     * @param status     lifecycle status string (e.g. {@code "draft"}, {@code "active"})
+     */
+    long countByTemplateIdAndStatus(UUID templateId, String status);
 }

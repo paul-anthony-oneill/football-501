@@ -1,419 +1,182 @@
-# Football 501 - Web Scraper
+# Football 501 — Scraper
 
-Python web scraper for collecting football player statistics from FBRef and storing them in PostgreSQL with a **generic, domain-agnostic architecture**.
+Python scripts that populate the `player_season_stints` table from FBref.com, using
+ScraperFC + undetected-chromedriver to bypass Cloudflare.
 
-## Purpose
+**Schema version:** V9 (post-migration). `players.career_stats` and `players.fbref_id`
+have been dropped. Stats live exclusively in `player_season_stints`.
 
-This scraper is **ONLY** responsible for:
-1. Scraping player statistics from FBRef.com
-2. Storing data in PostgreSQL database with JSONB
-3. Creating generic questions
-4. Populating generic answers table
+---
 
-**Game logic, answer validation, and real-time gameplay are handled by the Java/Spring Boot backend.**
+## Prerequisites
 
-## Key Architecture Principle
-
-The database schema is **domain-agnostic** and **NOT tied to football-specific concepts**:
-- ✅ Answer keys are TEXT (not foreign keys to players)
-- ✅ Question filters use JSONB (flexible, no schema changes needed)
-- ✅ Java backend only does text matching (no domain knowledge)
-- ✅ Schema supports ANY domain (football, music, movies, etc.)
-
-## Setup
-
-### Prerequisites
-
-- Python 3.11+
-- PostgreSQL 15+
-- Chrome/Chromium browser (for Selenium)
-
-### Installation
+- Python 3.9+
+- PostgreSQL 15+ (Flyway migrations V1–V11 applied)
+- Chrome / Chromium (for undetected-chromedriver)
 
 ```bash
 cd football-501-scraper
 pip install -r requirements.txt
 ```
 
-### Database Initialization
+### Environment variables
+
+Create a `.env` file (or set in your shell):
 
 ```bash
-python init_db_v3.py  # Creates tables with PostgreSQL extensions
+DATABASE_URL=postgresql://football501:password@localhost:5432/football501
+CURRENT_SEASON=2025-2026   # default for scrape_current_season.py
+START_YEAR=2000            # default for scrape_historical.py
+FBREF_WAIT_TIME=7          # seconds between FBref requests — do not reduce
 ```
 
-This creates:
-- Database tables (players, categories, questions, answers)
-- PostgreSQL extensions (pg_trgm, uuid-ossp)
-- Required indexes (including trigram indexes for fuzzy matching)
+---
 
-## Core Scripts
+## Core scripts
 
-### 1. Scrape Player Data
+### `scrape_historical.py` — one-off historical backfill
 
-Scrapes player statistics and stores in JSONB `career_stats`:
+Scrapes all five Top-5 leagues from `settings.start_year` to present. Already run
+against the live DB. Safe to re-run (all writes are upserts).
 
 ```bash
-python scrape_all_premier_league_history.py  # Script name TBD - may need updating
+python scrape_historical.py                          # all leagues, all seasons
+python scrape_historical.py --leagues "EPL,La Liga"  # subset of leagues
+python scrape_historical.py --from-year 2020         # recent seasons only
+python scrape_historical.py --dry-run                # parse + log, no DB writes
 ```
 
-**Duration**: ~30-40 minutes for all seasons
-**Output**: Players with JSONB career statistics
+### `scrape_current_season.py` — weekly update
 
-### 2. Create Questions
-
-Creates generic questions programmatically:
+Delegates to `scrape_historical.py`'s shared functions for consistent upsert behaviour.
+Run after each matchday.
 
 ```bash
-python init_questions_v2.py
+python scrape_current_season.py                            # all leagues, current season
+python scrape_current_season.py --season 2026-2027         # new season
+python scrape_current_season.py --leagues "EPL,Bundesliga" # subset
+python scrape_current_season.py --dry-run
 ```
 
-**What it does**:
-- Creates category (e.g., "Premier League")
-- Creates questions for all teams with JSONB config
-- Example question types: goals, appearances, assists
-
-### 3. Populate Answers
-
-Populates the generic answers table:
-
-```bash
-python populate_answers_v2.py
+After running, re-materialize stale answers:
+```
+POST /api/admin/questions/rematerialize-stale
 ```
 
-**What it does**:
-- Reads active questions
-- Filters player career_stats by question.config (JSONB)
-- Calculates scores by summing metric_key
-- Creates Answer records with text-based answer_key
-- Pre-computes is_valid_darts and is_bust flags
+### Utility scripts
 
-**Duration**: < 5 seconds per question
+| Script | Usage |
+|---|---|
+| `verify_2526.py` | Sanity-check 2025-26 stints exist; print top scorers |
+| `inspect_player.py "Haaland"` | Show all stints for a player name substring |
+| `inspect_fbref_season.py` | Dump FBref column names for a season (debug) |
+
+---
 
 ## Architecture
 
-### Database Models (Generic Schema)
+```
+FBref.com  →  ScraperFC + undetected-chromedriver
+                         │
+                         ▼
+               Two passes per league × season:
+               1. process_standard()    → appearances, goals, assists, cards, penalty stats
+               2. process_goalkeeping() → clean_sheets, goals_conceded, is_goalkeeper
 
-```python
-Category
-  - id (UUID)
-  - name (e.g., "Premier League")
-  - slug, description
+                         │  upsert_stint()  (None-sentinel for GK fields)
+                         ▼
+               player_season_stints        ← the keystone table
+               player_external_ids         ← source='fbref'
+               team_external_ids           ← source='fbref'
+               scrape_jobs / scrape_run_logs
 
-Question (Generic)
-  - id (UUID)
-  - category_id
-  - question_text
-  - metric_key (e.g., "goals", "appearances", "points")  # Generic!
-  - config (JSONB)  # Flexible filters {"team": "...", "season": "..."}
-  - min_score, is_active
-
-Answer (Generic - NOT tied to players!)
-  - id (UUID)
-  - question_id
-  - answer_key (VARCHAR)  # Normalized text, NOT player_id FK!
-  - display_text (VARCHAR)  # Display name
-  - score (INTEGER)
-  - is_valid_darts (BOOLEAN)  # Pre-computed
-  - is_bust (BOOLEAN)  # Pre-computed
-  - answer_metadata (JSONB)  # Flexible metadata (can include player_id optionally)
-
-Player (Data source only)
-  - id (UUID)
-  - fbref_id, name, normalized_name
-  - nationality
-  - career_stats (JSONB array)  # Flexible season data
+                         │  (Java pipeline, not Python)
+                         ▼
+               answers + entities          ← written by Java materializer only
 ```
 
-### JSONB Career Stats Structure
+### Database models
 
-```json
-[
-  {
-    "season": "2023-2024",
-    "team": "Manchester City",
-    "team_id": "uuid",
-    "competition": "Premier League",
-    "competition_id": "uuid",
-    "appearances": 35,
-    "goals": 27,
-    "assists": 5,
-    "clean_sheets": 0,
-    "minutes_played": 2890
-  }
-]
-```
+`database/models_v6.py` — SQLAlchemy ORM models reflecting the V9 schema:
 
-### Example Question Config (JSONB)
+| Class | Table | Notes |
+|---|---|---|
+| `Player` | `players` | No `fbref_id` or `career_stats` (dropped V9) |
+| `Team` | `teams` | No `fbref_id` (dropped V9) |
+| `Competition` | `competitions` | `fbref_id` kept (no competition_external_ids yet) |
+| `Season` | `seasons` | `label`, `start_year`, `end_year`, `is_current` |
+| `PlayerSeasonStint` | `player_season_stints` | Includes `penalty_goals`, `penalty_attempts` (added V8) |
+| `PlayerExternalId` | `player_external_ids` | `source='fbref'`, `external_id=<fbref_id>` |
+| `TeamExternalId` | `team_external_ids` | Same pattern |
+| `ScrapeJob` | `scrape_jobs` | Per-scrape audit row |
+| `ScrapeRunLog` | `scrape_run_logs` | Per-player error log |
 
-```json
-{
-  "team": "Manchester City",
-  "competition": "Premier League",
-  "season": "2023-2024"
-}
-```
+---
 
-**Flexibility**: Add any filter without schema changes!
+## Java materializer pipeline
 
-```json
-{
-  "nationality": "Argentina",
-  "competition": "Premier League"
-}
-```
+Python writes stints. Java turns stints into `answers`:
 
-### Example Answer
+1. `POST /api/admin/templates/generate`
+   — enumerates all valid (team, competition, season/start_year) combos and inserts
+   draft `questions` for each.
 
-```json
-{
-  "answer_key": "erling haaland",  // Just text!
-  "display_text": "Erling Haaland",
-  "score": 35,
-  "is_valid_darts": true,
-  "is_bust": false,
-  "answer_metadata": {
-    "player_id": "uuid",  // Optional
-    "team": "Manchester City"
-  }
-}
-```
+2. Admin promotes: `PATCH /api/admin/questions/{id}/status {"status":"active"}`
+   — triggers `QuestionMaterializerService`, which aggregates `player_season_stints` and
+   writes `answers` + `entities`.
 
-## Project Structure
+3. Weekly: `POST /api/admin/questions/rematerialize-stale`
+   — re-runs materialization for any active question whose stints changed since last
+   `materialized_at`.
+
+---
+
+## Project structure
 
 ```
 football-501-scraper/
-├── config.py                    # Configuration
-├── init_questions_v2.py         # Create generic questions
-├── populate_answers_v2.py       # Populate generic answers
+├── config.py                        # settings (DATABASE_URL, seasons, wait times)
+├── scrape_historical.py             # main historical scraper + shared functions
+├── scrape_current_season.py         # weekly updater (delegates to historical)
+├── backfill_season_stints.py        # V8 one-off migration (do not re-run)
+├── verify_2526.py                   # sanity check
+├── inspect_player.py                # DB lookup utility
+├── inspect_fbref_season.py          # FBref column-name dumper
+├── populate_answers_v2.py           # DEPRECATED — raises SystemExit
 ├── database/
 │   ├── __init__.py
-│   └── models_v4.py            # Generic SQLAlchemy models
-├── utils/
-│   └── darts.py                # Darts score validation
-├── scrapers/
-│   └── __init__.py
+│   └── models_v6.py                 # SQLAlchemy models (post-V9 schema)
 ├── requirements.txt
-├── CURRENT_WORKFLOW.md         # Current workflow documentation
-└── SCHEMA_COMPARISON.md        # V3 vs Current comparison
+├── CURRENT_WORKFLOW.md              # step-by-step operational workflow
+└── README.md                        # this file
 ```
 
-## Configuration
-
-### Environment Variables
-
-Create `.env` file:
-
-```bash
-# Database
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=football501
-DB_USER=football501
-DB_PASSWORD=your_password
-
-# Scraping
-SQL_ECHO=false
-```
-
-## Data Flow
-
-```
-FBRef.com → Scraper → Players (JSONB) → Create Questions → Populate Answers
-                                                                  ↓
-                                                Java Backend (domain-agnostic)
-                                                                  ↓
-                                                    Text matching only
-```
-
-## Workflow
-
-### 1. Initial Setup (One Time)
-
-```bash
-# 1. Initialize database
-python init_db_v3.py
-
-# 2. Scrape player data (30-40 minutes)
-python scrape_all_premier_league_history.py  # Script name TBD
-```
-
-### 2. Create Questions
-
-```bash
-# Create questions programmatically
-python init_questions_v2.py
-```
-
-Or create manually:
-
-```python
-from database.models_v4 import Category, Question
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
-
-engine = create_engine('postgresql://...')
-Session = sessionmaker(bind=engine)
-session = Session()
-
-# Create category
-category = Category(
-    name="Premier League",
-    slug="premier-league",
-    description="English Premier League Questions"
-)
-session.add(category)
-session.commit()
-
-# Create question
-question = Question(
-    category_id=category.id,
-    question_text="Goals for Manchester City in Premier League 2023-2024",
-    metric_key="goals",  # Generic!
-    config={
-        "team": "Manchester City",
-        "competition": "Premier League",
-        "season": "2023-2024"
-    },
-    min_score=1,
-    is_active=True
-)
-session.add(question)
-session.commit()
-```
-
-### 3. Populate Answers
-
-```bash
-python populate_answers_v2.py
-```
-
-### 4. Java Backend Reads Data
-
-The Java backend reads from the generic `answers` table:
-
-```java
-// Find answer by text matching (NOT player lookup!)
-Optional<Answer> answer = answerRepository
-    .findByQuestionIdAndAnswerKey(questionId, "erling haaland");
-
-// Return score
-return answer.getScore();  // 35
-```
-
-**Key Point**: Java backend is domain-agnostic. It doesn't know about "players" or "teams" - just text matching!
-
-## Database Operations
-
-### Query JSONB Directly
-
-```sql
--- Find all players with 20+ goals in 2023-2024
-SELECT
-    p.name,
-    season->>'team' as team,
-    (season->>'goals')::int as goals
-FROM players p,
-     jsonb_array_elements(p.career_stats) as season
-WHERE season->>'season' = '2023-2024'
-  AND (season->>'goals')::int >= 20
-ORDER BY (season->>'goals')::int DESC;
-```
-
-### View Answer Data
-
-```sql
--- Check answers for a question
-SELECT
-    display_text,
-    score,
-    is_valid_darts,
-    is_bust
-FROM answers
-WHERE question_id = 'uuid'
-ORDER BY score DESC;
-```
-
-## Key Benefits of Generic Schema
-
-### 1. Flexibility
-Add new question types without schema changes:
-```python
-metric_key="assists"  # No migration needed!
-metric_key="clean_sheets"
-metric_key="minutes_played"
-```
-
-### 2. Extensibility
-Store any metadata in JSONB:
-```python
-answer_metadata={
-    "player_id": "uuid",
-    "age": 27,
-    "position": "Forward",
-    "custom_field": "anything"
-}
-```
-
-### 3. Domain-Agnostic
-Schema supports ANY domain:
-```python
-# Music questions
-Question(
-    question_text="Songs by The Beatles",
-    metric_key="songs",
-    config={"artist": "The Beatles", "decade": "1960s"}
-)
-```
-
-### 4. Java Backend Simplicity
-```java
-// No domain knowledge needed!
-String userInput = "Erling Haaland";
-Answer answer = findByAnswerKey(questionId, normalize(userInput));
-return answer.getScore();  // That's it!
-```
-
-## Performance
-
-- **Initial scrape**: 30-40 minutes for all Premier League history
-- **Answer population**: < 5 seconds per question
-- **Database query performance**: < 10ms for answer validation (with indexes)
+---
 
 ## Troubleshooting
 
-### Selenium Issues
-
+**Empty DataFrame / bot detection**
 ```bash
-# Install ChromeDriver
-# On Mac:
-brew install chromedriver
-
-# On Linux:
-sudo apt-get install chromium-chromedriver
+pip install --upgrade undetected-chromedriver ScraperFC
 ```
 
-### Database Connection
+**FBref column names changed**
+Run `inspect_fbref_season.py` to dump current column names, then update the column
+mapping constants at the top of `scrape_historical.py`.
 
-```bash
-# Test connection
-psql -h localhost -U football501 -d football501
+**Duplicate team rows**
+Do not add a translation map. Merge the duplicate rows in the DB and add a
+`team_external_ids` entry pointing both external IDs to the canonical team.
 
-# Check extensions
-SELECT * FROM pg_extension WHERE extname = 'pg_trgm';
+**Check scrape job history**
+```sql
+SELECT j.job_type, j.season, c.name, j.status, j.players_scraped, j.players_failed
+FROM scrape_jobs j LEFT JOIN competitions c ON c.id = j.competition_id
+ORDER BY j.started_at DESC LIMIT 20;
 ```
 
-## Documentation
-
-- **CURRENT_WORKFLOW.md** - Current workflow documentation
-- **SCHEMA_COMPARISON.md** - V3 vs Current architecture comparison
+---
 
 ## License
 
-This scraper is for educational/personal use only. Respect FBRef's terms of service and rate limits.
-
-## Support
-
-For issues with:
-- **Scraping**: Check this repository
-- **Game logic**: See Java/Spring Boot backend (`backend/`)
-- **Schema questions**: See `CURRENT_WORKFLOW.md`
+For personal/educational use only. Respect FBref's terms of service and rate limits.
