@@ -49,6 +49,20 @@ BEGIN
     RAISE NOTICE 'Test data inserted successfully! Question ID: %', test_question_id;
 END $$;
 
+-- Seed entities for the real players added above so autocomplete works
+-- (normalized_name = lower-cased, accent-stripped version of display_name)
+INSERT INTO entities (entity_type, display_name, normalized_name)
+VALUES
+  ('footballer', 'Erling Haaland',     'erling haaland'),
+  ('footballer', 'Phil Foden',         'phil foden'),
+  ('footballer', 'Kevin De Bruyne',    'kevin de bruyne'),
+  ('footballer', 'Bernardo Silva',     'bernardo silva'),
+  ('footballer', 'Julian Alvarez',     'julian alvarez'),
+  ('footballer', 'Rodri',              'rodri'),
+  ('footballer', 'Kyle Walker',        'kyle walker'),
+  ('footballer', 'John Stones',        'john stones')
+ON CONFLICT (entity_type, normalized_name) DO NOTHING;
+
 -- Verify the data
 SELECT
     q.question_text,

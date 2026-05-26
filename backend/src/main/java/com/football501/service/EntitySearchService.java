@@ -10,7 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Search and registration service for the {@code entities} autocomplete table.
@@ -101,6 +103,23 @@ public class EntitySearchService {
 
         namedEntityRepository.save(entity);
         log.debug("Registered '{}' as entity type '{}' for autocomplete", displayText, entityType);
+    }
+
+    /**
+     * Returns entity counts grouped by entity type, ordered by count descending.
+     * Used by the admin debug panel to verify the autocomplete pool is seeded
+     * before a question of that type is activated.
+     *
+     * @return map of entityType → count, e.g. {@code {"footballer": 104, "city": 0}}
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Long> getEntityCounts() {
+        List<Object[]> rows = namedEntityRepository.countByEntityType();
+        Map<String, Long> result = new LinkedHashMap<>();
+        for (Object[] row : rows) {
+            result.put((String) row[0], (Long) row[1]);
+        }
+        return result;
     }
 
     // -------------------------------------------------------------------------

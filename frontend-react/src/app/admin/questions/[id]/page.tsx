@@ -137,7 +137,7 @@ export default function QuestionDetailPage() {
    */
   async function handleStatusTransition() {
     if (!question) return;
-    const { nextStatus, actionLabel } = statusConfig[question.status];
+    const { nextStatus } = statusConfig[question.status];
     try {
       const updated = await adminApi.updateQuestionStatus(questionId, {
         status: nextStatus,

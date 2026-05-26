@@ -152,7 +152,8 @@ export default function MatchView({
           </div>
           <div className="text-center">
             <div className="text-tele-accent text-[48px] tracking-widest">
-              {score.toString().padStart(3, '0')}
+              {/* Checkout lands at 0 or within -10..0; always display as 000 */}
+              {(score <= 0 ? 0 : score).toString().padStart(3, '0')}
             </div>
             <div className="text-tele-cyan text-[22px] tracking-widest mt-1">
               FINAL SCORE

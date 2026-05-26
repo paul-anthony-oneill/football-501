@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -135,8 +136,9 @@ public class PracticeGameController {
     /**
      * Get current game state.
      *
-     * @param gameId the game UUID
-     * @param playerId the player UUID
+     * @param gameId   the game UUID
+     * @param playerId the requesting player UUID (logged for auditing; ownership
+     *                 enforcement is deferred until auth is wired up — TODO)
      * @return game state response
      */
     @GetMapping("/games/{gameId}")
@@ -144,7 +146,7 @@ public class PracticeGameController {
         @PathVariable UUID gameId,
         @RequestParam UUID playerId
     ) {
-        log.debug("Getting game state for game {}", gameId);
+        log.debug("Getting game state for game {} (requestedBy={})", gameId, playerId);
 
         Game game = gameService.getGameById(gameId)
             .orElse(null);
@@ -208,21 +210,23 @@ public class PracticeGameController {
     }
 
     /**
-     * Global exception handler for bad requests (e.g. category not found).
+     * Bad request handler (e.g. category not found, invalid input).
+     * Returns a JSON body so the frontend can parse it with {@code res.json()}.
      */
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleBadRequest(IllegalArgumentException e) {
+    public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException e) {
         log.warn("Bad request: {}", e.getMessage());
-        return ResponseEntity.badRequest().body(e.getMessage());
+        return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
     }
 
     /**
-     * Global exception handler for conflict states
-     * (e.g. no questions available, game not in progress).
+     * Conflict handler for illegal game states
+     * (e.g. no questions available, game already completed).
+     * Returns a JSON body so the frontend can parse it with {@code res.json()}.
      */
     @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<String> handleConflict(IllegalStateException e) {
+    public ResponseEntity<Map<String, String>> handleConflict(IllegalStateException e) {
         log.warn("Conflict: {}", e.getMessage());
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
     }
 }

@@ -155,7 +155,7 @@ Key tables to understand:
 ScraperFC data maps to the `answers` table:
 - Player Name → `player_name`
 - Statistic (e.g., Appearances) → `statistic_value`
-- Validation (1-180, no invalid darts) → `is_valid_darts_score`
+- Validation (1-180, no invalid darts) → `is_valid_darts`
 - Bust Check (>180) → `is_bust`
 
 ## WebSocket Protocol
@@ -282,7 +282,7 @@ Critical utility for game engine - validates if a score is achievable in standar
 
 **Invalid Scores**: 163, 166, 169, 172, 173, 175, 176, 178, 179
 
-All other scores 1-180 are valid. Implementation should pre-compute this during answer population and store in `is_valid_darts_score` column.
+All other scores 1-180 are valid. Implementation should pre-compute this during answer population and store in `is_valid_darts` column.
 
 ## Environment Variables
 
