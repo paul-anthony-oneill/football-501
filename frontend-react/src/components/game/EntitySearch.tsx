@@ -6,51 +6,27 @@ import { getFlagEmoji } from "@/utils/country";
 interface EntitySuggestion {
   id: string;
   name: string;
-  /** Hint shown alongside the name (e.g. country code rendered as a flag emoji). */
   nationality: string;
 }
 
 interface EntitySearchProps {
-  /**
-   * Scopes the autocomplete to a specific pool of named entities.
-   * Must match the `entity_type` value in the active question's config.
-   * Examples: "footballer" | "city" | "country" | "director"
-   * Defaults to "footballer" for backward compatibility.
-   */
   entityType?: string;
-  value: string;
-  onChange: (value: string) => void;
-  onSubmit: () => void;
-  disabled?: boolean;
+  onSelect: (value: string) => void;
   placeholder?: string;
+  className?: string;
 }
 
-/**
- * Autocomplete input for named-entity answers.
- *
- * - Fires after 4 characters to avoid overly broad early results.
- * - Shows "Keep typing…" hint at 1–3 characters so the player knows
- *   suggestions are coming.
- * - Selecting a suggestion fills the input without auto-submitting,
- *   so the player can confirm before pressing Enter / Submit.
- * - Accent-insensitive: typing "aguero" surfaces "Sergio Agüero".
- *
- * The search hits GET /api/entities/search?type={entityType}&query={query},
- * which queries the global `entities` table — NOT the `answers` table for
- * the current question.  A name appearing in the dropdown tells the player
- * nothing about whether it is a valid answer.
- */
 export default function EntitySearch({
   entityType = "footballer",
-  value,
-  onChange,
-  onSubmit,
-  disabled = false,
+  onSelect,
   placeholder = "Enter answer...",
+  className = "",
 }: EntitySearchProps) {
+  const [value, setValue] = useState("");
   const [suggestions, setSuggestions] = useState<EntitySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -65,6 +41,7 @@ export default function EntitySearch({
           const data: EntitySuggestion[] = await res.json();
           setSuggestions(data);
           setShowSuggestions(data.length > 0);
+          setActiveIndex(-1);
         }
       } catch (err) {
         console.error("Error fetching entity suggestions:", err);
@@ -77,11 +54,11 @@ export default function EntitySearch({
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
-    onChange(val);
+    setValue(val);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    if (val.length < 4) {
+    if (val.length < 3) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
@@ -89,76 +66,73 @@ export default function EntitySearch({
 
     debounceRef.current = setTimeout(() => {
       fetchSuggestions(val);
-    }, 300);
-  }
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
-
-  function selectEntity(entity: EntitySuggestion) {
-    onChange(entity.name);
-    setSuggestions([]);
-    setShowSuggestions(false);
-    inputRef.current?.focus();
+    }, 200);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
       e.preventDefault();
+      if (showSuggestions && activeIndex >= 0) {
+        selectEntity(suggestions[activeIndex]);
+      } else {
+        onSelect(value);
+        setValue("");
+        setShowSuggestions(false);
+      }
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev > 0 ? prev - 1 : 0));
+    } else if (e.key === "Escape") {
       setShowSuggestions(false);
-      onSubmit();
     }
   }
 
+  function selectEntity(entity: EntitySuggestion) {
+    onSelect(entity.name);
+    setValue("");
+    setSuggestions([]);
+    setShowSuggestions(false);
+    inputRef.current?.focus();
+  }
+
   function handleBlur() {
-    // Delay so a mousedown on a suggestion fires before the blur hides the list.
     setTimeout(() => setShowSuggestions(false), 200);
   }
 
   return (
-    <div className="relative w-full">
-      {/* Input row */}
-      <div className="relative flex items-center">
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onBlur={handleBlur}
-          disabled={disabled}
-          placeholder={placeholder}
-          autoComplete="off"
-          className="w-full box-border px-4 py-3 text-base border-2 border-[var(--color-primary)] rounded-lg bg-[#1a1a1a] text-white focus:outline-none focus:border-[#22c55e] focus:shadow-[0_0_0_3px_rgba(74,222,128,0.1)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-        />
-        {loading && (
-          <div className="absolute right-4 w-4 h-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin-slow" />
-        )}
-      </div>
-
-      {/* Hint shown while typing 1–3 characters */}
-      {value.length > 0 && value.length < 4 && (
-        <p className="mt-1 text-xs text-[#9ca3af] px-1">
-          Keep typing for suggestions…
-        </p>
-      )}
-
-      {/* Suggestions dropdown */}
+    <div className="relative flex-1 flex flex-col min-w-0">
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
+        placeholder={placeholder}
+        autoComplete="off"
+        className={className}
+      />
+      
       {showSuggestions && (
-        <ul className="absolute top-full left-0 right-0 mt-2 p-0 m-0 list-none bg-[#2a2a2a] border border-[var(--color-primary)] rounded-lg max-h-[200px] overflow-y-auto z-10 shadow-[0_4px_6px_rgba(0,0,0,0.3)] animate-slide-down">
-          {suggestions.map((entity) => (
+        <ul className="ta-list absolute bottom-full left-0 right-0 mb-2 p-0 m-0 list-none bg-black border-2 border-white overflow-hidden z-50 shadow-[0_-12px_32px_rgba(0,0,0,0.5)]">
+          {suggestions.map((entity, idx) => (
             <li key={entity.id}>
               <button
-                onMouseDown={() => selectEntity(entity)} // mousedown fires before blur
-                className="w-full text-left px-4 py-3 bg-transparent border-none text-white cursor-pointer flex justify-between items-center hover:bg-[#374151] transition-colors"
+                onMouseDown={() => selectEntity(entity)}
+                data-active={activeIndex === idx ? "1" : "0"}
+                className={`ta-opt w-full text-left grid grid-cols-[1fr_auto] gap-4 items-center px-5.5 py-3 bg-transparent border-0 border-b border-white border-dashed last:border-b-0 cursor-pointer transition-colors ${
+                  activeIndex === idx ? 'bg-[#00008c]' : 'hover:bg-[#00008c]'
+                }`}
               >
-                <span className="font-medium">{entity.name}</span>
+                <span className="ta-opt-name text-white text-[22px] tracking-wide">
+                  {entity.name.toUpperCase()}
+                </span>
                 {entity.nationality && (
-                  <span className="text-[#9ca3af] text-sm" title={entity.nationality}>
-                    {getFlagEmoji(entity.nationality)}
+                  <span className="ta-opt-club text-tele-cyan text-[18px]">
+                    {getFlagEmoji(entity.nationality)} {entity.nationality}
                   </span>
                 )}
               </button>
