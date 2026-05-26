@@ -72,7 +72,7 @@ class Team(Base):
     normalized_name = Column(String(255), nullable=False)
     team_type = Column(String(50), nullable=False)   # 'club', 'national'
     country = Column(String(100))
-    fbref_id = Column(String(100), unique=True)      # kept until V9
+    # fbref_id dropped in V9 — external IDs live in team_external_ids.
     popularity_rank = Column(Integer, default=10)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -115,18 +115,26 @@ class Competition(Base):
 
 class Player(Base):
     """
-    Player identity record.
-    career_stats JSONB stays until V9; after V9 only player_season_stints are used.
+    Player identity record (post-V9 schema).
+
+    fbref_id and career_stats were dropped in V9:
+      - External IDs now live in player_external_ids (keyed by source + external_id).
+      - Per-season stats now live in player_season_stints.
+
+    To look up a player by FBref ID, join through player_external_ids:
+        session.query(Player)
+               .join(PlayerExternalId, PlayerExternalId.player_id == Player.id)
+               .filter(PlayerExternalId.source == 'fbref',
+                       PlayerExternalId.external_id == fbref_id)
+               .first()
     """
 
     __tablename__ = "players"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    fbref_id = Column(String(50), unique=True, nullable=False)    # kept until V9
     name = Column(String(255), nullable=False)
     normalized_name = Column(String(255), nullable=False, index=True)
     nationality = Column(String(100))
-    career_stats = Column(JSONB, nullable=False, default=list)    # dropped in V9
     last_scraped_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -135,7 +143,7 @@ class Player(Base):
     stints = relationship("PlayerSeasonStint", back_populates="player")
 
     def __repr__(self):
-        return f"<Player(name={self.name!r}, fbref_id={self.fbref_id!r})>"
+        return f"<Player(name={self.name!r})>"
 
 
 class PlayerExternalId(Base):
@@ -208,8 +216,10 @@ class PlayerSeasonStint(Base):
     minutes = Column(Integer, nullable=False, default=0)
 
     # Outfield stats
-    goals = Column(SmallInteger, nullable=False, default=0)
-    assists = Column(SmallInteger, nullable=False, default=0)
+    goals            = Column(SmallInteger, nullable=False, default=0)
+    penalty_goals    = Column(SmallInteger, nullable=False, default=0)   # V8: Performance_PK
+    penalty_attempts = Column(SmallInteger, nullable=False, default=0)   # V8: Performance_PKatt
+    assists          = Column(SmallInteger, nullable=False, default=0)
 
     # Discipline
     yellow_cards = Column(SmallInteger, nullable=False, default=0)
