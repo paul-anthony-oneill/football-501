@@ -29,10 +29,12 @@ interface Move {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function GamePage() {
-  const { showToast } = useToast();
+  const { addToast: showToast } = useToast();
 
   // Core state
   const [gameId, setGameId] = useState<string | null>(null);
+  // Guest player ID — stable for the session, sent with every request
+  const [playerId] = useState<string>(() => crypto.randomUUID());
   const [score, setScore] = useState(501);
   const [question, setQuestion] = useState("");
   const [turnCount, setTurnCount] = useState(0);
@@ -72,17 +74,17 @@ export default function GamePage() {
 
   async function startNewGame() {
     try {
-      const res = await fetch("/api/games/practice", {
+      const res = await fetch("/api/practice/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categorySlug: selectedCategorySlug }),
+        body: JSON.stringify({ playerId, categorySlug: selectedCategorySlug }),
       });
 
       if (!res.ok) throw new Error("Failed to start game");
 
       const game = await res.json();
-      setGameId(game.id);
-      setScore(game.score);
+      setGameId(game.gameId);
+      setScore(game.currentScore);
       setQuestion(game.questionText);
       setTurnCount(0);
       setMoves([]);
@@ -102,7 +104,7 @@ export default function GamePage() {
     if (!gameId || !answer.trim()) return;
 
     try {
-      const res = await fetch(`/api/games/practice/${gameId}/answers`, {
+      const res = await fetch(`/api/practice/games/${gameId}/submit?playerId=${playerId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ answer: answer.trim() }),
@@ -111,18 +113,18 @@ export default function GamePage() {
       if (!res.ok) throw new Error("Validation failed");
 
       const result = await res.json();
-      
+
       const newMove: Move = {
         answer: answer.trim(),
         result: result.result,
         scoreBefore: score,
-        scoreAfter: result.newScore,
+        scoreAfter: result.scoreAfter,
         matchedAnswer: result.matchedAnswer,
         scoreValue: result.scoreValue,
       };
 
       setMoves([newMove, ...moves]);
-      setScore(result.newScore);
+      setScore(result.scoreAfter);
       setTurnCount(prev => prev + 1);
 
       if (result.result === 'VALID') {

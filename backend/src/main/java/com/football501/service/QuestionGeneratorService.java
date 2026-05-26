@@ -1,5 +1,7 @@
 package com.football501.service;
 
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.football501.materializer.QuestionMaterializer;
 import com.football501.model.*;
 import com.football501.repository.*;
@@ -44,18 +46,21 @@ public class QuestionGeneratorService {
     private final CompetitionRepository      competitionRepository;
     private final TeamRepository             teamRepository;
     private final Map<String, QuestionMaterializer> materializersByKey;
+    private final ObjectMapper objectMapper;
 
     public QuestionGeneratorService(
             QuestionTemplateRepository    templateRepository,
             QuestionRepository            questionRepository,
             CompetitionRepository         competitionRepository,
             TeamRepository                teamRepository,
-            List<QuestionMaterializer>    materializers
+            List<QuestionMaterializer>    materializers,
+            ObjectMapper                  objectMapper
     ) {
         this.templateRepository    = templateRepository;
         this.questionRepository    = questionRepository;
         this.competitionRepository = competitionRepository;
         this.teamRepository        = teamRepository;
+        this.objectMapper          = objectMapper;
         this.materializersByKey    = materializers.stream()
             .collect(Collectors.toMap(QuestionMaterializer::getMaterializerKey, Function.identity()));
     }
@@ -134,11 +139,21 @@ public class QuestionGeneratorService {
      * @return {@code true} if a new row was inserted; {@code false} if skipped
      */
     private boolean createDraftIfAbsent(QuestionTemplate template, Map<String, Object> params) {
+        // Serialise params to JSON string — the repository method accepts a String
+        // and casts it to jsonb server-side (avoids a SpEL/native-query binding quirk).
+        String paramsJson;
+        try {
+            paramsJson = objectMapper.writeValueAsString(params);
+        } catch (JacksonException e) {
+            log.error("Failed to serialise params for template {}: {}", template.getSlug(), e.getMessage());
+            return false;
+        }
+
         // Check for an existing question with the same (template_id, template_params)
         // by checking if any non-retired question has the same template + params combo.
         boolean exists = questionRepository
             .existsByTemplateIdAndTemplateParamsAndStatusNot(
-                template.getId(), params, Question.STATUS_RETIRED);
+                template.getId(), paramsJson, Question.STATUS_RETIRED);
 
         if (exists) {
             return false;
