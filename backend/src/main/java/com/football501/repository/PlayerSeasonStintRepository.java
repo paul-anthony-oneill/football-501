@@ -78,7 +78,58 @@ public interface PlayerSeasonStintRepository extends JpaRepository<PlayerSeasonS
     );
 
     /**
-     * Projection for {@link #aggregateByTeamCompetitionSince}.
+     * Returns all distinct (teamId, seasonId) pairs that exist for the given
+     * competition.
+     *
+     * <p>Used by {@link com.football501.materializer.FootballTeamCompetitionSeasonMaterializer}
+     * to enumerate valid (team, competition, season) parameter sets for per-season
+     * question templates (e.g. "Goals for Arsenal in the Premier League 2023-24").
+     *
+     * @param competitionId the competition UUID
+     * @return list of distinct (teamId, seasonId) pairs where stint data exists
+     */
+    @Query("""
+        SELECT DISTINCT s.teamId AS teamId, s.seasonId AS seasonId
+          FROM PlayerSeasonStint s
+         WHERE s.competitionId = :competitionId
+        """)
+    List<TeamSeasonPair> findDistinctTeamSeasonByCompetition(
+        @Param("competitionId") UUID competitionId);
+
+    /**
+     * Aggregate totals for a single metric for a specific (team, competition,
+     * season) combination — no date-range filter.
+     *
+     * <p>Counterpart to {@link #aggregateByTeamCompetitionSince} for per-season
+     * question templates.
+     *
+     * @param teamId        the team UUID
+     * @param competitionId the competition UUID
+     * @param seasonId      the exact season UUID
+     * @return projection list of (playerId, totalGoals, totalAppearances, totalAssists, totalCleanSheets)
+     */
+    @Query("""
+        SELECT s.playerId         AS playerId,
+               SUM(s.goals)       AS totalGoals,
+               SUM(s.appearances) AS totalAppearances,
+               SUM(s.assists)     AS totalAssists,
+               SUM(s.cleanSheets) AS totalCleanSheets
+          FROM PlayerSeasonStint s
+         WHERE s.teamId        = :teamId
+           AND s.competitionId = :competitionId
+           AND s.seasonId      = :seasonId
+         GROUP BY s.playerId
+        HAVING SUM(s.appearances) > 0
+        """)
+    List<StintAggregate> aggregateByTeamCompetitionSeason(
+        @Param("teamId")        UUID teamId,
+        @Param("competitionId") UUID competitionId,
+        @Param("seasonId")      UUID seasonId
+    );
+
+    /**
+     * Projection for {@link #aggregateByTeamCompetitionSince} and
+     * {@link #aggregateByTeamCompetitionSeason}.
      */
     interface StintAggregate {
         UUID  getPlayerId();
@@ -86,5 +137,13 @@ public interface PlayerSeasonStintRepository extends JpaRepository<PlayerSeasonS
         long  getTotalAppearances();
         long  getTotalAssists();
         long  getTotalCleanSheets();
+    }
+
+    /**
+     * Projection for {@link #findDistinctTeamSeasonByCompetition}.
+     */
+    interface TeamSeasonPair {
+        UUID getTeamId();
+        UUID getSeasonId();
     }
 }

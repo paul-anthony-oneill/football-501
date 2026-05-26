@@ -192,9 +192,14 @@ public class QuestionGeneratorService {
             text = text.replace("{competition_name}", compName);
         }
 
-        // Resolve start year
+        // Resolve start year (used by the "since" template shape)
         if (text.contains("{start_year}")) {
             text = text.replace("{start_year}", params.getOrDefault("start_year", "2000").toString());
+        }
+
+        // Resolve season label (used by the per-season template shape, e.g. "2023-24")
+        if (text.contains("{season_label}")) {
+            text = text.replace("{season_label}", params.getOrDefault("season_label", "").toString());
         }
 
         return text;

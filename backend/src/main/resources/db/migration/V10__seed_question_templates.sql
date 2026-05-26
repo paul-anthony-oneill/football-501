@@ -14,13 +14,13 @@
 -- 1. Ensure Top-5 leagues exist in competitions
 -- ========================================
 
-INSERT INTO competitions (name, normalized_name, competition_type, country, display_name, tier)
+INSERT INTO competitions (id, name, normalized_name, competition_type, country, display_name, tier)
 VALUES
-    ('La Liga',    'la liga',    'domestic_league', 'Spain',   'La Liga',     1),
-    ('Serie A',    'serie a',    'domestic_league', 'Italy',   'Serie A',     1),
-    ('Bundesliga', 'bundesliga', 'domestic_league', 'Germany', 'Bundesliga',  1),
-    ('Ligue 1',    'ligue 1',    'domestic_league', 'France',  'Ligue 1',     1)
-ON CONFLICT (name, competition_type, COALESCE(country, '')) DO NOTHING;
+    (gen_random_uuid(), 'La Liga',    'la liga',    'domestic_league', 'Spain',   'La Liga',    1),
+    (gen_random_uuid(), 'Serie A',    'serie a',    'domestic_league', 'Italy',   'Serie A',    1),
+    (gen_random_uuid(), 'Bundesliga', 'bundesliga', 'domestic_league', 'Germany', 'Bundesliga', 1),
+    (gen_random_uuid(), 'Ligue 1',    'ligue 1',    'domestic_league', 'France',  'Ligue 1',    1)
+ON CONFLICT DO NOTHING;
 
 -- Set tier = 1 on the Premier League row (added in V1 without a tier value).
 UPDATE competitions
