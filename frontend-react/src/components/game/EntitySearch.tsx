@@ -6,16 +6,38 @@ import { getFlagEmoji } from "@/utils/country";
 interface EntitySuggestion {
   id: string;
   name: string;
+  /** Hint shown alongside the name (e.g. country code rendered as a flag emoji). */
   nationality: string;
 }
 
 interface EntitySearchProps {
+  /**
+   * Scopes the autocomplete to a specific pool of named entities.
+   * Must match the `entity_type` value in the active question's config.
+   * Examples: "footballer" | "city" | "country" | "director"
+   * Defaults to "footballer" for backward compatibility.
+   */
   entityType?: string;
   onSelect: (value: string) => void;
   placeholder?: string;
   className?: string;
 }
 
+/**
+ * Autocomplete input for named-entity answers.
+ *
+ * - Fires after 4 characters to avoid overly broad early results.
+ * - Shows "Keep typing…" hint at 1–3 characters so the player knows
+ *   suggestions are coming.
+ * - Selecting a suggestion fills the input without auto-submitting,
+ *   so the player can confirm before pressing Enter / Submit.
+ * - Accent-insensitive: typing "aguero" surfaces "Sergio Agüero".
+ *
+ * The search hits GET /api/entities/search?type={entityType}&query={query},
+ * which queries the global `entities` table — NOT the `answers` table for
+ * the current question.  A name appearing in the dropdown tells the player
+ * nothing about whether it is a valid answer.
+ */
 export default function EntitySearch({
   entityType = "footballer",
   onSelect,
@@ -58,7 +80,7 @@ export default function EntitySearch({
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    if (val.length < 3) {
+    if (val.length < 4) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
@@ -66,8 +88,15 @@ export default function EntitySearch({
 
     debounceRef.current = setTimeout(() => {
       fetchSuggestions(val);
-    }, 200);
+    }, 300);
   }
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
@@ -91,14 +120,14 @@ export default function EntitySearch({
   }
 
   function selectEntity(entity: EntitySuggestion) {
-    onSelect(entity.name);
-    setValue("");
+    setValue(entity.name);
     setSuggestions([]);
     setShowSuggestions(false);
     inputRef.current?.focus();
   }
 
   function handleBlur() {
+    // Delay so a mousedown on a suggestion fires before the blur hides the list.
     setTimeout(() => setShowSuggestions(false), 200);
   }
 
@@ -115,7 +144,14 @@ export default function EntitySearch({
         autoComplete="off"
         className={className}
       />
-      
+
+      {/* Hint shown while typing 1–3 characters */}
+      {value.length > 0 && value.length < 4 && (
+        <p className="mt-1 text-xs text-tele-cyan px-1 opacity-80">
+          Keep typing for suggestions…
+        </p>
+      )}
+
       {showSuggestions && (
         <ul className="ta-list absolute bottom-full left-0 right-0 mb-2 p-0 m-0 list-none bg-black border-2 border-white overflow-hidden z-50 shadow-[0_-12px_32px_rgba(0,0,0,0.5)]">
           {suggestions.map((entity, idx) => (

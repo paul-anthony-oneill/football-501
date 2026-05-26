@@ -85,9 +85,8 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
      *
      * <p>Uses a native JSONB equality check because Spring Data cannot
      * auto-derive a {@code Map}-equality predicate from method names.
-     */
-    /**
-     * Pass {@code paramsJson} as a pre-serialised JSON string; the query casts
+     *
+     * <p>Pass {@code paramsJson} as a pre-serialised JSON string; the query casts
      * it to {@code jsonb} server-side.  Using {@code CAST} instead of the
      * {@code ::jsonb} shorthand avoids a SpEL-expression parsing quirk in
      * Spring Data's native-query parameter binder.

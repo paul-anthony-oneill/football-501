@@ -89,11 +89,11 @@ export default function GamePage() {
       setTurnCount(0);
       setMoves([]);
       setGameStatus("IN_PROGRESS");
-      
+
       // Switch body theme
       document.body.classList.remove('theme-home');
       document.body.classList.add('theme-teletext');
-      
+
       showToast("Game started!", "success");
     } catch (err) {
       showToast("Error starting game", "error");
@@ -168,7 +168,7 @@ export default function GamePage() {
   const selectedCategory = categories.find(c => c.slug === selectedCategorySlug);
 
   return (
-    <MatchView 
+    <MatchView
       score={score}
       question={question}
       turnCount={turnCount}
