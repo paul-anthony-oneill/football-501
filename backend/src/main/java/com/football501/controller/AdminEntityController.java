@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -43,5 +44,27 @@ public class AdminEntityController {
     public ResponseEntity<Map<String, Long>> getCounts() {
         log.debug("Admin: fetching entity counts by type");
         return ResponseEntity.ok(entitySearchService.getEntityCounts());
+    }
+
+    /**
+     * Backfills the {@code entities} autocomplete table from the {@code players}
+     * source table.
+     *
+     * <p>The scraper has already loaded all known footballers into {@code players}.
+     * This endpoint registers each one as a {@code "footballer"} entity so the
+     * autocomplete dropdown has full coverage without having to materialise every
+     * question first.  The operation is idempotent — running it multiple times is safe.
+     *
+     * <p>Example response:
+     * <pre>
+     * { "inserted": 16840, "skipped": 444 }
+     * </pre>
+     */
+    @PostMapping("/backfill-from-players")
+    public ResponseEntity<Map<String, Long>> backfillFromPlayers() {
+        log.info("Admin: triggering entity backfill from players table");
+        Map<String, Long> result = entitySearchService.backfillFromPlayers();
+        log.info("Admin: backfill complete — {}", result);
+        return ResponseEntity.ok(result);
     }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { adminApi } from "@/lib/api/admin";
 import { useToast } from "@/context/ToastContext";
 
 interface EntityCounts {
@@ -33,8 +34,9 @@ const ENTITY_TYPE_INFO: Record<string, { label: string; description: string }> =
 
 export default function EntitiesPage() {
   const { addToast } = useToast();
-  const [counts, setCounts] = useState<EntityCounts | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [counts, setCounts]         = useState<EntityCounts | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [backfilling, setBackfilling] = useState(false);
 
   const loadCounts = useCallback(async () => {
     setLoading(true);
@@ -54,6 +56,22 @@ export default function EntitiesPage() {
     loadCounts();
   }, [loadCounts]);
 
+  async function handleBackfill() {
+    setBackfilling(true);
+    try {
+      const result = await adminApi.backfillEntities();
+      addToast(
+        `Backfill complete — ${result.inserted.toLocaleString()} inserted, ${result.skipped.toLocaleString()} already existed`,
+        "success"
+      );
+      await loadCounts();
+    } catch (err) {
+      addToast((err as Error).message, "error");
+    } finally {
+      setBackfilling(false);
+    }
+  }
+
   // Merge seeded counts with known types so zero-count types still appear
   const allTypes = Array.from(
     new Set([...Object.keys(ENTITY_TYPE_INFO), ...Object.keys(counts ?? {})])
@@ -71,13 +89,23 @@ export default function EntitiesPage() {
             before a question of that type is activated.
           </p>
         </div>
-        <button
-          onClick={loadCounts}
-          disabled={loading}
-          className="px-4 py-2 rounded-lg border border-[#444] bg-[#2a2a2a] text-white text-sm cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50"
-        >
-          ↺ Refresh
-        </button>
+        <div className="flex gap-3">
+          {/* Backfill — primary action */}
+          <button
+            onClick={handleBackfill}
+            disabled={backfilling || loading}
+            className="px-4 py-2 rounded-lg bg-[var(--color-primary)] text-black text-sm font-semibold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 border-0"
+          >
+            {backfilling ? "Backfilling…" : "⚡ Backfill from Players"}
+          </button>
+          <button
+            onClick={loadCounts}
+            disabled={loading || backfilling}
+            className="px-4 py-2 rounded-lg border border-[#444] bg-[#2a2a2a] text-white text-sm cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50"
+          >
+            ↺ Refresh
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -90,7 +118,7 @@ export default function EntitiesPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
             {allTypes.map((type) => {
               const count = counts?.[type] ?? 0;
-              const info = ENTITY_TYPE_INFO[type];
+              const info  = ENTITY_TYPE_INFO[type];
               const isEmpty = count === 0;
 
               return (
@@ -151,27 +179,24 @@ export default function EntitiesPage() {
             </h3>
             <ol className="m-0 pl-5 text-sm text-[var(--color-on-surface-variant)] space-y-2">
               <li>
-                <strong>Automatic (recommended):</strong> Use{" "}
-                <strong>Bulk Import</strong> on any question's detail page. Each
-                imported answer's display text is automatically registered in the
-                entities table.
+                <strong>Backfill (recommended):</strong> Click{" "}
+                <strong>⚡ Backfill from Players</strong> above. This reads the
+                17 k+ players already in the database (loaded by the scraper) and
+                registers each one as a footballer entity. Idempotent — safe to
+                run multiple times.
+              </li>
+              <li>
+                <strong>Automatic (ongoing):</strong> Whenever a question is
+                activated via <strong>Bulk Activate</strong> on the Questions
+                page, its answers are materialised and each player is
+                automatically registered.
               </li>
               <li>
                 <strong>Manual (dev only):</strong> Run{" "}
                 <code className="bg-[#1a1a1a] px-1 rounded text-xs">
                   backend/src/main/resources/db/seed_entities_dev.sql
                 </code>{" "}
-                against your local database to seed ~100 Premier League
-                footballers.
-              </li>
-              <li>
-                <strong>Verify:</strong> After seeding, click <em>Refresh</em>{" "}
-                above. The count for "footballer" should be non-zero before
-                activating a question with{" "}
-                <code className="bg-[#1a1a1a] px-1 rounded text-xs">
-                  entity_type: footballer
-                </code>
-                .
+                for a small hand-curated Premier League subset.
               </li>
             </ol>
           </div>

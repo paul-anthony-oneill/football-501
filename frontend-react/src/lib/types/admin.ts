@@ -141,6 +141,18 @@ export interface RematerializeResult {
   answersUpserted: number;
 }
 
+export interface EntityBackfillResult {
+  inserted: number;
+  skipped:  number;
+}
+
+export interface BulkActivateResult {
+  activated:       number;
+  answersUpserted: number;
+  errors:          number;
+  remainingDraft:  number;
+}
+
 /** All valid metric_key values understood by the materializers. */
 export const METRIC_KEY_OPTIONS = [
   { value: "goals",           label: "Goals" },
