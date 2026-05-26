@@ -57,10 +57,11 @@ public class FootballTeamCompetitionSeasonMaterializer implements QuestionMateri
     public static final String KEY = "football.team_competition_season_metric";
 
     private static final Map<String, String> METRIC_LABELS = Map.of(
-        "goals",        "Goals",
-        "appearances",  "Appearances",
-        "assists",      "Assists",
-        "clean_sheets", "Clean sheets"
+        "goals",           "Goals",
+        "appearances",     "Appearances",
+        "assists",         "Assists",
+        "clean_sheets",    "Clean sheets",
+        "sub_appearances", "Substitute appearances"
     );
 
     /**
@@ -247,10 +248,11 @@ public class FootballTeamCompetitionSeasonMaterializer implements QuestionMateri
 
     private int resolveMetric(PlayerSeasonStintRepository.StintAggregate agg, String metricKey) {
         return switch (metricKey) {
-            case "goals"        -> (int) agg.getTotalGoals();
-            case "appearances"  -> (int) agg.getTotalAppearances();
-            case "assists"      -> (int) agg.getTotalAssists();
-            case "clean_sheets" -> (int) agg.getTotalCleanSheets();
+            case "goals"           -> (int) agg.getTotalGoals();
+            case "appearances"     -> (int) agg.getTotalAppearances();
+            case "assists"         -> (int) agg.getTotalAssists();
+            case "clean_sheets"    -> (int) agg.getTotalCleanSheets();
+            case "sub_appearances" -> (int) agg.getTotalSubAppearances();
             default -> throw new IllegalArgumentException("Unknown metric_key: " + metricKey);
         };
     }

@@ -12,6 +12,9 @@ import type {
   CreateAnswerRequest,
   BulkCreateAnswersRequest,
   BulkCreateAnswersResponse,
+  QuestionTemplate,
+  GeneratorResult,
+  RematerializeResult,
 } from "@/lib/types/admin";
 
 // When running through the Next.js dev server the rewrites in next.config.ts
@@ -182,6 +185,49 @@ class AdminApiClient {
     return this.request<void>("/answers/bulk", {
       method: "DELETE",
       body: JSON.stringify({ ids }),
+    });
+  }
+
+  // ── Templates ──────────────────────────────────────────────────────────────
+
+  /** List all question templates with live draft/active counts. */
+  async listTemplates(): Promise<QuestionTemplate[]> {
+    return this.request<QuestionTemplate[]>("/templates");
+  }
+
+  /** Get a single template by UUID. */
+  async getTemplate(id: string): Promise<QuestionTemplate> {
+    return this.request<QuestionTemplate>(`/templates/${id}`);
+  }
+
+  /**
+   * Run the question generator for all active templates.
+   * Creates draft questions for every valid param combination not yet in the DB.
+   */
+  async generateAll(): Promise<GeneratorResult> {
+    return this.request<GeneratorResult>("/templates/generate", { method: "POST" });
+  }
+
+  /**
+   * Run the question generator for a single template.
+   *
+   * @param templateId  the template UUID
+   */
+  async generateForTemplate(templateId: string): Promise<GeneratorResult> {
+    return this.request<GeneratorResult>(`/templates/${templateId}/generate`, {
+      method: "POST",
+    });
+  }
+
+  /**
+   * Re-materialize the answer set for an active question.
+   * Use after the scraper refreshes player_season_stints data.
+   *
+   * @param questionId the question UUID — must be status "active"
+   */
+  async rematerializeQuestion(questionId: string): Promise<RematerializeResult> {
+    return this.request<RematerializeResult>(`/questions/${questionId}/rematerialize`, {
+      method: "POST",
     });
   }
 }

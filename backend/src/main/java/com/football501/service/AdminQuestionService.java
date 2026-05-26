@@ -210,6 +210,34 @@ public class AdminQuestionService {
         log.info("Deleted question: {}", id);
     }
 
+    /**
+     * Re-materialises the answers for an already-active question.
+     *
+     * <p>This is useful when underlying {@code player_season_stints} data has
+     * been refreshed by the scraper and the cached answers need to be updated
+     * without cycling the question through {@code retired} and back to
+     * {@code active}.
+     *
+     * @param id the question UUID
+     * @return the number of answer rows upserted
+     * @throws IllegalArgumentException  if the question does not exist
+     * @throws IllegalStateException     if the question is not {@code active}
+     */
+    @Transactional
+    public int rematerialize(UUID id) {
+        Question question = questionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Question not found with id: " + id));
+
+        if (!Question.STATUS_ACTIVE.equals(question.getStatus())) {
+            throw new IllegalStateException(
+                "Only active questions can be re-materialized. Current status: " + question.getStatus());
+        }
+
+        int count = materializerService.materialize(question);
+        log.info("Re-materialized question {}: {} answers upserted.", id, count);
+        return count;
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private QuestionResponse mapToResponse(Question question) {

@@ -97,3 +97,58 @@ export interface BulkCreateAnswersResponse {
   skipped: number;
   errors: string[];
 }
+
+// ── Question Templates ─────────────────────────────────────────────────────
+
+export interface QuestionTemplate {
+  id: string;
+  categoryId: string;
+  slug: string;
+  displayName: string;
+  textTemplate: string;
+  materializerKey: string;
+  metricKey: string;
+  defaultMinScore: number | null;
+  /** Whether the template itself is enabled for generation. */
+  active: boolean;
+  /**
+   * True when a matching QuestionMaterializer bean is registered on the
+   * backend.  False means draft questions will be created but activation
+   * will fail until the materializer is implemented.
+   */
+  hasMaterializer: boolean;
+  /** Draft questions currently generated from this template. */
+  draftCount: number;
+  /** Active questions currently generated from this template. */
+  activeCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Result returned by the generator endpoints. */
+export interface GeneratorResult {
+  created: number;
+  skipped: number;
+  total: number;
+  /** Set when a single-template run is requested. */
+  template_id?: string;
+  message: string;
+}
+
+/** Result returned by the re-materialize endpoint. */
+export interface RematerializeResult {
+  questionId: string;
+  answersUpserted: number;
+}
+
+/** All valid metric_key values understood by the materializers. */
+export const METRIC_KEY_OPTIONS = [
+  { value: "goals",           label: "Goals" },
+  { value: "appearances",     label: "Appearances" },
+  { value: "assists",         label: "Assists" },
+  { value: "goals_assists",   label: "Goals + Assists" },
+  { value: "clean_sheets",    label: "Clean sheets" },
+  { value: "sub_appearances", label: "Substitute appearances" },
+] as const;
+
+export type MetricKey = typeof METRIC_KEY_OPTIONS[number]["value"];

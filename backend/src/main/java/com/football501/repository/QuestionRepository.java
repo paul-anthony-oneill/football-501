@@ -102,4 +102,14 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
     // ── Counts ────────────────────────────────────────────────────────────────
 
     long countByCategoryId(UUID categoryId);
+
+    /**
+     * Count questions generated from a specific template, filtered by lifecycle
+     * status.  Used by the admin template list to show draft/active counts per
+     * template at a glance.
+     *
+     * @param templateId the template UUID
+     * @param status     lifecycle status string (e.g. {@code "draft"}, {@code "active"})
+     */
+    long countByTemplateIdAndStatus(UUID templateId, String status);
 }

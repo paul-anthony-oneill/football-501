@@ -2,8 +2,6 @@ package com.football501.materializer;
 
 import com.football501.model.*;
 import com.football501.repository.*;
-
-// NOTE: PlayerSeasonStint import kept for Javadoc references in private methods
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -11,63 +9,70 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Materializes questions of the form:
+ * Materializes league-wide player questions of the form:
  * <pre>
- *   "Goals for Manchester United in the Premier League since 2000"
+ *   "Goals in the Premier League since 2000"
+ *   "Goals + Assists in La Liga since 2000"
+ *   "Substitute appearances in the Bundesliga since 2000"
  * </pre>
+ *
+ * <p>Unlike {@link FootballTeamCompetitionMetricSinceMaterializer}, which scopes
+ * answers to a single club, this materializer covers <em>every player</em> who
+ * appeared in the given competition since the start year.  This produces a much
+ * larger answer pool and is suited to harder, open-ended questions.
  *
  * <h3>Template params consumed</h3>
  * <ul>
- *   <li>{@code team_id}        — UUID of the team</li>
- *   <li>{@code competition_id} — UUID of the competition</li>
- *   <li>{@code start_year}     — inclusive lower bound on season start year</li>
+ *   <li>{@code competition_id}   — UUID of the competition</li>
+ *   <li>{@code competition_name} — denormalised display name (set during enumeration)</li>
+ *   <li>{@code start_year}       — inclusive lower bound on season start year</li>
  * </ul>
  *
- * <p>The metric to compute (goals / appearances / assists / cleanSheets) comes
- * from {@link QuestionTemplate#getMetricKey()} on the parent template.
+ * <h3>Supported metric keys</h3>
+ * <ul>
+ *   <li>{@code goals}           — total goals in the competition</li>
+ *   <li>{@code appearances}     — total appearances in the competition</li>
+ *   <li>{@code assists}         — total assists in the competition</li>
+ *   <li>{@code goals_assists}   — goals + assists combined</li>
+ *   <li>{@code clean_sheets}    — goalkeeper clean sheets (use with care — filters to ~5–10 answers)</li>
+ *   <li>{@code sub_appearances} — substitute appearances only</li>
+ * </ul>
  *
  * <h3>Enumeration</h3>
- * <p>For each active template that uses this materializer, {@link #enumerateParams}
- * returns one param map per (team, competition) pair where at least one
- * {@code player_season_stints} row exists with {@code season.start_year >= start_year}.
- * The default {@code start_year} value is {@code 2000}.
+ * <p>Returns one param set per competition that has at least one stint row with a
+ * season starting on or after {@code start_year}.  Competitions are filtered by
+ * type and optionally restricted to top-flight only, both controlled via the
+ * template's {@code param_schema}.
  */
 @Component
 @Slf4j
-public class FootballTeamCompetitionMetricSinceMaterializer implements QuestionMaterializer {
+public class FootballPlayerCompetitionMetricSinceMaterializer implements QuestionMaterializer {
 
-    public static final String KEY = "football.team_competition_metric_since";
+    public static final String KEY = "football.player_competition_metric_since";
 
-    // Supported metric keys and their labels in question text
     private static final Map<String, String> METRIC_LABELS = Map.of(
         "goals",           "Goals",
         "appearances",     "Appearances",
         "assists",         "Assists",
+        "goals_assists",   "Goals + Assists",
         "clean_sheets",    "Clean sheets",
         "sub_appearances", "Substitute appearances"
     );
 
-    // Default start-year used when the template param_schema doesn't override it.
     private static final int DEFAULT_START_YEAR = 2000;
 
     private final PlayerSeasonStintRepository stintRepository;
     private final PlayerRepository            playerRepository;
-    private final TeamRepository              teamRepository;
     private final CompetitionRepository       competitionRepository;
-    private final SeasonRepository            seasonRepository;
 
-    public FootballTeamCompetitionMetricSinceMaterializer(
+    public FootballPlayerCompetitionMetricSinceMaterializer(
             PlayerSeasonStintRepository stintRepository,
             PlayerRepository            playerRepository,
-            TeamRepository              teamRepository,
-            CompetitionRepository       competitionRepository,
-            SeasonRepository            seasonRepository
+            CompetitionRepository       competitionRepository
     ) {
         this.stintRepository       = stintRepository;
         this.playerRepository      = playerRepository;
-        this.teamRepository        = teamRepository;
         this.competitionRepository = competitionRepository;
-        this.seasonRepository      = seasonRepository;
     }
 
     @Override
@@ -75,58 +80,59 @@ public class FootballTeamCompetitionMetricSinceMaterializer implements QuestionM
         return KEY;
     }
 
-    // ── Enumeration ─────────────────────────────────────────────────────────
+    // ── Enumeration ──────────────────────────────────────────────────────────
 
     /**
-     * Returns one param set per (team, competition) that has actual stint data.
+     * Returns one param set per competition that both matches the configured type
+     * filter <em>and</em> has real stint data since the configured start year.
      *
-     * <p>The {@code start_year} is read from the template's {@code param_schema}
-     * under {@code params.start_year.values[0]}, defaulting to {@value DEFAULT_START_YEAR}.
-     *
-     * <p>Only competitions listed under the template's
-     * {@code params.competition_id.competition_types} (default: {@code ["domestic_league"]})
-     * are enumerated.  Only tier-1 leagues are included unless the template schema
-     * overrides this.
+     * <p>Each param map includes a denormalised {@code competition_name} so the
+     * question generator can render the question text without an extra DB round-trip.
      */
     @Override
     public List<Map<String, Object>> enumerateParams(QuestionTemplate template) {
-        int startYear = extractStartYear(template);
-        List<String> competitionTypes = extractCompetitionTypes(template);
+        int startYear              = extractStartYear(template);
+        List<String> compTypes     = extractCompetitionTypes(template);
+        boolean topFlightOnly      = shouldRestrictToTopFlight(template);
 
-        // Collect all competitions of the required types
-        List<Competition> competitions = competitionTypes.stream()
+        // Competitions that match the type filter
+        List<Competition> competitions = compTypes.stream()
             .flatMap(type -> competitionRepository.findByCompetitionType(type).stream())
             .distinct()
             .collect(Collectors.toList());
 
-        // If the schema restricts by tier, filter to tier-1 only
-        if (shouldRestrictToTopFlight(template)) {
+        if (topFlightOnly) {
             competitions = competitions.stream()
                 .filter(c -> Short.valueOf((short) 1).equals(c.getTier()))
                 .collect(Collectors.toList());
         }
 
         if (competitions.isEmpty()) {
-            log.warn("Template {} ({}): no competitions found for types {} — returning empty enumeration.",
-                template.getId(), template.getSlug(), competitionTypes);
+            log.warn("Template {} ({}): no competitions found for types {} — empty enumeration.",
+                template.getId(), template.getSlug(), compTypes);
             return List.of();
         }
+
+        // Only keep competitions where stint data actually exists
+        Set<UUID> competitionsWithData = new HashSet<>(
+            stintRepository.findDistinctCompetitionIdsSince(startYear)
+        );
 
         List<Map<String, Object>> results = new ArrayList<>();
 
         for (Competition comp : competitions) {
-            // Find all teams that have at least one stint in this competition
-            // with a season starting on or after startYear.
-            List<UUID> teamIds = findTeamIdsWithStints(comp.getId(), startYear);
-
-            for (UUID teamId : teamIds) {
-                results.add(Map.of(
-                    "team_id",        teamId.toString(),
-                    "competition_id", comp.getId().toString(),
-                    "start_year",     String.valueOf(startYear),
-                    "competition_name", comp.getDisplayName() != null ? comp.getDisplayName() : comp.getName()
-                ));
+            if (!competitionsWithData.contains(comp.getId())) {
+                log.debug("Skipping competition {} — no stint data since {}.", comp.getName(), startYear);
+                continue;
             }
+
+            String compName = comp.getDisplayName() != null ? comp.getDisplayName() : comp.getName();
+
+            results.add(Map.of(
+                "competition_id",   comp.getId().toString(),
+                "competition_name", compName,
+                "start_year",       String.valueOf(startYear)
+            ));
         }
 
         log.info("Template {} ({}): enumerated {} param sets.",
@@ -137,12 +143,12 @@ public class FootballTeamCompetitionMetricSinceMaterializer implements QuestionM
     // ── Materialization ──────────────────────────────────────────────────────
 
     /**
-     * Queries {@code player_season_stints} for the given (team, competition, since)
-     * and returns one {@link MaterializedAnswer} per player with a positive score.
+     * Aggregates {@code player_season_stints} across all teams in the competition
+     * since {@code start_year} and returns one {@link MaterializedAnswer} per player
+     * with a positive score for the configured metric.
      */
     @Override
     public List<MaterializedAnswer> materialize(MaterializationContext ctx) {
-        UUID teamId        = ctx.uuidParam("team_id");
         UUID competitionId = ctx.uuidParam("competition_id");
         int  startYear     = ctx.intParam("start_year");
 
@@ -155,15 +161,13 @@ public class FootballTeamCompetitionMetricSinceMaterializer implements QuestionM
                 "Unknown metric_key: '" + metricKey + "'. Valid: " + METRIC_LABELS.keySet());
         }
 
-        log.debug("Materializing: team={}, comp={}, since={}, metric={}",
-            teamId, competitionId, startYear, metricKey);
+        log.debug("Materializing: comp={}, since={}, metric={}", competitionId, startYear, metricKey);
 
         List<PlayerSeasonStintRepository.StintAggregate> aggregates =
-            stintRepository.aggregateByTeamCompetitionSince(teamId, competitionId, startYear);
+            stintRepository.aggregateByCompetitionSince(competitionId, startYear);
 
         if (aggregates.isEmpty()) {
-            log.warn("No stint data found for team={}, comp={}, since={}",
-                teamId, competitionId, startYear);
+            log.warn("No stint data found for comp={}, since={}", competitionId, startYear);
             return List.of();
         }
 
@@ -172,7 +176,7 @@ public class FootballTeamCompetitionMetricSinceMaterializer implements QuestionM
         for (PlayerSeasonStintRepository.StintAggregate agg : aggregates) {
             int score = resolveMetric(agg, metricKey);
             if (score <= 0) {
-                continue;  // skip players with no contribution for this metric
+                continue;
             }
 
             Optional<Player> playerOpt = playerRepository.findById(agg.getPlayerId());
@@ -182,25 +186,21 @@ public class FootballTeamCompetitionMetricSinceMaterializer implements QuestionM
             }
             Player player = playerOpt.get();
 
-            String answerKey  = player.getNormalizedName();
-            String displayText = player.getName();
-
             answers.add(new MaterializedAnswer(
-                answerKey,
-                displayText,
+                player.getNormalizedName(),
+                player.getName(),
                 score,
                 Map.of(
-                    "player_id",    player.getId().toString(),
-                    "team_id",      teamId.toString(),
+                    "player_id",      player.getId().toString(),
                     "competition_id", competitionId.toString(),
-                    "start_year",   startYear,
-                    "metric_key",   metricKey
+                    "start_year",     startYear,
+                    "metric_key",     metricKey
                 )
             ));
         }
 
-        log.info("Materialized {} answers for question {} (metric={}, team={}, comp={}, since={})",
-            answers.size(), ctx.question().getId(), metricKey, teamId, competitionId, startYear);
+        log.info("Materialised {} answers for question {} (metric={}, comp={}, since={})",
+            answers.size(), ctx.question().getId(), metricKey, competitionId, startYear);
         return answers;
     }
 
@@ -211,18 +211,11 @@ public class FootballTeamCompetitionMetricSinceMaterializer implements QuestionM
             case "goals"           -> (int) agg.getTotalGoals();
             case "appearances"     -> (int) agg.getTotalAppearances();
             case "assists"         -> (int) agg.getTotalAssists();
+            case "goals_assists"   -> (int) (agg.getTotalGoals() + agg.getTotalAssists());
             case "clean_sheets"    -> (int) agg.getTotalCleanSheets();
             case "sub_appearances" -> (int) agg.getTotalSubAppearances();
             default -> throw new IllegalArgumentException("Unknown metric_key: " + metricKey);
         };
-    }
-
-    /**
-     * Returns distinct team UUIDs that have at least one stint in the given
-     * competition where the season started on or after {@code startYear}.
-     */
-    private List<UUID> findTeamIdsWithStints(UUID competitionId, int startYear) {
-        return stintRepository.findDistinctTeamIdsByCompetitionSince(competitionId, startYear);
     }
 
     @SuppressWarnings("unchecked")
@@ -231,16 +224,16 @@ public class FootballTeamCompetitionMetricSinceMaterializer implements QuestionM
             Map<String, Object> schema = template.getParamSchema();
             Map<String, Object> params = (Map<String, Object>) schema.get("params");
             if (params != null) {
-                Map<String, Object> startYearDef = (Map<String, Object>) params.get("start_year");
-                if (startYearDef != null) {
-                    List<Object> values = (List<Object>) startYearDef.get("values");
+                Map<String, Object> def = (Map<String, Object>) params.get("start_year");
+                if (def != null) {
+                    List<Object> values = (List<Object>) def.get("values");
                     if (values != null && !values.isEmpty()) {
                         return Integer.parseInt(values.get(0).toString());
                     }
                 }
             }
         } catch (Exception e) {
-            log.warn("Could not extract start_year from template param_schema, using default {}: {}",
+            log.warn("Could not extract start_year from param_schema, using default {}: {}",
                 DEFAULT_START_YEAR, e.getMessage());
         }
         return DEFAULT_START_YEAR;
@@ -261,7 +254,7 @@ public class FootballTeamCompetitionMetricSinceMaterializer implements QuestionM
                 }
             }
         } catch (Exception e) {
-            log.warn("Could not extract competition_types from template param_schema: {}", e.getMessage());
+            log.warn("Could not extract competition_types from param_schema: {}", e.getMessage());
         }
         return List.of("domestic_league");
     }
@@ -281,6 +274,6 @@ public class FootballTeamCompetitionMetricSinceMaterializer implements QuestionM
                 }
             }
         } catch (Exception ignored) { }
-        return true;   // default: restrict to top-flight (tier=1)
+        return true;
     }
 }

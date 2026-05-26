@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -78,6 +79,28 @@ public class AdminQuestionController {
             @Valid @RequestBody UpdateStatusRequest request) {
         log.info("Update question {} status → {}", id, request.getStatus());
         return ResponseEntity.ok(adminQuestionService.updateStatus(id, request.getStatus()));
+    }
+
+    /**
+     * Re-materializes the answer set for an active question.
+     *
+     * <p>Use this after the scraper has refreshed {@code player_season_stints} data
+     * and you want to update cached answers without cycling the question status.
+     * Only works on questions with {@code status = "active"}.
+     *
+     * <p>Returns:
+     * <pre>
+     * { "questionId": "...", "answersUpserted": 47 }
+     * </pre>
+     */
+    @PostMapping("/{id}/rematerialize")
+    public ResponseEntity<Map<String, Object>> rematerialize(@PathVariable UUID id) {
+        log.info("Admin triggered re-materialize for question: {}", id);
+        int count = adminQuestionService.rematerialize(id);
+        return ResponseEntity.ok(Map.of(
+            "questionId",      id.toString(),
+            "answersUpserted", count
+        ));
     }
 
     @DeleteMapping("/{id}")

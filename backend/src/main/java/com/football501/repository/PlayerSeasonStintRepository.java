@@ -35,11 +35,12 @@ public interface PlayerSeasonStintRepository extends JpaRepository<PlayerSeasonS
      * @return projection list of (playerId, totalGoals, totalAppearances, totalAssists)
      */
     @Query("""
-        SELECT s.playerId         AS playerId,
-               SUM(s.goals)       AS totalGoals,
-               SUM(s.appearances) AS totalAppearances,
-               SUM(s.assists)     AS totalAssists,
-               SUM(s.cleanSheets) AS totalCleanSheets
+        SELECT s.playerId              AS playerId,
+               SUM(s.goals)            AS totalGoals,
+               SUM(s.appearances)      AS totalAppearances,
+               SUM(s.assists)          AS totalAssists,
+               SUM(s.cleanSheets)      AS totalCleanSheets,
+               SUM(s.subAppearances)   AS totalSubAppearances
           FROM PlayerSeasonStint s
           JOIN Season sn ON sn.id = s.seasonId
          WHERE s.teamId        = :teamId
@@ -109,11 +110,12 @@ public interface PlayerSeasonStintRepository extends JpaRepository<PlayerSeasonS
      * @return projection list of (playerId, totalGoals, totalAppearances, totalAssists, totalCleanSheets)
      */
     @Query("""
-        SELECT s.playerId         AS playerId,
-               SUM(s.goals)       AS totalGoals,
-               SUM(s.appearances) AS totalAppearances,
-               SUM(s.assists)     AS totalAssists,
-               SUM(s.cleanSheets) AS totalCleanSheets
+        SELECT s.playerId              AS playerId,
+               SUM(s.goals)            AS totalGoals,
+               SUM(s.appearances)      AS totalAppearances,
+               SUM(s.assists)          AS totalAssists,
+               SUM(s.cleanSheets)      AS totalCleanSheets,
+               SUM(s.subAppearances)   AS totalSubAppearances
           FROM PlayerSeasonStint s
          WHERE s.teamId        = :teamId
            AND s.competitionId = :competitionId
@@ -128,8 +130,87 @@ public interface PlayerSeasonStintRepository extends JpaRepository<PlayerSeasonS
     );
 
     /**
-     * Projection for {@link #aggregateByTeamCompetitionSince} and
-     * {@link #aggregateByTeamCompetitionSeason}.
+     * Aggregate totals for all players in a competition (no team filter), filtered
+     * by season start year.
+     *
+     * <p>Used by {@link com.football501.materializer.FootballPlayerCompetitionMetricSinceMaterializer}
+     * for league-wide questions such as "Goals in the Premier League since 2000"
+     * and "Goals + Assists in La Liga since 2000".
+     *
+     * @param competitionId the competition UUID
+     * @param startYear     inclusive lower bound on the season start year
+     * @return aggregated stats per player across all teams in the competition
+     */
+    @Query("""
+        SELECT s.playerId              AS playerId,
+               SUM(s.goals)            AS totalGoals,
+               SUM(s.appearances)      AS totalAppearances,
+               SUM(s.assists)          AS totalAssists,
+               SUM(s.cleanSheets)      AS totalCleanSheets,
+               SUM(s.subAppearances)   AS totalSubAppearances
+          FROM PlayerSeasonStint s
+          JOIN Season sn ON sn.id = s.seasonId
+         WHERE s.competitionId = :competitionId
+           AND sn.startYear   >= :startYear
+         GROUP BY s.playerId
+        HAVING SUM(s.appearances) > 0
+        """)
+    List<StintAggregate> aggregateByCompetitionSince(
+        @Param("competitionId") UUID competitionId,
+        @Param("startYear")     int  startYear
+    );
+
+    /**
+     * Aggregate career totals for all players, restricted to the given set of
+     * competition IDs and a minimum season start year.
+     *
+     * <p>Used by {@link com.football501.materializer.FootballPlayerCareerMetricMaterializer}
+     * for questions such as "Career goals in top-flight football since 2000".
+     * The caller (materializer) resolves which competitions to include and passes
+     * their IDs here to avoid a JPQL join on {@code competition_type}.
+     *
+     * @param startYear      inclusive lower bound on season start year
+     * @param competitionIds the set of competition UUIDs to aggregate over
+     * @return aggregated career stats per player
+     */
+    @Query("""
+        SELECT s.playerId              AS playerId,
+               SUM(s.goals)            AS totalGoals,
+               SUM(s.appearances)      AS totalAppearances,
+               SUM(s.assists)          AS totalAssists,
+               SUM(s.cleanSheets)      AS totalCleanSheets,
+               SUM(s.subAppearances)   AS totalSubAppearances
+          FROM PlayerSeasonStint s
+          JOIN Season sn ON sn.id = s.seasonId
+         WHERE sn.startYear       >= :startYear
+           AND s.competitionId    IN :competitionIds
+         GROUP BY s.playerId
+        HAVING SUM(s.appearances) > 0
+        """)
+    List<StintAggregate> aggregateCareerTotalsSince(
+        @Param("startYear")      int       startYear,
+        @Param("competitionIds") List<UUID> competitionIds
+    );
+
+    /**
+     * Returns all distinct competition UUIDs that have at least one stint row
+     * where the season started on or after {@code startYear}.
+     *
+     * <p>Used by {@link com.football501.materializer.FootballPlayerCompetitionMetricSinceMaterializer}
+     * during enumeration to skip competitions that have no data yet.
+     */
+    @Query("""
+        SELECT DISTINCT s.competitionId
+          FROM PlayerSeasonStint s
+          JOIN Season sn ON sn.id = s.seasonId
+         WHERE sn.startYear >= :startYear
+        """)
+    List<UUID> findDistinctCompetitionIdsSince(@Param("startYear") int startYear);
+
+    /**
+     * Projection for all aggregate queries in this repository.
+     * Every query that returns per-player totals must select all six columns
+     * so this interface remains the single shared projection type.
      */
     interface StintAggregate {
         UUID  getPlayerId();
@@ -137,6 +218,7 @@ public interface PlayerSeasonStintRepository extends JpaRepository<PlayerSeasonS
         long  getTotalAppearances();
         long  getTotalAssists();
         long  getTotalCleanSheets();
+        long  getTotalSubAppearances();
     }
 
     /**

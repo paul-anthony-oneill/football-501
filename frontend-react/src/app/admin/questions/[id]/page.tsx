@@ -66,6 +66,7 @@ export default function QuestionDetailPage() {
   // Question editing
   const [isEditing, setIsEditing] = useState(false);
   const [questionLoading, setQuestionLoading] = useState(false);
+  const [rematerializing, setRematerializing] = useState(false);
 
   // Answer modals
   const [showCreateAnswer, setShowCreateAnswer] = useState(false);
@@ -142,6 +143,23 @@ export default function QuestionDetailPage() {
       addToast(`Question is now ${statusConfig[nextStatus].label}`, "success");
     } catch (err) {
       addToast((err as Error).message, "error");
+    }
+  }
+
+  /**
+   * Re-materialize answers for an active question after scraper data refresh.
+   */
+  async function handleRematerialize() {
+    if (!question) return;
+    setRematerializing(true);
+    try {
+      const result = await adminApi.rematerializeQuestion(questionId);
+      addToast(`Re-materialized: ${result.answersUpserted} answers updated.`, "success");
+      await Promise.all([loadAnswers(), loadQuestion()]);
+    } catch (err) {
+      addToast((err as Error).message, "error");
+    } finally {
+      setRematerializing(false);
     }
   }
 
@@ -262,6 +280,17 @@ export default function QuestionDetailPage() {
           </div>
         </div>
         <div className="flex gap-3">
+          {/* Rematerialize — only available when active */}
+          {question.status === "active" && (
+            <button
+              onClick={handleRematerialize}
+              disabled={rematerializing}
+              title="Re-compute answers from latest scraper data"
+              className="px-4 py-2 rounded-lg border border-[#4f46e5] bg-[rgba(79,70,229,0.15)] text-[#818cf8] text-[0.9rem] cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {rematerializing ? "Refreshing…" : "↻ Rematerialize"}
+            </button>
+          )}
           {/* Status transition button */}
           <button
             onClick={handleStatusTransition}
