@@ -2,16 +2,20 @@
 Scrape Current Season Statistics
 ---------------------------------
 Fetches player statistics from FBref using ScraperFC and writes directly
-to ``player_season_stints`` (V6 schema), bypassing the legacy
-``players.career_stats`` JSONB column.
+to ``player_season_stints`` (V6/post-V9 schema).
 
-After this script completes the stints table is the source of truth.
-The legacy JSONB column is kept until V9 but is **no longer written to** by
-this script — existing data in career_stats persists until V9 drops it.
+Post-V9 schema notes
+--------------------
+* ``players.fbref_id`` and ``players.career_stats`` no longer exist.
+* Player identity is keyed through ``player_external_ids`` (source='fbref').
+* All season stats live in ``player_season_stints`` — the Java materializer
+  reads from there to populate the ``answers`` table.
 
-After this script completes, run:
-    python init_questions_v2.py     (if creating new question rows)
-    python populate_answers_v2.py   (manual answer population, pre-materializer)
+After this script completes, trigger the Java materializer to refresh any
+active questions whose data has changed:
+
+    POST /api/admin/questions/rematerialize-stale
+    (or promote fresh draft questions to active via the admin UI)
 """
 
 import os
@@ -42,8 +46,6 @@ from backfill_season_stints import (
     parse_start_year,
     parse_end_year,
     get_or_create_season,
-    ensure_player_external_id,
-    ensure_team_external_id,
 )
 
 logging.basicConfig(
@@ -149,33 +151,82 @@ def upsert_team(session, fbref_squad_name: str) -> Optional[Team]:
 
 
 # ---------------------------------------------------------------------------
+# External-ID helpers (post-V9: players.fbref_id no longer exists)
+# ---------------------------------------------------------------------------
+
+def _ensure_player_external_id(session, player: Player, fbref_id: str) -> None:
+    """Upsert a player_external_ids row for a real (non-synthetic) FBref ID."""
+    if not fbref_id or fbref_id.startswith("gen_"):
+        return
+    exists = session.query(PlayerExternalId).filter_by(
+        source="fbref", external_id=fbref_id
+    ).first()
+    if not exists:
+        session.add(PlayerExternalId(
+            player_id=player.id,
+            source="fbref",
+            external_id=fbref_id,
+            confidence=100,
+        ))
+
+
+def _ensure_team_external_id(session, team: Team, fbref_squad_name: str) -> None:
+    """Upsert a team_external_ids row keyed on the FBref squad name."""
+    exists = session.query(TeamExternalId).filter_by(
+        source="fbref", external_id=fbref_squad_name
+    ).first()
+    if not exists:
+        session.add(TeamExternalId(
+            team_id=team.id,
+            source="fbref",
+            external_id=fbref_squad_name,
+            confidence=100,
+        ))
+
+
+# ---------------------------------------------------------------------------
 # Player upsert
 # ---------------------------------------------------------------------------
+
 def upsert_player(session, fbref_id: str, name: str, nationality: str) -> Player:
-    """Find or create a Player row; update last_scraped_at."""
+    """
+    Find or create a Player row; update last_scraped_at.
+
+    Post-V9: ``players`` has no ``fbref_id`` column. Lookup goes through
+    ``player_external_ids`` for real FBref IDs; falls back to
+    ``normalized_name`` for synthetic ``gen_`` IDs.
+    """
     norm = normalize_name(name)
-    player = session.query(Player).filter_by(fbref_id=fbref_id).first()
+    player = None
+
+    # Primary lookup via player_external_ids (real FBref IDs only)
+    if fbref_id and not fbref_id.startswith("gen_"):
+        ext = session.query(PlayerExternalId).filter_by(
+            source="fbref", external_id=fbref_id
+        ).first()
+        if ext:
+            player = session.query(Player).filter_by(id=ext.player_id).first()
+
+    # Fallback: normalized name (synthetic IDs or no external ID yet)
     if player is None:
-        # Also check by normalized name (for scraper-generated IDs)
         player = session.query(Player).filter_by(normalized_name=norm).first()
 
     if player is None:
         player = Player(
-            fbref_id=fbref_id or f"gen_{norm}",
             name=name,
             normalized_name=norm,
             nationality=nationality,
-            career_stats=[],      # kept for backward compat until V9
             last_scraped_at=datetime.utcnow(),
         )
         session.add(player)
         session.flush()
+        log.info("  Created player: %s", name)
     else:
         player.last_scraped_at = datetime.utcnow()
         if player.name != name:
-            player.name = name    # update display name if changed
+            player.name = name
 
-    ensure_player_external_id(session, player)
+    _ensure_player_external_id(session, player, fbref_id)
     return player
 
 
@@ -401,7 +452,7 @@ def run_scrape() -> None:
                         players_failed += 1
                         continue
 
-                    ensure_team_external_id(session, team_row)
+                    _ensure_team_external_id(session, team_row, fbref_squad)
 
                     # FBref uses player-id in the URL; we fall back to a generated ID.
                     fbref_player_id = f"gen_{normalize_name(name)}"
@@ -461,8 +512,8 @@ def run_scrape() -> None:
 
     log.info("\nScrape complete.")
     log.info("Next steps:")
-    log.info("  python verify_parity.py")
-    log.info("  (then trigger the template generator via the admin API or QuestionGeneratorService)")
+    log.info("  POST /api/admin/questions/rematerialize-stale   ← refresh active question answers")
+    log.info("  POST /api/admin/templates/generate              ← create drafts for new (team, season) combos")
 
 
 if __name__ == "__main__":

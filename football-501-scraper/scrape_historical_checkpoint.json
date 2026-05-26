@@ -1,0 +1,522 @@
+{
+  "EPL_2024-2025": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2025-2026": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2023-2024": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2022-2023": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2021-2022": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2020-2021": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2019-2020": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2018-2019": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2017-2018": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2016-2017": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2015-2016": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2014-2015": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2013-2014": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2012-2013": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2011-2012": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2010-2011": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2009-2010": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2008-2009": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2007-2008": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2006-2007": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2005-2006": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2004-2005": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2003-2004": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2002-2003": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2001-2002": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "EPL_2000-2001": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2025-2026": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2024-2025": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2023-2024": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2022-2023": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2021-2022": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2020-2021": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2019-2020": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2018-2019": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2017-2018": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2016-2017": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2015-2016": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2014-2015": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2013-2014": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2012-2013": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2011-2012": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2010-2011": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2009-2010": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2008-2009": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2007-2008": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2006-2007": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2005-2006": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2004-2005": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2003-2004": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2002-2003": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2001-2002": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "La Liga_2000-2001": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2025-2026": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2024-2025": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2023-2024": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2022-2023": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2021-2022": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2020-2021": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2019-2020": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2018-2019": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2017-2018": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2016-2017": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2015-2016": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2014-2015": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2013-2014": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2012-2013": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2011-2012": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2010-2011": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2009-2010": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2008-2009": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2007-2008": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2006-2007": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2005-2006": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2004-2005": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2003-2004": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2002-2003": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2001-2002": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Serie A_2000-2001": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2025-2026": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2024-2025": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2023-2024": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2022-2023": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2021-2022": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2020-2021": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2019-2020": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2018-2019": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2017-2018": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2016-2017": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2015-2016": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2014-2015": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2013-2014": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2012-2013": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2011-2012": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2010-2011": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2009-2010": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2008-2009": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2007-2008": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2006-2007": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2005-2006": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2004-2005": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2003-2004": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2002-2003": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2001-2002": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Bundesliga_2000-2001": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2025-2026": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2024-2025": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2023-2024": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2022-2023": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2021-2022": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2020-2021": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2019-2020": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2018-2019": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2017-2018": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2016-2017": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2015-2016": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2014-2015": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2013-2014": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2012-2013": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2011-2012": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2010-2011": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2009-2010": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2008-2009": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2007-2008": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2006-2007": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2005-2006": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2004-2005": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2003-2004": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2002-2003": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2001-2002": {
+    "standard": true,
+    "goalkeeping": true
+  },
+  "Ligue 1_2000-2001": {
+    "standard": true,
+    "goalkeeping": true
+  }
+}
