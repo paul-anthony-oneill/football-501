@@ -1,0 +1,76 @@
+=== EPL 2024-2025 — goalkeeping — squad ===
+
+Shape: (20, 22)
+
+--- COLUMN REPORT ---
+Column                                        dtype        non-null   null%  sample_values
+--------------------------------------------------------------------------------------------------------------
+Squad                                         object             20    0.0%  'Arsenal', 'Aston Villa', 'Bournemouth'
+# Pl                                          int64              20    0.0%  '1', '2', '3'
+Playing Time_MP                               int64              20    0.0%  '38'
+Playing Time_Starts                           int64              20    0.0%  '38'
+Playing Time_Min                              int64              20    0.0%  '3420'
+Playing Time_90s                              float64            20    0.0%  '38.0'
+Performance_GA                                int64              20    0.0%  '34', '51', '46'
+Performance_GA90                              float64            20    0.0%  '0.89', '1.34', '1.21'
+Performance_SoTA                              int64              20    0.0%  '120', '156', '172'
+Performance_Saves                             int64              20    0.0%  '86', '104', '126'
+Performance_Save%                             float64            20    0.0%  '74.2', '68.6', '75.6'
+Performance_W                                 int64              20    0.0%  '20', '19', '15'
+Performance_D                                 int64              20    0.0%  '14', '9', '11'
+Performance_L                                 int64              20    0.0%  '4', '10', '12'
+Performance_CS                                int64              20    0.0%  '13', '9', '8'
+Performance_CS%                               float64            20    0.0%  '34.2', '23.7', '21.1'
+Penalty Kicks_PKatt                           int64              20    0.0%  '3', '4', '1'
+Penalty Kicks_PKA                             int64              20    0.0%  '3', '2', '4'
+Penalty Kicks_PKsv                            int64              20    0.0%  '0', '1', '2'
+Penalty Kicks_PKm                             int64              20    0.0%  '0'
+Penalty Kicks_Save%                           float64            20    0.0%  '0.0', '33.3', '16.7'
+Team ID_                                      object             20    0.0%  '18bb7c10', '8602292d', '4ba7cbea'
+
+--- SQUAD NAMES (unique values in Squad column) ---
+  'Arsenal'
+  'Aston Villa'
+  'Bournemouth'
+  'Brentford'
+  'Brighton'
+  'Chelsea'
+  'Crystal Palace'
+  'Everton'
+  'Fulham'
+  'Ipswich Town'
+  'Leicester City'
+  'Liverpool'
+  'Manchester City'
+  'Manchester Utd'
+  'Newcastle United'
+  'Nottingham Forest'
+  'Southampton'
+  'Tottenham Hotspur'
+  'West Ham United'
+  'Wolves'
+
+--- FIRST 5 ROWS (transposed for readability) ---
+                            0            1            2          3         4
+Squad                 Arsenal  Aston Villa  Bournemouth  Brentford  Brighton
+# Pl                        1            2            3          2         2
+Playing Time_MP            38           38           38         38        38
+Playing Time_Starts        38           38           38         38        38
+Playing Time_Min         3420         3420         3420       3420      3420
+Playing Time_90s         38.0         38.0         38.0       38.0      38.0
+Performance_GA             34           51           46         57        59
+Performance_GA90         0.89         1.34         1.21        1.5      1.55
+Performance_SoTA          120          156          172        207       147
+Performance_Saves          86          104          126        153        90
+Performance_Save%        74.2         68.6         75.6       72.9      66.0
+Performance_W              20           19           15         16        16
+Performance_D              14            9           11          8        13
+Performance_L               4           10           12         14         9
+Performance_CS             13            9            9          8         8
+Performance_CS%          34.2         23.7         23.7       21.1      21.1
+Penalty Kicks_PKatt         3            3            4          1         9
+Penalty Kicks_PKA           3            2            4          1         9
+Penalty Kicks_PKsv          0            1            0          0         0
+Penalty Kicks_PKm           0            0            0          0         0
+Penalty Kicks_Save%       0.0         33.3          0.0        0.0       0.0
+Team ID_             18bb7c10     8602292d     4ba7cbea   cd051869  d07537b9

@@ -1,0 +1,76 @@
+=== EPL 2024-2025 — standard — squad ===
+
+Shape: (20, 22)
+
+--- COLUMN REPORT ---
+Column                                        dtype        non-null   null%  sample_values
+--------------------------------------------------------------------------------------------------------------
+Squad                                         object             20    0.0%  'Arsenal', 'Aston Villa', 'Bournemouth'
+# Pl                                          int64              20    0.0%  '25', '28', '29'
+Age                                           float64            20    0.0%  '25.8', '27.0', '25.1'
+Poss                                          float64            20    0.0%  '56.9', '50.5', '48.5'
+Playing Time_MP                               int64              20    0.0%  '38'
+Playing Time_Starts                           int64              20    0.0%  '418'
+Playing Time_Min                              int64              20    0.0%  '3420'
+Playing Time_90s                              float64            20    0.0%  '38.0'
+Performance_Gls                               int64              20    0.0%  '67', '56', '57'
+Performance_Ast                               int64              20    0.0%  '55', '45', '41'
+Performance_G+A                               int64              20    0.0%  '122', '101', '98'
+Performance_G-PK                              int64              20    0.0%  '65', '53', '51'
+Performance_PK                                int64              20    0.0%  '2', '3', '6'
+Performance_PKatt                             int64              20    0.0%  '2', '6', '7'
+Performance_CrdY                              int64              20    0.0%  '70', '76', '97'
+Performance_CrdR                              int64              20    0.0%  '6', '4', '3'
+Per 90 Minutes_Gls                            float64            20    0.0%  '1.76', '1.47', '1.5'
+Per 90 Minutes_Ast                            float64            20    0.0%  '1.45', '1.18', '1.08'
+Per 90 Minutes_G+A                            float64            20    0.0%  '3.21', '2.66', '2.58'
+Per 90 Minutes_G-PK                           float64            20    0.0%  '1.71', '1.39', '1.34'
+Per 90 Minutes_G+A-PK                         float64            20    0.0%  '3.16', '2.58', '2.42'
+Team ID_                                      object             20    0.0%  '18bb7c10', '8602292d', '4ba7cbea'
+
+--- SQUAD NAMES (unique values in Squad column) ---
+  'Arsenal'
+  'Aston Villa'
+  'Bournemouth'
+  'Brentford'
+  'Brighton'
+  'Chelsea'
+  'Crystal Palace'
+  'Everton'
+  'Fulham'
+  'Ipswich Town'
+  'Leicester City'
+  'Liverpool'
+  'Manchester City'
+  'Manchester Utd'
+  'Newcastle United'
+  'Nottingham Forest'
+  'Southampton'
+  'Tottenham Hotspur'
+  'West Ham United'
+  'Wolves'
+
+--- FIRST 5 ROWS (transposed for readability) ---
+                              0            1            2          3         4
+Squad                   Arsenal  Aston Villa  Bournemouth  Brentford  Brighton
+# Pl                         25           28           29         28        32
+Age                        25.8         27.0         25.1       25.8      24.8
+Poss                       56.9         50.5         48.5       47.9      52.3
+Playing Time_MP              38           38           38         38        38
+Playing Time_Starts         418          418          418        418       418
+Playing Time_Min           3420         3420         3420       3420      3420
+Playing Time_90s           38.0         38.0         38.0       38.0      38.0
+Performance_Gls              67           56           57         65        64
+Performance_Ast              55           45           41         44        41
+Performance_G+A             122          101           98        109       105
+Performance_G-PK             65           53           51         60        57
+Performance_PK                2            3            6          5         7
+Performance_PKatt             2            6            7          6         7
+Performance_CrdY             70           76           97         62        78
+Performance_CrdR              6            4            3          1         3
+Per 90 Minutes_Gls         1.76         1.47          1.5       1.71      1.68
+Per 90 Minutes_Ast         1.45         1.18         1.08       1.16      1.08
+Per 90 Minutes_G+A         3.21         2.66         2.58       2.87      2.76
+Per 90 Minutes_G-PK        1.71         1.39         1.34       1.58       1.5
+Per 90 Minutes_G+A-PK      3.16         2.58         2.42       2.74      2.58
+Team ID_               18bb7c10     8602292d     4ba7cbea   cd051869  d07537b9

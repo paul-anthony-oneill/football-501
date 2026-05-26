@@ -1,0 +1,211 @@
+FBref Season Inspector — EPL 2024-2025
+============================================================
+
+
+────────────────────────────────────────────────────────────
+CATEGORY: STANDARD
+────────────────────────────────────────────────────────────
+
+  SQUAD TABLE  (20 rows × 22 cols)
+
+    [misc]
+      Squad                                          null=0%
+      # Pl                                           null=0%
+      Age                                            null=0%
+      Poss                                           null=0%
+
+    [Playing Time]
+      Playing Time_MP                                null=0%
+      Playing Time_Starts                            null=0%
+      Playing Time_Min                               null=0%
+      Playing Time_90s                               null=0%
+
+    [Performance]
+      Performance_Gls                                null=0%
+      Performance_Ast                                null=0%
+      Performance_G+A                                null=0%
+      Performance_G-PK                               null=0%
+      Performance_PK                                 null=0%
+      Performance_PKatt                              null=0%
+      Performance_CrdY                               null=0%
+      Performance_CrdR                               null=0%
+
+    [Per 90 Minutes]
+      Per 90 Minutes_Gls                             null=0%
+      Per 90 Minutes_Ast                             null=0%
+      Per 90 Minutes_G+A                             null=0%
+      Per 90 Minutes_G-PK                            null=0%
+      Per 90 Minutes_G+A-PK                          null=0%
+
+    [Team ID]
+      Team ID_                                       null=0%
+
+
+  PLAYER TABLE  (574 rows × 27 cols)
+
+    [misc]
+      Rk                                             null=0%
+      Player                                         null=0%
+      Nation                                         null=0%
+      Pos                                            null=0%
+      Squad                                          null=0%
+      Age                                            null=0%
+      Born                                           null=0%
+      Matches                                        null=0%
+
+    [Playing Time]
+      Playing Time_MP                                null=0%
+      Playing Time_Starts                            null=0%
+      Playing Time_Min                               null=0%
+      Playing Time_90s                               null=0%
+
+    [Performance]
+      Performance_Gls                                null=0%
+      Performance_Ast                                null=0%
+      Performance_G+A                                null=0%
+      Performance_G-PK                               null=0%
+      Performance_PK                                 null=0%
+      Performance_PKatt                              null=0%
+      Performance_CrdY                               null=0%
+      Performance_CrdR                               null=0%
+
+    [Per 90 Minutes]
+      Per 90 Minutes_Gls                             null=0%
+      Per 90 Minutes_Ast                             null=0%
+      Per 90 Minutes_G+A                             null=0%
+      Per 90 Minutes_G-PK                            null=0%
+      Per 90 Minutes_G+A-PK                          null=0%
+
+    [Player Link]
+      Player Link_                                   null=0%
+
+    [Player ID]
+      Player ID_                                     null=0%
+
+  SQUAD NAMES AS RETURNED BY FBREF (20):
+    'Arsenal'
+    'Aston Villa'
+    'Bournemouth'
+    'Brentford'
+    'Brighton'
+    'Chelsea'
+    'Crystal Palace'
+    'Everton'
+    'Fulham'
+    'Ipswich Town'
+    'Leicester City'
+    'Liverpool'
+    'Manchester City'
+    'Manchester Utd'
+    'Newcastle United'
+    'Nottingham Forest'
+    'Southampton'
+    'Tottenham Hotspur'
+    'West Ham United'
+    'Wolves'
+
+
+────────────────────────────────────────────────────────────
+CATEGORY: GOALKEEPING
+────────────────────────────────────────────────────────────
+
+  SQUAD TABLE  (20 rows × 22 cols)
+
+    [misc]
+      Squad                                          null=0%
+      # Pl                                           null=0%
+
+    [Playing Time]
+      Playing Time_MP                                null=0%
+      Playing Time_Starts                            null=0%
+      Playing Time_Min                               null=0%
+      Playing Time_90s                               null=0%
+
+    [Performance]
+      Performance_GA                                 null=0%
+      Performance_GA90                               null=0%
+      Performance_SoTA                               null=0%
+      Performance_Saves                              null=0%
+      Performance_Save%                              null=0%
+      Performance_W                                  null=0%
+      Performance_D                                  null=0%
+      Performance_L                                  null=0%
+      Performance_CS                                 null=0%
+      Performance_CS%                                null=0%
+
+    [Penalty Kicks]
+      Penalty Kicks_PKatt                            null=0%
+      Penalty Kicks_PKA                              null=0%
+      Penalty Kicks_PKsv                             null=0%
+      Penalty Kicks_PKm                              null=0%
+      Penalty Kicks_Save%                            null=0%
+
+    [Team ID]
+      Team ID_                                       null=0%
+
+
+  PLAYER TABLE  (44 rows × 29 cols)
+
+    [misc]
+      Rk                                             null=0%
+      Player                                         null=0%
+      Nation                                         null=0%
+      Pos                                            null=0%
+      Squad                                          null=0%
+      Age                                            null=0%
+      Born                                           null=0%
+      Matches                                        null=0%
+
+    [Playing Time]
+      Playing Time_MP                                null=0%
+      Playing Time_Starts                            null=0%
+      Playing Time_Min                               null=0%
+      Playing Time_90s                               null=0%
+
+    [Performance]
+      Performance_GA                                 null=0%
+      Performance_GA90                               null=0%
+      Performance_SoTA                               null=0%
+      Performance_Saves                              null=0%
+      Performance_Save%                              null=2%
+      Performance_W                                  null=0%
+      Performance_D                                  null=0%
+      Performance_L                                  null=0%
+      Performance_CS                                 null=0%
+      Performance_CS%                                null=5%
+
+    [Penalty Kicks]
+      Penalty Kicks_PKatt                            null=0%
+      Penalty Kicks_PKA                              null=0%
+      Penalty Kicks_PKsv                             null=0%
+      Penalty Kicks_PKm                              null=0%
+      Penalty Kicks_Save%                            null=34%
+
+    [Player Link]
+      Player Link_                                   null=0%
+
+    [Player ID]
+      Player ID_                                     null=0%
+
+  SQUAD NAMES AS RETURNED BY FBREF (20):
+    'Arsenal'
+    'Aston Villa'
+    'Bournemouth'
+    'Brentford'
+    'Brighton'
+    'Chelsea'
+    'Crystal Palace'
+    'Everton'
+    'Fulham'
+    'Ipswich Town'
+    'Leicester City'
+    'Liverpool'
+    'Manchester City'
+    'Manchester Utd'
+    'Newcastle United'
+    'Nottingham Forest'
+    'Southampton'
+    'Tottenham Hotspur'
+    'West Ham United'
+    'Wolves'
+
