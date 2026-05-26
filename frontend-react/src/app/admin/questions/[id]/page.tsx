@@ -260,6 +260,24 @@ export default function QuestionDetailPage() {
     (question.validDartsCount / Math.max(1, question.answerCount)) * 100
   );
 
+  // ── Viability metrics (derived from loaded answer set) ──────────────────
+  const maxValidScore = answers
+    .filter((a) => a.isValidDarts && !a.isBust)
+    .reduce((max, a) => Math.max(max, a.score), 0);
+  const minAnswersNeeded = maxValidScore > 0 ? Math.ceil(501 / maxValidScore) : null;
+
+  const viabilityStatus =
+    question.totalPointsPool === 0  ? "empty"      :
+    question.totalPointsPool < 501  ? "impossible" :
+    question.totalPointsPool < 1000 ? "tight"      : "ok";
+
+  const viabilityBadge: Record<string, { label: string; cls: string }> = {
+    empty:      { label: "No answers",    cls: "bg-[rgba(156,163,175,0.15)] text-[#9ca3af] border-[#9ca3af]" },
+    impossible: { label: "✗ Impossible",  cls: "bg-[rgba(239,68,68,0.1)]    text-[#ef4444] border-[#ef4444]" },
+    tight:      { label: "⚠ Tight",       cls: "bg-[rgba(251,191,36,0.1)]   text-[#fbbf24] border-[#fbbf24]" },
+    ok:         { label: "✓ Completable", cls: "bg-[rgba(74,222,128,0.1)]   text-[#4ade80] border-[#4ade80]" },
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
       {/* Question header */}
@@ -323,18 +341,47 @@ export default function QuestionDetailPage() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        {[
-          { value: question.answerCount,    label: "Total Answers" },
-          { value: question.validDartsCount, label: "Valid Darts" },
-          { value: `${coverage}%`,          label: "Coverage" },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-[#2a2a2a] p-6 rounded-lg text-center">
-            <div className="text-3xl font-bold text-white mb-1">{stat.value}</div>
-            <div className="text-[0.9rem] text-[#9ca3af]">{stat.label}</div>
+      {/* Viability panel */}
+      <div className="bg-[#2a2a2a] rounded-xl p-6 mb-8 border border-[#333]">
+        <div className="flex items-center justify-between mb-5">
+          <span className="text-xs font-semibold uppercase tracking-widest text-[#9ca3af]">
+            Viability
+          </span>
+          <span
+            className={`px-2 py-1 rounded text-[0.8rem] font-medium border ${viabilityBadge[viabilityStatus].cls}`}
+          >
+            {viabilityBadge[viabilityStatus].label}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard label="Total Answers"       value={question.answerCount} />
+          <StatCard label="Valid Darts"          value={question.validDartsCount} sub={`${coverage}% coverage`} />
+          <StatCard label="High-Value (101–180)" value={question.highValueAnswerCount} accent="green" />
+          <StatCard
+            label="Min to Finish"
+            value={minAnswersNeeded !== null ? `~${minAnswersNeeded}` : "—"}
+            sub={maxValidScore > 0 ? `max score: ${maxValidScore}` : "no answers yet"}
+          />
+        </div>
+
+        <div className="flex items-center justify-between pt-4 border-t border-white/10 text-sm">
+          <div>
+            <span className="text-[#9ca3af]">Points Pool: </span>
+            <span className="text-white font-mono font-bold">
+              {question.totalPointsPool > 0
+                ? question.totalPointsPool.toLocaleString() + " pts"
+                : "—"}
+            </span>
+            {question.totalPointsPool > 0 && (
+              <span className="ml-2 text-[#9ca3af]">
+                {question.totalPointsPool >= 501
+                  ? `(${(question.totalPointsPool / 501).toFixed(1)}× the 501 minimum)`
+                  : `(${(501 - question.totalPointsPool).toLocaleString()} pts short — cannot be finished)`}
+              </span>
+            )}
           </div>
-        ))}
+        </div>
       </div>
 
       {/* Answers section */}
@@ -459,7 +506,39 @@ export default function QuestionDetailPage() {
   );
 }
 
+// ── Stat Card ────────────────────────────────────────────────────────────────
+
+function StatCard({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  accent?: "green" | "amber";
+}) {
+  const valueClass =
+    accent === "green" ? "text-[#4ade80]" :
+    accent === "amber" ? "text-[#fbbf24]" :
+    "text-white";
+  return (
+    <div className="bg-[#1a1a1a] p-4 rounded-lg text-center">
+      <div className={`text-2xl font-bold font-mono mb-1 ${valueClass}`}>{value}</div>
+      <div className="text-[0.8rem] text-[#9ca3af]">{label}</div>
+      {sub && <div className="text-[0.72rem] text-[#555] mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
 // ── Answer Preview ───────────────────────────────────────────────────────────
+
+const SCORE_BUCKETS = [
+  { range: "101–180", min: 101, max: 180, color: "#4ade80" },
+  { range: "51–100",  min: 51,  max: 100, color: "#60a5fa" },
+  { range: "1–50",    min: 1,   max: 50,  color: "#9ca3af" },
+] as const;
 
 function AnswerPreview({ answers }: { answers: Answer[] }) {
   // Answers arrive pre-sorted by score DESC from the backend
@@ -483,6 +562,26 @@ function AnswerPreview({ answers }: { answers: Answer[] }) {
           </span>
         )}
       </div>
+
+      {/* Score distribution buckets */}
+      {answers.length > 0 && (
+        <div className="flex gap-3 mb-4 flex-wrap">
+          {SCORE_BUCKETS.map(({ range, min, max, color }) => {
+            const count = answers.filter(
+              (a) => a.score >= min && a.score <= max && a.isValidDarts && !a.isBust
+            ).length;
+            return (
+              <div
+                key={range}
+                className="flex items-center gap-2 bg-[#1a1a1a] rounded-lg px-3 py-1.5"
+              >
+                <span style={{ color }} className="font-mono font-bold text-sm">{count}</span>
+                <span className="text-[#9ca3af] text-xs">{range}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Sorted rows */}
       <div className="rounded-xl overflow-hidden border border-[#444]">

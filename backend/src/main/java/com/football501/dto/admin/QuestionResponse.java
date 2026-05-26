@@ -21,6 +21,16 @@ public class QuestionResponse {
     private UUID templateId;
     private long answerCount;
     private long validDartsCount;
+    /**
+     * Sum of scores for all valid-darts, non-bust answers.
+     * A pool below 501 means the question cannot be finished from 501 points.
+     */
+    private long totalPointsPool;
+    /**
+     * Count of valid-darts answers with score in the 101–180 range.
+     * Indicates the question's "finishing power" — higher is easier to complete.
+     */
+    private long highValueAnswerCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

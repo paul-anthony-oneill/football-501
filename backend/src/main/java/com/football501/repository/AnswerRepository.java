@@ -124,6 +124,31 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
     long countByQuestionIdAndIsValidDartsTrue(UUID questionId);
 
     /**
+     * Sum of scores for all valid, non-bust answers for a question.
+     * This is the total "points pool" — the maximum achievable score if a
+     * player named every valid answer correctly. A pool below 501 means the
+     * question literally cannot be finished from 501 points.
+     *
+     * @param questionId the question UUID
+     * @return sum of valid-darts scores, or 0 if no answers exist
+     */
+    @Query("SELECT COALESCE(SUM(a.score), 0) FROM Answer a " +
+           "WHERE a.questionId = :questionId AND a.isValidDarts = true AND a.isBust = false")
+    long sumValidDartsScores(@Param("questionId") UUID questionId);
+
+    /**
+     * Count of valid, non-bust answers with a score above 100.
+     * A higher count here means the question has strong "finishing power" —
+     * players can make large progress per correct answer.
+     *
+     * @param questionId the question UUID
+     * @return count of high-value answers (score > 100)
+     */
+    @Query("SELECT COUNT(a) FROM Answer a " +
+           "WHERE a.questionId = :questionId AND a.isValidDarts = true AND a.isBust = false AND a.score > 100")
+    long countHighValueAnswers(@Param("questionId") UUID questionId);
+
+    /**
      * Get top N scoring answers for a question.
      *
      * @param questionId the question UUID

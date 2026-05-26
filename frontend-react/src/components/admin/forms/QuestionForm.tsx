@@ -152,6 +152,18 @@ export default function QuestionForm({
         disabled={loading}
       />
 
+      {metricKey === "clean_sheets" && (
+        <div className="mb-4 rounded-lg border border-[#fbbf24] bg-[rgba(251,191,36,0.08)] p-4 text-sm">
+          <p className="font-semibold text-[#fbbf24] m-0 mb-1">⚠ Clean sheets scope warning</p>
+          <p className="text-[#d97706] m-0">
+            Clean sheets questions must be scoped broadly — e.g.{" "}
+            <em>"Clean Sheets in Premier League since 2000"</em> — not per-club per-season.
+            A per-club question typically produces fewer than 10 answers, which is not
+            enough for a player to finish from 501.
+          </p>
+        </div>
+      )}
+
       <TextField
         label="Minimum Score (Optional)"
         value={minScore}

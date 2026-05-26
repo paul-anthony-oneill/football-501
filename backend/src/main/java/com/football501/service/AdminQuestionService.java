@@ -315,6 +315,8 @@ public class AdminQuestionService {
         response.setUpdatedAt(question.getUpdatedAt());
         response.setAnswerCount(answerRepository.countByQuestionId(question.getId()));
         response.setValidDartsCount(answerRepository.countByQuestionIdAndIsValidDartsTrue(question.getId()));
+        response.setTotalPointsPool(answerRepository.sumValidDartsScores(question.getId()));
+        response.setHighValueAnswerCount(answerRepository.countHighValueAnswers(question.getId()));
 
         return response;
     }

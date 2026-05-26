@@ -36,6 +36,10 @@ export interface Question {
   templateId?: string;
   answerCount: number;
   validDartsCount: number;
+  /** Sum of scores for all valid-darts, non-bust answers. Below 501 = unfinishable. */
+  totalPointsPool: number;
+  /** Count of valid-darts answers with score 101–180. Indicates finishing power. */
+  highValueAnswerCount: number;
   createdAt: string;
   updatedAt: string;
 }
