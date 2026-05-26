@@ -1,9 +1,9 @@
 # Database Design — Source of Truth
 
-Status: **V6 + V7 implemented and merged**. **V8–V10 code complete** (`feature/db-schema-v6-v7`). V8 pending first run; V9 pending V8 verification gate.
+Status: **V6–V11 implemented and merged** (`feature/db-schema-v6-v7`). All migrations applied; Python backfill complete across all 130 league × season pairs; both Java materializers implemented.
 Last updated: 2026-05-25.
 
-This document supersedes the ad-hoc evolution in V1–V5. It defines the target shape of the database. V6 and V7 have been expressed as Flyway migrations and companion Java/frontend changes. V8–V10 are the remaining steps before the architecture is fully live.
+This document supersedes the ad-hoc evolution in V1–V5. It defines the target shape of the database. V6 through V11 have been expressed as Flyway migrations and companion Java/Python changes. The full architecture is now live.
 
 ---
 
@@ -14,9 +14,10 @@ This document supersedes the ad-hoc evolution in V1–V5. It defines the target 
 | **V1–V5** | Initial schema → autocomplete entities | ✅ Done (pre-existing) |
 | **V6** | Football source layer: `seasons`, `player_external_ids`, `team_external_ids`, `player_season_stints`; competition_type normalisation; `tier` column | ✅ Done — `V6__football_source_layer.sql` |
 | **V7** | `question_templates`; question lifecycle (`status`); drop `is_active`; `materialized_at` on answers; `scrape_run_logs` | ✅ Done — `V7__question_lifecycle_and_materialization.sql` |
-| **V8** | Python backfill: drain `players.career_stats` JSONB → `player_season_stints` | ✅ Code done — `backfill_season_stints.py` + updated `scrape_current_season.py` + `database/models_v6.py`. **Run against live DB to complete.** |
-| **V9** | Drop `players.career_stats`, `players.fbref_id`, `teams.fbref_id`; add NOT NULL guarantee on FBref external IDs | ⏳ Pending (after `verify_parity.py` returns 0 rows) |
-| **V10** | Seed `question_templates`; template generator + materializer pipeline | ✅ Code done — `V10__seed_question_templates.sql` + `QuestionMaterializer` + `FootballTeamCompetitionMetricSinceMaterializer` + `QuestionGeneratorService` + `QuestionMaterializerService`. **Apply migration then hit `POST /api/admin/templates/generate`.** |
+| **V8** | Add `penalty_goals` + `penalty_attempts` to `player_season_stints`; Python backfill (`backfill_season_stints.py`) drains `players.career_stats` → stints; full historical scrape via `scrape_historical.py` covers all 130 league × season pairs | ✅ Done — `V8__add_penalty_stats_to_stints.sql` + `backfill_season_stints.py` + `scrape_historical.py` |
+| **V9** | Drop `players.career_stats`, `players.fbref_id`, `teams.fbref_id`; Java models (`Player.java`, `Team.java`) and Python models (`models_v6.py`) updated to remove dropped columns | ✅ Done — `V9__drop_legacy_player_columns.sql` |
+| **V10** | Seed three "since year" `question_templates` (goals / appearances / assists); `QuestionMaterializer` interface; `FootballTeamCompetitionMetricSinceMaterializer`; `QuestionGeneratorService`; `QuestionMaterializerService` | ✅ Done — `V10__seed_question_templates.sql` + Java materializer pipeline |
+| **V11** | Seed four per-season `question_templates` (goals / appearances / assists / clean_sheets for `football.team_competition_season_metric`); `FootballTeamCompetitionSeasonMaterializer` | ✅ Done — `V11__seed_season_question_templates.sql` + `FootballTeamCompetitionSeasonMaterializer.java` |
 
 ---
 
@@ -56,8 +57,8 @@ Three logical layers, each owning a clear set of tables:
 │  Football Source Layer  (one of many possible category sources)    │
 │  ─ seasons                  ✅ added V6                            │
 │  ─ competitions             ✅ evolved V6 (type normalised + tier) │
-│  ─ teams                    ⏳ fbref_id drop pending V9            │
-│  ─ players                  ⏳ career_stats drop pending V9        │
+│  ─ teams                    ✅ fbref_id dropped in V9              │
+│  ─ players                  ✅ career_stats + fbref_id dropped V9  │
 │  ─ player_external_ids      ✅ added V6                            │
 │  ─ team_external_ids        ✅ added V6                            │
 │  ─ player_season_stints     ✅ added V6 — the keystone table       │
@@ -120,16 +121,16 @@ Canonical `competition_type` values now in use:
 
 (`international` and `continental_national` are reserved but not seeded yet.)
 
-### 4.3 `teams` ⏳ `fbref_id` drop pending V9
+### 4.3 `teams` ✅ `fbref_id` dropped in V9
 
-Existing table is otherwise fine. `fbref_id` column stays until V9 (after the Python backfill in V8 has been verified and every team has a corresponding `team_external_ids` row).
+`fbref_id` was dropped in `V9__drop_legacy_player_columns.sql`. Team identity is now keyed exclusively through `team_external_ids` (source=`'fbref'`). The `Team` Java model and `models_v6.py` SQLAlchemy model have both been updated to remove the field.
 
-### 4.4 `players` ⏳ refactor pending V8 + V9
+### 4.4 `players` ✅ refactor complete (V8 + V9)
 
-The current `players.career_stats` JSONB column is the source of the muddle. It will be dropped in V9 after the V8 Python backfill. The target thin identity record:
+`players.career_stats` (JSONB) and `players.fbref_id` were dropped in V9 after the V8 backfill drained all historical data into `player_season_stints`. The current thin identity record:
 
 ```sql
--- Target shape after V9 (not yet applied):
+-- Actual shape post-V9:
 CREATE TABLE players (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     canonical_name    VARCHAR(255) NOT NULL,
@@ -266,7 +267,7 @@ CREATE TABLE question_templates (
 
 The Java `QuestionMaterializer` interface registers itself under a key. The generator job reads active templates, enumerates params, inserts draft `questions`. No template → no materializer wiring.
 
-The `QuestionTemplate` JPA model and `QuestionTemplateRepository` are implemented in `com.football501.model` and `com.football501.repository`. No template rows are seeded yet — that happens in V10.
+The `QuestionTemplate` JPA model and `QuestionTemplateRepository` are implemented in `com.football501.model` and `com.football501.repository`. Seven template rows are seeded across V10 and V11 — three "since year" templates (`football.team_competition_metric_since`) and four per-season templates (`football.team_competition_season_metric`).
 
 ### 5.3 `questions` ✅ evolved in V7
 
@@ -345,7 +346,15 @@ Three jobs, each idempotent:
 2. **Template generator** — Java/Spring scheduled job. Reads active templates, enumerates valid param combos (e.g. "every team that has played EPL since 2000"), inserts `questions` rows with `status='draft'` skipping any combo already present.
 3. **Answer materializer** — Triggered when admin promotes a draft, or by the stale-detector. Resolves `(template, params) → materializer_key`, runs the materializer, upserts `answers`, bumps `materialized_at`.
 
-**Current state:** Jobs 2 and 3 are not yet wired — no template rows exist (V10 pending) and the `QuestionMaterializer` interface is defined but has no concrete implementations yet. Answers are still populated manually via the bulk-import admin endpoint.
+**Current state:** All three jobs are wired and operational:
+
+1. **Stint ingest** — `scrape_historical.py` has populated all 130 league × season pairs. `scrape_current_season.py` runs weekly to keep current-season data fresh.
+2. **Template generator** — `POST /api/admin/templates/generate` enumerates valid (team, competition, …) combos from V10 + V11 templates and inserts draft `questions`. Both materializer keys are backed by concrete implementations.
+3. **Answer materializer** — Two concrete `QuestionMaterializer` implementations are registered:
+   - `FootballTeamCompetitionMetricSinceMaterializer` (key: `football.team_competition_metric_since`) — aggregates stints across seasons since a given start year.
+   - `FootballTeamCompetitionSeasonMaterializer` (key: `football.team_competition_season_metric`) — aggregates stints for a single season.
+
+Promoting a draft question to `active` via `PATCH /api/admin/questions/{id}/status` triggers the correct materializer automatically through `QuestionMaterializerService`.
 
 ---
 
@@ -407,67 +416,47 @@ Cristiano Ronaldo (Man U 03-04 → 08-09, and 21-22 → 22-23) lands on one row 
 | **V6** | Football source layer | `seasons`, `player_external_ids`, `team_external_ids`, `player_season_stints` created. `competition_type` normalised (cup→domestic_cup, continental→continental_club). `tier SMALLINT` added to `competitions`. All additive. |
 | **V7** | Question lifecycle + materialisation | `question_templates` created. `status` (draft\|active\|retired), `template_id`, `template_params` added to `questions`. `is_active` column **dropped** (backfilled first). `materialized_at` added to `answers`. `scrape_run_logs` created. Java models, repositories, services, DTOs, and admin frontend updated in the same PR. |
 
-### Pending migrations
+### All migrations complete
 
-#### V8 — Python backfill (not a Flyway migration)
+#### V8 — Penalty stats + historical scrape ✅
 
-Run as a one-off script, not checked into Flyway. The Python scraper needs a new module that:
+`V8__add_penalty_stats_to_stints.sql` adds `penalty_goals` and `penalty_attempts` to `player_season_stints`. The Python backfill (`backfill_season_stints.py`) drained the old `career_stats` JSONB into relational stints. `scrape_historical.py` then scraped all 130 league × season pairs fresh from FBref, writing directly to `player_season_stints` via upsert. Parity verified: zero-row diff between old JSONB totals and new stints totals.
 
-1. Reads each player row and its `career_stats` JSONB array.
-2. For each element in the array, resolves `season` → `seasons.id`, `team` → `teams.id`, `competition` → `competitions.id`.
-3. Inserts a `player_season_stints` row via `ON CONFLICT DO UPDATE`.
-4. Also writes `player_external_ids` rows (`source='fbref'`, `external_id = players.fbref_id`).
-5. Also writes `team_external_ids` rows (`source='fbref'`, `external_id = teams.fbref_id`).
+#### V9 — Destructive cleanup ✅
 
-**Verification gate before V9:** run a checksum query to compare per-player goal/appearance totals between the old JSONB and the new stints table. Only proceed to V9 when the counts match.
+`V9__drop_legacy_player_columns.sql` dropped:
+- `validate_career_stats_before_insert` trigger
+- `validate_career_stats_jsonb()` function
+- `players.career_stats` (JSONB)
+- `players.fbref_id`
+- `teams.fbref_id`
 
-```sql
--- Example parity check (run before V9):
-WITH old_totals AS (
-    SELECT id, (career_stats_elem->>'goals')::int AS goals
-    FROM players, jsonb_array_elements(career_stats) AS career_stats_elem
-),
-new_totals AS (
-    SELECT player_id, SUM(goals) AS goals
-    FROM player_season_stints
-    GROUP BY player_id
-)
-SELECT o.id, o.goals AS old_goals, n.goals AS new_goals
-FROM old_totals o
-JOIN new_totals n ON n.player_id = o.id
-WHERE o.goals != n.goals;
--- Must return zero rows before V9.
-```
+`competitions.fbref_id` was intentionally kept (no `competition_external_ids` table yet). Java models (`Player.java`, `Team.java`) and `database/models_v6.py` were updated in the same commit. Player identity is now keyed exclusively through `player_external_ids(source='fbref')`.
 
-**Python scraper changes in lockstep:** the existing JSONB-write path is replaced by a new path that writes directly to `player_season_stints`. Both paths can coexist during transition.
+#### V10 — "Since year" templates ✅
 
-#### V9 — Destructive cleanup (after V8 verification)
+`V10__seed_question_templates.sql` seeds three templates under `football.team_competition_metric_since` (goals, appearances, assists). `FootballTeamCompetitionMetricSinceMaterializer` is the corresponding Java bean, registered by key. `QuestionGeneratorService` and `QuestionMaterializerService` complete the pipeline.
 
-**Prerequisite:** V8 checksum query returns zero rows.
+#### V11 — Per-season templates ✅
 
-```sql
--- Drop the trigger and function that validated career_stats structure
-DROP TRIGGER IF EXISTS validate_career_stats_before_insert ON players;
-DROP FUNCTION IF EXISTS validate_career_stats_jsonb();
+`V11__seed_season_question_templates.sql` seeds four templates under `football.team_competition_season_metric` (goals, appearances, assists, clean_sheets). `FootballTeamCompetitionSeasonMaterializer` is the corresponding Java bean. Questions use a `{season_label}` placeholder that `QuestionGeneratorService` resolves from the denormalised `season_label` param. Allowed competition types: `domestic_league`, `domestic_cup`, `continental_club` (no top-flight-only restriction).
 
--- Drop the columns that have been superseded
-ALTER TABLE players DROP COLUMN career_stats;
-ALTER TABLE players DROP COLUMN fbref_id;
-ALTER TABLE teams   DROP COLUMN fbref_id;
+---
 
--- Add NOT NULL enforcement on FBref external ID rows
--- (every player and team must now have a player_external_ids / team_external_ids row)
--- This is enforced by application logic, not a DB constraint, to allow incremental backfill.
-```
+### Next operational steps
 
-**Note:** the `validate_career_stats_before_insert` trigger and `validate_career_stats_jsonb()` function must be dropped **before** dropping the `career_stats` column — otherwise Postgres will error on the column drop.
-
-#### V10 — First template batch and generator run
-
-1. Insert the first `question_templates` rows (seed data for the five Top-5 leagues × goals/appearances/assists).
-2. Implement the first concrete `QuestionMaterializer` — `FootballTeamCompetitionMetricSinceMaterializer` — registered under key `football.team_competition_metric_since`.
-3. Run the template generator job manually (or trigger via admin API) to produce draft `questions` for each valid (team, competition, start_year) combination.
-4. Admin reviews drafts in the UI and promotes incrementally.
+1. Run the template generator to produce drafts for all valid (team, competition, …) combos:
+   ```
+   POST /api/admin/templates/generate
+   ```
+2. Review drafts in the admin UI and promote incrementally:
+   ```
+   PATCH /api/admin/questions/{id}/status   body: {"status":"active"}
+   ```
+3. Run `scrape_current_season.py` weekly after each matchday to keep current-season stints fresh, then re-materialize stale questions:
+   ```
+   POST /api/admin/questions/rematerialize-stale
+   ```
 
 ---
 
