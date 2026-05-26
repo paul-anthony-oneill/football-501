@@ -172,4 +172,66 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
 
     @Query("SELECT a.answerKey FROM Answer a WHERE a.questionId = :questionId")
     java.util.Set<String> findAnswerKeysByQuestionId(@Param("questionId") UUID questionId);
+
+    // ── In-game hint queries ──────────────────────────────────────────────────
+    //
+    // Two hint types are computed after every move:
+    //   maxScoresLeft  — remaining answers worth exactly 180 (max darts score)
+    //   checkoutsLeft  — remaining answers that would end the game in one move
+    //
+    // Each query has a pair (no-exclusion / with-exclusion) to avoid the
+    // NULL/empty-list type-inference failure in Hibernate 7 + PostgreSQL.
+    // The default dispatch methods pick the right variant automatically.
+
+    @Query("SELECT COUNT(a) FROM Answer a " +
+           "WHERE a.questionId = :questionId " +
+           "AND a.score = 180 AND a.isValidDarts = true AND a.isBust = false")
+    long countMaxScoreAnswers(@Param("questionId") UUID questionId);
+
+    @Query("SELECT COUNT(a) FROM Answer a " +
+           "WHERE a.questionId = :questionId " +
+           "AND a.score = 180 AND a.isValidDarts = true AND a.isBust = false " +
+           "AND a.id NOT IN :usedIds")
+    long countMaxScoreAnswersExcluding(
+        @Param("questionId") UUID questionId,
+        @Param("usedIds") List<UUID> usedIds
+    );
+
+    @Query("SELECT COUNT(a) FROM Answer a " +
+           "WHERE a.questionId = :questionId " +
+           "AND a.score >= :minScore AND a.score <= :maxScore " +
+           "AND a.isValidDarts = true AND a.isBust = false")
+    long countCheckoutAnswers(
+        @Param("questionId") UUID questionId,
+        @Param("minScore") int minScore,
+        @Param("maxScore") int maxScore
+    );
+
+    @Query("SELECT COUNT(a) FROM Answer a " +
+           "WHERE a.questionId = :questionId " +
+           "AND a.score >= :minScore AND a.score <= :maxScore " +
+           "AND a.isValidDarts = true AND a.isBust = false " +
+           "AND a.id NOT IN :usedIds")
+    long countCheckoutAnswersExcluding(
+        @Param("questionId") UUID questionId,
+        @Param("minScore") int minScore,
+        @Param("maxScore") int maxScore,
+        @Param("usedIds") List<UUID> usedIds
+    );
+
+    /** Dispatches to the correct max-score query based on whether usedIds is empty. */
+    default long countRemainingMaxScores(UUID questionId, List<UUID> usedIds) {
+        if (usedIds == null || usedIds.isEmpty()) {
+            return countMaxScoreAnswers(questionId);
+        }
+        return countMaxScoreAnswersExcluding(questionId, usedIds);
+    }
+
+    /** Dispatches to the correct checkout query based on whether usedIds is empty. */
+    default long countRemainingCheckouts(UUID questionId, int minScore, int maxScore, List<UUID> usedIds) {
+        if (usedIds == null || usedIds.isEmpty()) {
+            return countCheckoutAnswers(questionId, minScore, maxScore);
+        }
+        return countCheckoutAnswersExcluding(questionId, minScore, maxScore, usedIds);
+    }
 }

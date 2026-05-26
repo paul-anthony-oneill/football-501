@@ -12,6 +12,13 @@ interface Move {
   scoreValue?: number;
 }
 
+interface GameHints {
+  /** Remaining unused answers worth exactly 180 points. Shown while score > 180. */
+  maxScoresLeft: number;
+  /** Remaining unused answers that would win the game in one move. Shown while score ≤ 180. */
+  checkoutsLeft: number;
+}
+
 interface MatchViewProps {
   score: number;
   question: string;
@@ -26,6 +33,8 @@ interface MatchViewProps {
   entityType?: string;
   /** True once the player has checked out (game over). */
   isWin?: boolean;
+  /** In-game hint stats from the server. Null until the first response arrives. */
+  hints?: GameHints | null;
 }
 
 export default function MatchView({
@@ -40,6 +49,7 @@ export default function MatchView({
   categorySub,
   entityType = "footballer",
   isWin = false,
+  hints = null,
 }: MatchViewProps) {
   return (
     <div className="game theme-teletext min-h-screen flex flex-col font-vt323 text-lg bg-black text-white relative">
@@ -83,6 +93,36 @@ export default function MatchView({
                 {moves.length > 0 ? moves[0].scoreValue : '--'}
               </span>
             </div>
+
+            {/* ── In-game hints ──────────────────────────────────────────── */}
+            {hints !== null && (
+              <div className="sb-hints mt-3 pt-3 border-t border-[#333] flex gap-6">
+                {/* 180s LEFT — prominent above 180, dimmed at/below */}
+                <div className={score > 180 ? '' : 'opacity-30'}>
+                  <span className="text-tele-cyan text-[16px] tracking-widest uppercase">
+                    180s Left{' '}
+                  </span>
+                  <span className="text-tele-green text-[22px] font-bold">
+                    {hints.maxScoresLeft}
+                  </span>
+                </div>
+                {/* CHECKOUTS — prominent at/below 180, dimmed above */}
+                <div className={score <= 180 ? '' : 'opacity-30'}>
+                  <span className="text-tele-cyan text-[16px] tracking-widest uppercase">
+                    Checkouts{' '}
+                  </span>
+                  <span
+                    className={`text-[22px] font-bold ${
+                      score <= 180 && hints.checkoutsLeft > 0
+                        ? 'text-tele-accent'
+                        : 'text-[#666]'
+                    }`}
+                  >
+                    {hints.checkoutsLeft}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Prompt & Input */}

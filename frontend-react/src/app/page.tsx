@@ -42,6 +42,8 @@ export default function GamePage() {
   const [moves, setMoves] = useState<Move[]>([]);
   // Entity type for autocomplete — read from the question config on game start
   const [entityType, setEntityType] = useState("footballer");
+  // In-game hints from the server (null until the first game state response)
+  const [hints, setHints] = useState<{ maxScoresLeft: number; checkoutsLeft: number } | null>(null);
 
   // Lobby state
   const [categories, setCategories] = useState<Category[]>([]);
@@ -94,6 +96,7 @@ export default function GamePage() {
       setTurnCount(0);
       setMoves([]);
       setEntityType(game.entityType ?? "footballer");
+      setHints(game.hints ?? null);
       setGameStatus("IN_PROGRESS");
 
       // Switch body theme
@@ -132,6 +135,7 @@ export default function GamePage() {
       setMoves([newMove, ...moves]);
       setScore(result.scoreAfter);
       setTurnCount(prev => prev + 1);
+      setHints(result.gameState?.hints ?? null);
 
       if (result.result === 'VALID') {
         showToast(`Correct! -${result.scoreValue}`, "success");
@@ -188,6 +192,7 @@ export default function GamePage() {
       categorySub={selectedCategory?.description || "Darts Edition"}
       entityType={entityType}
       isWin={gameStatus === "COMPLETED"}
+      hints={hints}
     />
   );
 }

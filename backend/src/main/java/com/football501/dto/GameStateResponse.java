@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 
 import java.util.UUID;
 
+// GameHints is in the same package — no extra import needed
+
 /**
  * Response DTO for game state.
  */
@@ -68,4 +70,16 @@ public class GameStateResponse {
      * the question config does not specify one.
      */
     private String entityType;
+
+    /**
+     * In-game hint statistics about the remaining answer pool.
+     *
+     * <ul>
+     *   <li>While score {@code > 180}: surface {@code maxScoresLeft} — how many
+     *       unused answers are worth exactly 180 points.</li>
+     *   <li>While score {@code ≤ 180}: surface {@code checkoutsLeft} — how many
+     *       unused answers would win the game in a single move.</li>
+     * </ul>
+     */
+    private GameHints hints;
 }

@@ -1,10 +1,12 @@
 package com.football501.controller;
 
+import com.football501.dto.GameHints;
 import com.football501.dto.GameStateResponse;
 import com.football501.dto.StartPracticeRequest;
 import com.football501.dto.SubmitAnswerRequest;
 import com.football501.dto.SubmitAnswerResponse;
 import com.football501.model.*;
+import com.football501.service.GameHintsService;
 import com.football501.service.GameService;
 import com.football501.service.MatchService;
 import com.football501.service.QuestionService;
@@ -33,17 +35,20 @@ public class PracticeGameController {
     private final MatchService matchService;
     private final GameService gameService;
     private final QuestionService questionService;
+    private final GameHintsService gameHintsService;
 
     private static final String DEFAULT_CATEGORY_SLUG = "football";
 
     public PracticeGameController(
         MatchService matchService,
         GameService gameService,
-        QuestionService questionService
+        QuestionService questionService,
+        GameHintsService gameHintsService
     ) {
         this.matchService = matchService;
         this.gameService = gameService;
         this.questionService = questionService;
+        this.gameHintsService = gameHintsService;
     }
 
     /**
@@ -186,6 +191,15 @@ public class PracticeGameController {
             }
         }
 
+        // Compute hint stats for the current player.
+        // Uses two lightweight COUNT queries against the answers table —
+        // sub-millisecond at typical answer-set sizes.
+        GameHints hints = gameHintsService.computeHints(
+            game.getId(),
+            game.getQuestionId(),
+            currentScore
+        );
+
         return GameStateResponse.builder()
             .gameId(game.getId())
             .matchId(game.getMatchId())
@@ -197,6 +211,7 @@ public class PracticeGameController {
             .isWin(isWin)
             .turnTimerSeconds(game.getTurnTimerSeconds())
             .entityType(entityType)
+            .hints(hints)
             .build();
     }
 
