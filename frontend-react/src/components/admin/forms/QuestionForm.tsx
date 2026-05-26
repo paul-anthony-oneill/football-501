@@ -26,6 +26,14 @@ const difficultyOptions = [
   { value: "3", label: "Hard" },
 ];
 
+const entityTypeOptions = [
+  { value: "footballer", label: "Footballer" },
+  { value: "team",        label: "Team" },
+  { value: "competition", label: "Competition" },
+  { value: "country",     label: "Country" },
+  { value: "city",        label: "City" },
+];
+
 const metricKeyOptions = [
   { value: "", label: "Select a metric" },
   ...METRIC_KEY_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
@@ -40,6 +48,9 @@ export default function QuestionForm({
 }: QuestionFormProps) {
   const isEdit = !!question;
 
+  // Parse the existing config once so we can seed individual fields from it
+  const parsedConfig = question?.config ?? {};
+
   const [categoryId, setCategoryId] = useState(question?.categoryId ?? "");
   const [questionText, setQuestionText] = useState(question?.questionText ?? "");
   const [metricKey, setMetricKey] = useState(question?.metricKey ?? "");
@@ -47,8 +58,17 @@ export default function QuestionForm({
   const [difficulty, setDifficulty] = useState(
     question?.difficulty?.toString() ?? "2"
   );
+  // entity_type is extracted from config and managed via a dedicated dropdown
+  const [entityType, setEntityType] = useState(
+    (parsedConfig.entity_type as string) ?? "footballer"
+  );
+  // configJson holds any *other* config fields besides entity_type
+  const configWithoutEntityType = { ...parsedConfig };
+  delete (configWithoutEntityType as Record<string, unknown>).entity_type;
   const [configJson, setConfigJson] = useState(
-    question?.config ? JSON.stringify(question.config, null, 2) : "{}"
+    Object.keys(configWithoutEntityType).length > 0
+      ? JSON.stringify(configWithoutEntityType, null, 2)
+      : "{}"
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -76,13 +96,17 @@ export default function QuestionForm({
     e.preventDefault();
     if (!validate()) return;
 
+    // Merge the entity_type dropdown value back into the config object
+    const baseConfig = JSON.parse(configJson);
+    const config = { ...baseConfig, entity_type: entityType };
+
     onSubmit({
       categoryId,
       questionText,
       metricKey,
       minScore: minScore ? Number(minScore) : undefined,
       difficulty: Number(difficulty),
-      config: JSON.parse(configJson),
+      config,
     });
   }
 
@@ -138,14 +162,23 @@ export default function QuestionForm({
         placeholder="0"
       />
 
+      <Select
+        label="Entity Type (Autocomplete Pool)"
+        value={entityType}
+        onChange={setEntityType}
+        options={entityTypeOptions}
+        required
+        disabled={loading}
+      />
+
       <TextArea
-        label="Configuration (JSON)"
+        label="Extra Configuration (JSON)"
         value={configJson}
         onChange={setConfigJson}
-        rows={5}
+        rows={4}
         error={errors.config}
         disabled={loading}
-        placeholder="JSON object"
+        placeholder="{}"
       />
 
       <div className="flex justify-end gap-4 mt-8 pt-4 border-t border-white/10">

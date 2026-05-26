@@ -11,14 +11,15 @@ BEGIN
     SELECT id INTO football_category_id FROM categories WHERE slug = 'football';
 
     -- Insert a test question
-    INSERT INTO questions (id, category_id, question_text, metric_key, config, is_active)
+    INSERT INTO questions (id, category_id, question_text, metric_key, config, status, template_params)
     VALUES (
         gen_random_uuid(),
         football_category_id,
         'Test Question: Premier League Appearances (use player names like Player1, Player2, etc.)',
         'appearances',
-        '{"test": true}'::jsonb,
-        true
+        '{"test": true, "entity_type": "footballer"}'::jsonb,
+        'active',
+        '{}'::jsonb
     )
     RETURNING id INTO test_question_id;
 
@@ -51,8 +52,9 @@ END $$;
 -- Verify the data
 SELECT
     q.question_text,
+    q.status,
     COUNT(a.id) as answer_count
 FROM questions q
 LEFT JOIN answers a ON a.question_id = q.id
-WHERE q.is_active = true
-GROUP BY q.id, q.question_text;
+WHERE q.status = 'active'
+GROUP BY q.id, q.question_text, q.status;

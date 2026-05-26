@@ -208,11 +208,21 @@ public class PracticeGameController {
     }
 
     /**
-     * Global exception handler for bad requests.
+     * Global exception handler for bad requests (e.g. category not found).
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<String> handleBadRequest(IllegalArgumentException e) {
         log.warn("Bad request: {}", e.getMessage());
         return ResponseEntity.badRequest().body(e.getMessage());
+    }
+
+    /**
+     * Global exception handler for conflict states
+     * (e.g. no questions available, game not in progress).
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<String> handleConflict(IllegalStateException e) {
+        log.warn("Conflict: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
     }
 }

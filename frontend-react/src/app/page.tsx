@@ -40,6 +40,8 @@ export default function GamePage() {
   const [turnCount, setTurnCount] = useState(0);
   const [gameStatus, setGameStatus] = useState<GameStatus>("NOT_STARTED");
   const [moves, setMoves] = useState<Move[]>([]);
+  // Entity type for autocomplete — read from the question config on game start
+  const [entityType, setEntityType] = useState("footballer");
 
   // Lobby state
   const [categories, setCategories] = useState<Category[]>([]);
@@ -80,7 +82,10 @@ export default function GamePage() {
         body: JSON.stringify({ playerId, categorySlug: selectedCategorySlug }),
       });
 
-      if (!res.ok) throw new Error("Failed to start game");
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "Failed to start game");
+        throw new Error(msg);
+      }
 
       const game = await res.json();
       setGameId(game.gameId);
@@ -88,6 +93,7 @@ export default function GamePage() {
       setQuestion(game.questionText);
       setTurnCount(0);
       setMoves([]);
+      setEntityType(game.entityType ?? "footballer");
       setGameStatus("IN_PROGRESS");
 
       // Switch body theme
@@ -96,7 +102,7 @@ export default function GamePage() {
 
       showToast("Game started!", "success");
     } catch (err) {
-      showToast("Error starting game", "error");
+      showToast((err as Error).message || "Error starting game", "error");
     }
   }
 
@@ -131,11 +137,12 @@ export default function GamePage() {
         showToast(`Correct! -${result.scoreValue}`, "success");
       } else if (result.result === 'BUST') {
         showToast("BUST!", "error");
+      } else if (result.result === 'INVALID') {
+        showToast("Not a valid answer — try again", "error");
       }
 
       if (result.isWin) {
         setGameStatus("COMPLETED");
-        showToast("CHECKOUT! You win!", "success");
       }
     } catch (err) {
       showToast("Error validating answer", "error");
@@ -144,6 +151,7 @@ export default function GamePage() {
 
   function exitGame() {
     setGameStatus("NOT_STARTED");
+    setGameId(null);
     document.body.classList.remove('theme-teletext');
     document.body.classList.add('theme-home');
   }
@@ -152,7 +160,7 @@ export default function GamePage() {
 
   if (gameStatus === "NOT_STARTED") {
     return (
-      <LobbyView 
+      <LobbyView
         categories={categories}
         selectedCategorySlug={selectedCategorySlug}
         onSelectCategory={setSelectedCategorySlug}
@@ -175,8 +183,11 @@ export default function GamePage() {
       moves={moves}
       onExit={exitGame}
       onSubmitAnswer={submitAnswer}
+      onPlayAgain={startNewGame}
       categoryName={selectedCategory?.name || "Football"}
       categorySub={selectedCategory?.description || "Darts Edition"}
+      entityType={entityType}
+      isWin={gameStatus === "COMPLETED"}
     />
   );
 }

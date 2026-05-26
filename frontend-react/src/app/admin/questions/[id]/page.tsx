@@ -68,6 +68,9 @@ export default function QuestionDetailPage() {
   const [questionLoading, setQuestionLoading] = useState(false);
   const [rematerializing, setRematerializing] = useState(false);
 
+  // Answer preview toggle
+  const [previewMode, setPreviewMode] = useState(false);
+
   // Answer modals
   const [showCreateAnswer, setShowCreateAnswer] = useState(false);
   const [showEditAnswer, setShowEditAnswer] = useState(false);
@@ -340,46 +343,60 @@ export default function QuestionDetailPage() {
           <h2 className="m-0 text-[var(--color-primary)]">Answers</h2>
           <div className="flex gap-3">
             <button
-              onClick={() => setShowBulkImport(true)}
-              className="px-4 py-2 rounded-lg border border-[#444] bg-[#2a2a2a] text-white text-[0.9rem] cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => setPreviewMode(!previewMode)}
+              className="px-4 py-2 rounded-lg border border-[#6366f1] bg-[rgba(99,102,241,0.1)] text-[#818cf8] text-[0.9rem] cursor-pointer hover:opacity-80 transition-opacity"
             >
-              Bulk Import
+              {previewMode ? "✏️ Edit Mode" : "👁 Preview Answers"}
             </button>
-            <button
-              onClick={() => { setSelectedAnswer(null); setShowCreateAnswer(true); }}
-              className="px-4 py-2 rounded-lg bg-[var(--color-primary)] text-black text-[0.9rem] font-medium cursor-pointer hover:opacity-90 transition-opacity border-0"
-            >
-              + Add Answer
-            </button>
+            {!previewMode && (
+              <>
+                <button
+                  onClick={() => setShowBulkImport(true)}
+                  className="px-4 py-2 rounded-lg border border-[#444] bg-[#2a2a2a] text-white text-[0.9rem] cursor-pointer hover:opacity-80 transition-opacity"
+                >
+                  Bulk Import
+                </button>
+                <button
+                  onClick={() => { setSelectedAnswer(null); setShowCreateAnswer(true); }}
+                  className="px-4 py-2 rounded-lg bg-[var(--color-primary)] text-black text-[0.9rem] font-medium cursor-pointer hover:opacity-90 transition-opacity border-0"
+                >
+                  + Add Answer
+                </button>
+              </>
+            )}
           </div>
         </div>
 
-        <DataTable
-          columns={answerColumns}
-          data={answers}
-          loading={false}
-          totalElements={answers.length}
-          pageSize={50}
-          currentPage={0}
-          renderActions={(item) => (
-            <>
-              <button
-                onClick={() => { setSelectedAnswer(item); setShowEditAnswer(true); }}
-                title="Edit"
-                className="w-10 h-10 flex items-center justify-center bg-[var(--color-surface-variant)] rounded-[var(--radius-sm)] hover:bg-[var(--color-primary-container)] transition-colors"
-              >
-                ✏️
-              </button>
-              <button
-                onClick={() => { setSelectedAnswer(item); setShowDeleteAnswer(true); }}
-                title="Delete"
-                className="w-10 h-10 flex items-center justify-center bg-[var(--color-surface-variant)] rounded-[var(--radius-sm)] hover:bg-[var(--color-error-container)] transition-colors"
-              >
-                🗑️
-              </button>
-            </>
-          )}
-        />
+        {previewMode ? (
+          <AnswerPreview answers={answers} />
+        ) : (
+          <DataTable
+            columns={answerColumns}
+            data={answers}
+            loading={false}
+            totalElements={answers.length}
+            pageSize={50}
+            currentPage={0}
+            renderActions={(item) => (
+              <>
+                <button
+                  onClick={() => { setSelectedAnswer(item); setShowEditAnswer(true); }}
+                  title="Edit"
+                  className="w-10 h-10 flex items-center justify-center bg-[var(--color-surface-variant)] rounded-[var(--radius-sm)] hover:bg-[var(--color-primary-container)] transition-colors"
+                >
+                  ✏️
+                </button>
+                <button
+                  onClick={() => { setSelectedAnswer(item); setShowDeleteAnswer(true); }}
+                  title="Delete"
+                  className="w-10 h-10 flex items-center justify-center bg-[var(--color-surface-variant)] rounded-[var(--radius-sm)] hover:bg-[var(--color-error-container)] transition-colors"
+                >
+                  🗑️
+                </button>
+              </>
+            )}
+          />
+        )}
       </div>
 
       {/* Create Answer modal */}
@@ -438,6 +455,69 @@ export default function QuestionDetailPage() {
         onConfirm={handleDeleteAnswer}
         onCancel={() => setShowDeleteAnswer(false)}
       />
+    </div>
+  );
+}
+
+// ── Answer Preview ───────────────────────────────────────────────────────────
+
+function AnswerPreview({ answers }: { answers: Answer[] }) {
+  // Answers arrive pre-sorted by score DESC from the backend
+  const validDarts = answers.filter(a => a.isValidDarts && !a.isBust);
+  const scores = answers.map(a => a.score);
+  const scoreMin = scores.length ? Math.min(...scores) : 0;
+  const scoreMax = scores.length ? Math.max(...scores) : 0;
+
+  return (
+    <div>
+      {/* Summary strip */}
+      <div className="flex gap-6 mb-4 flex-wrap text-sm text-[#9ca3af]">
+        <span>{answers.length} total</span>
+        <span className="text-[#4ade80]">{validDarts.length} valid darts</span>
+        {answers.length > 0 && (
+          <span>scores: {scoreMin}–{scoreMax}</span>
+        )}
+        {answers.length > 0 && (
+          <span className="text-[#9ca3af]">
+            {answers.length - validDarts.length} bust / invalid
+          </span>
+        )}
+      </div>
+
+      {/* Sorted rows */}
+      <div className="rounded-xl overflow-hidden border border-[#444]">
+        {answers.length === 0 ? (
+          <div className="text-center text-[#555] py-10 text-sm">
+            No answers yet. Add some using the Edit Mode.
+          </div>
+        ) : (
+          answers.map((a, i) => (
+            <div
+              key={a.id}
+              className="grid grid-cols-[36px_1fr_64px_110px] items-center px-4 py-2.5 border-b border-[#2a2a2a] last:border-0 odd:bg-[rgba(255,255,255,0.02)]"
+            >
+              <span className="text-[#555] text-xs font-mono">{i + 1}</span>
+              <span className="text-white font-medium text-sm">{a.displayText}</span>
+              <span className="text-[#4ade80] font-mono font-bold text-right pr-4">{a.score}</span>
+              <span className="text-right text-xs">
+                {a.isBust ? (
+                  <span className="px-2 py-0.5 rounded font-mono bg-[rgba(239,68,68,0.15)] text-[#ef4444] border border-[#ef4444]">
+                    BUST
+                  </span>
+                ) : !a.isValidDarts ? (
+                  <span className="px-2 py-0.5 rounded font-mono bg-[rgba(251,191,36,0.15)] text-[#fbbf24] border border-[#fbbf24]">
+                    INV DARTS
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded font-mono bg-[rgba(74,222,128,0.1)] text-[#4ade80] border border-[#4ade80]">
+                    ✓ valid
+                  </span>
+                )}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

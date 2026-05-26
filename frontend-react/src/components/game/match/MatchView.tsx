@@ -19,8 +19,13 @@ interface MatchViewProps {
   moves: Move[];
   onExit: () => void;
   onSubmitAnswer: (answer: string) => void;
+  onPlayAgain: () => void;
   categoryName: string;
   categorySub: string;
+  /** Entity type passed to autocomplete (e.g. "footballer", "city"). */
+  entityType?: string;
+  /** True once the player has checked out (game over). */
+  isWin?: boolean;
 }
 
 export default function MatchView({
@@ -30,11 +35,14 @@ export default function MatchView({
   moves,
   onExit,
   onSubmitAnswer,
+  onPlayAgain,
   categoryName,
   categorySub,
+  entityType = "footballer",
+  isWin = false,
 }: MatchViewProps) {
   return (
-    <div className="game theme-teletext min-h-screen flex flex-col font-vt323 text-lg bg-black text-white">
+    <div className="game theme-teletext min-h-screen flex flex-col font-vt323 text-lg bg-black text-white relative">
       {/* Teletext Header Status Line */}
       <div className="bg-white text-black px-6 py-0.5 flex justify-between tracking-widest">
         <span>P302 GAME IN PROGRESS</span>
@@ -60,7 +68,7 @@ export default function MatchView({
       {/* Main Game Area */}
       <main className="game-main flex-1 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8 p-8 overflow-hidden">
         <div className="game-left flex flex-col gap-7 min-w-0">
-          
+
           {/* Main Scoreboard */}
           <div className="sb sb-on border-4 border-tele-accent p-6 bg-black relative shadow-[0_0_0_4px_inset_#ffff00]">
             <div className="sb-label bg-tele-accent text-black px-2 py-0.5 inline-block text-[18px] tracking-widest font-bold">
@@ -82,18 +90,19 @@ export default function MatchView({
             <div className="prompt-q text-tele-cyan text-[32px] leading-tight">
               {question || "Loading question..."}
             </div>
-            
+
             <div className="ta-wrap relative">
               <div className="ta-input-row flex items-center gap-3.5 bg-black border-2 border-tele-cyan p-0 px-5.5 h-16">
                 <span className="ta-caret text-tele-green text-[26px] animate-pulse">{'>'}</span>
-                <EntitySearch 
+                <EntitySearch
+                  entityType={entityType}
                   onSelect={onSubmitAnswer}
                   placeholder="TYPE PLAYER NAME..."
                   className="teletext-input flex-1 bg-transparent border-0 outline-none text-tele-accent text-[30px] font-vt323 p-0"
                 />
               </div>
             </div>
-            
+
             <div className="prompt-sub text-white text-[18px]">
               Type a player and press <b className="text-tele-danger">ENTER</b> to score.
             </div>
@@ -114,11 +123,11 @@ export default function MatchView({
               moves.map((move, i) => (
                 <div key={i} className={`hist-row grid grid-cols-[28px_1fr_auto_60px] gap-3 items-baseline py-2.5 border-b border-[#444] border-dashed ${move.result === 'BUST' ? 'hist-bust' : ''}`}>
                   <span className="hist-i text-[#888] text-[18px]">{(moves.length - i).toString().padStart(2, '0')}</span>
-                  <span className={`hist-name text-[18px] uppercase ${move.result === 'BUST' ? 'text-[#888] line-through' : 'text-white'}`}>
-                    {move.answer}
+                  <span className={`hist-name text-[18px] uppercase ${move.result === 'BUST' ? 'text-[#888] line-through' : move.result === 'INVALID' ? 'text-tele-danger' : 'text-white'}`}>
+                    {move.matchedAnswer || move.answer}
                   </span>
-                  <span className={`hist-val text-[22px] font-bold ${move.result === 'BUST' ? 'text-tele-danger' : 'text-tele-green'}`}>
-                    {move.scoreValue}
+                  <span className={`hist-val text-[22px] font-bold ${move.result === 'BUST' ? 'text-tele-danger' : move.result === 'INVALID' ? 'text-[#888]' : 'text-tele-green'}`}>
+                    {move.result === 'INVALID' ? '✗' : move.scoreValue}
                   </span>
                   <span className="hist-rem text-tele-accent text-[22px] text-right font-bold">
                     {move.scoreAfter}
@@ -127,13 +136,47 @@ export default function MatchView({
               ))
             )}
           </div>
-          
+
           <div className="hist-foot mt-4 pt-3 border-t-2 border-white flex justify-between items-baseline text-tele-cyan text-[18px] uppercase">
             <span>TURN COUNT</span>
             <span className="text-tele-accent font-bold">{turnCount.toString().padStart(2, '0')}</span>
           </div>
         </aside>
       </main>
+
+      {/* ── Win Overlay ─────────────────────────────────────────────────────── */}
+      {isWin && (
+        <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 gap-8 font-vt323">
+          <div className="text-tele-green text-[72px] tracking-widest text-center animate-pulse">
+            CHECKOUT!
+          </div>
+          <div className="text-center">
+            <div className="text-tele-accent text-[48px] tracking-widest">
+              {score.toString().padStart(3, '0')}
+            </div>
+            <div className="text-tele-cyan text-[22px] tracking-widest mt-1">
+              FINAL SCORE
+            </div>
+          </div>
+          <div className="text-white text-[26px] tracking-widest">
+            {turnCount.toString().padStart(2, '0')} TURNS
+          </div>
+          <div className="flex flex-col gap-4 items-center mt-4">
+            <button
+              onClick={onPlayAgain}
+              className="border-2 border-tele-cyan text-tele-cyan px-10 py-4 text-[28px] tracking-widest hover:bg-tele-cyan hover:text-black transition-colors"
+            >
+              PLAY AGAIN
+            </button>
+            <button
+              onClick={onExit}
+              className="text-[#666] text-[20px] hover:text-white transition-colors tracking-widest"
+            >
+              EXIT TO LOBBY
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
