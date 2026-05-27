@@ -2,6 +2,7 @@ package com.football501.service;
 
 import com.football501.engine.AnswerEvaluator;
 import com.football501.engine.AnswerResult;
+import com.football501.engine.GameStateMachine;
 import com.football501.model.Game;
 import com.football501.model.GameMove;
 import com.football501.model.Match;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -55,6 +57,13 @@ class GameServiceTest {
 
     @Mock
     private AnswerEvaluator answerEvaluator;
+
+    /**
+     * Use a real GameStateMachine (no DB dependencies) so all transition-logic
+     * assertions continue to pass without per-test stubbing.
+     */
+    @Spy
+    private GameStateMachine gameStateMachine;
 
     @InjectMocks
     private GameService gameService;
