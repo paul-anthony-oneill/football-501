@@ -155,7 +155,7 @@ Key tables to understand:
 ScraperFC data maps to the `answers` table:
 - Player Name → `player_name`
 - Statistic (e.g., Appearances) → `statistic_value`
-- Validation (1-180, no invalid darts) → `is_valid_darts_score`
+- Validation (1-180, no invalid darts) → `is_valid_darts`
 - Bust Check (>180) → `is_bust`
 
 ## WebSocket Protocol
@@ -282,7 +282,7 @@ Critical utility for game engine - validates if a score is achievable in standar
 
 **Invalid Scores**: 163, 166, 169, 172, 173, 175, 176, 178, 179
 
-All other scores 1-180 are valid. Implementation should pre-compute this during answer population and store in `is_valid_darts_score` column.
+All other scores 1-180 are valid. Implementation should pre-compute this during answer population and store in `is_valid_darts` column.
 
 ## Environment Variables
 
@@ -368,6 +368,34 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 - Technical Design: `docs/design/TECHNICAL_DESIGN.md`
 - API Integration: `docs/api/API_INTEGRATION.md`
 - Autocomplete & Entity Architecture: `docs/design/AUTOCOMPLETE_ENTITY_DESIGN.md`
+- Game Modes & Stretch Goals: `docs/design/GAME_MODES_STRETCH_GOALS.md`
+- Question Difficulty Scoring: `docs/design/DIFFICULTY_SCORING.md`
+
+## Question Difficulty Scoring
+
+Questions use a **continuous `difficulty_score` (NUMERIC 0.00–10.00)** rather than a discrete enum. See `docs/design/DIFFICULTY_SCORING.md` for the full design.
+
+**Key points for development**:
+- Score is computed at materialisation time from four stored counts: `high_value_count`, `mid_range_count`, `checkout_count`, `total_valid_count`
+- Storing the counts (not just the score) means formula tuning is a single SQL UPDATE — no re-materialisation needed
+- `difficulty_locked BOOLEAN` allows admin override of computed scores
+- `single_question_viable BOOLEAN` derived from `total_score_pool >= 501` — questions failing this are excluded from standard single-question mode
+- The old `difficulty INTEGER` (1/2/3 scale, V4 migration) is deprecated but retained until all callers migrate
+
+**Formula constants all live in `DifficultyConstants.java`** — never hardcode zone boundaries or weights elsewhere.
+
+## Game Modes — What's Parked & Why It Matters
+
+Multiple game modes (Daily Challenge, Rapid Fire, Draft, Category Lock) are **designed but not being implemented yet**. See `docs/design/GAME_MODES_STRETCH_GOALS.md` for full details.
+
+**Core principle to carry through all development**: The game's difficulty is strategic, not just knowledge-based. Knowing *when* to play an answer and *which score to target* is the depth — not just knowing valid names. Easy/medium questions can produce deeply competitive games.
+
+**Architectural guardrails to apply now** (cheap decisions that keep future modes open):
+- `game_mode VARCHAR` on `matches`, default `'STANDARD'`
+- `question_id` on `game_moves` (not just on `games`) — needed for Rapid Fire's per-turn question tracking
+- `difficulty_score NUMERIC(4,2)` on `questions` (continuous 0–10 scale, not an enum — see Difficulty Scoring section above)
+- `suitable_for_daily BOOLEAN` on `questions`
+- Question draw logic must live in a dedicated service method — never inline in game start code
 
 ## Current Development Phase
 

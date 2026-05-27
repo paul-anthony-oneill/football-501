@@ -1,9 +1,11 @@
 package com.football501.controller;
 
+import com.football501.dto.GameHints;
 import com.football501.dto.GameStateResponse;
 import com.football501.dto.StartPracticeRequest;
 import com.football501.dto.SubmitAnswerRequest;
 import com.football501.model.*;
+import com.football501.service.GameHintsService;
 import com.football501.service.GameService;
 import com.football501.service.MatchService;
 import com.football501.service.QuestionService;
@@ -58,6 +60,15 @@ class PracticeGameControllerTest {
     @MockitoBean
     private QuestionService questionService;
 
+    @MockitoBean
+    private GameHintsService gameHintsService;
+
+    /** Stub returned by gameHintsService in every test — non-zero values so we can assert them. */
+    private static final GameHints STUB_HINTS = GameHints.builder()
+        .maxScoresLeft(3)
+        .checkoutsLeft(0)
+        .build();
+
     private UUID playerId;
     private UUID matchId;
     private UUID gameId;
@@ -97,7 +108,7 @@ class PracticeGameControllerTest {
             .categoryId(categoryId)
             .questionText("Appearances for Manchester City in Premier League 2023/24")
             .metricKey("appearances")
-            .isActive(true)
+            .status(Question.STATUS_ACTIVE)
             .build();
 
         game = Game.builder()
@@ -129,6 +140,7 @@ class PracticeGameControllerTest {
             .thenReturn(match);
         when(matchService.startNextGame(matchId)).thenReturn(game);
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
+        when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
         // When/Then
         mockMvc.perform(post("/api/practice/start")
@@ -141,7 +153,9 @@ class PracticeGameControllerTest {
             .andExpect(jsonPath("$.currentScore").value(501))
             .andExpect(jsonPath("$.turnCount").value(0))
             .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
-            .andExpect(jsonPath("$.isWin").value(false));
+            .andExpect(jsonPath("$.isWin").value(false))
+            .andExpect(jsonPath("$.hints.maxScoresLeft").value(3))
+            .andExpect(jsonPath("$.hints.checkoutsLeft").value(0));
     }
 
     @Test
@@ -185,6 +199,7 @@ class PracticeGameControllerTest {
         when(gameService.getGameById(gameId)).thenReturn(Optional.of(updatedGame));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
+        when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(465))).thenReturn(STUB_HINTS);
 
         // When/Then
         mockMvc.perform(post("/api/practice/games/{gameId}/submit", gameId)
@@ -199,7 +214,9 @@ class PracticeGameControllerTest {
             .andExpect(jsonPath("$.scoreAfter").value(465))
             .andExpect(jsonPath("$.isWin").value(false))
             .andExpect(jsonPath("$.gameState.currentScore").value(465))
-            .andExpect(jsonPath("$.gameState.turnCount").value(1));
+            .andExpect(jsonPath("$.gameState.turnCount").value(1))
+            .andExpect(jsonPath("$.gameState.hints.maxScoresLeft").value(3))
+            .andExpect(jsonPath("$.gameState.hints.checkoutsLeft").value(0));
     }
 
     @Test
@@ -225,6 +242,7 @@ class PracticeGameControllerTest {
         when(gameService.getGameById(gameId)).thenReturn(Optional.of(game));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
+        when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
         // When/Then
         mockMvc.perform(post("/api/practice/games/{gameId}/submit", gameId)
@@ -294,6 +312,9 @@ class PracticeGameControllerTest {
         when(gameService.getGameById(gameId)).thenReturn(Optional.of(completedGame));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
+        // completedGame.player1Score == 0; hints guard returns 0 checkouts for score ≤ 0
+        when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(0)))
+            .thenReturn(GameHints.builder().maxScoresLeft(0).checkoutsLeft(0).build());
 
         // When/Then
         mockMvc.perform(post("/api/practice/games/{gameId}/submit", gameId)
@@ -315,6 +336,7 @@ class PracticeGameControllerTest {
         when(gameService.getGameById(gameId)).thenReturn(Optional.of(game));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
+        when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
         // When/Then
         mockMvc.perform(get("/api/practice/games/{gameId}", gameId)
@@ -324,7 +346,9 @@ class PracticeGameControllerTest {
             .andExpect(jsonPath("$.questionText").value("Appearances for Manchester City in Premier League 2023/24"))
             .andExpect(jsonPath("$.currentScore").value(501))
             .andExpect(jsonPath("$.turnCount").value(0))
-            .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+            .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+            .andExpect(jsonPath("$.hints.maxScoresLeft").value(3))
+            .andExpect(jsonPath("$.hints.checkoutsLeft").value(0));
     }
 
     @Test
@@ -372,6 +396,7 @@ class PracticeGameControllerTest {
             .thenReturn(match);
         when(matchService.startNextGame(matchId)).thenReturn(game);
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
+        when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
         // When/Then
         mockMvc.perform(post("/api/practice/start")

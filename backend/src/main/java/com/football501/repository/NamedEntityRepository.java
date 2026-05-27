@@ -51,4 +51,13 @@ public interface NamedEntityRepository extends JpaRepository<NamedEntity, UUID> 
 
     /** Exact lookup by type + normalized key — used for upsert deduplication. */
     Optional<NamedEntity> findByEntityTypeAndNormalizedName(String entityType, String normalizedName);
+
+    /**
+     * Count entities grouped by entity_type.
+     * Used by the admin debug panel to verify the autocomplete pool is seeded.
+     *
+     * @return list of [entityType (String), count (Long)] pairs, ordered by count desc
+     */
+    @Query("SELECT n.entityType, COUNT(n) FROM NamedEntity n GROUP BY n.entityType ORDER BY COUNT(n) DESC")
+    List<Object[]> countByEntityType();
 }

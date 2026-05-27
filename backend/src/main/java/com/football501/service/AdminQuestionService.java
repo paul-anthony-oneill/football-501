@@ -16,7 +16,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -238,6 +240,59 @@ public class AdminQuestionService {
         return count;
     }
 
+    /**
+     * Activates up to {@code limit} draft questions in one call, materialising
+     * each one as it is promoted.
+     *
+     * <p>Each question is activated in its own transaction (via
+     * {@link #updateStatus}).  Failures on individual questions are caught,
+     * logged, and collected in the result — they do not abort the batch.
+     *
+     * <p>This method is <em>not</em> itself {@code @Transactional} so that each
+     * individual {@link #updateStatus} call commits independently rather than
+     * being rolled back together if one question fails.
+     *
+     * @param limit maximum number of draft questions to activate in this call
+     * @return summary map: {@code activated}, {@code answersUpserted},
+     *         {@code errors}, {@code remainingDraft}
+     */
+    public Map<String, Object> bulkActivateDraft(int limit) {
+        List<Question> drafts = questionRepository
+                .findByStatus(Question.STATUS_DRAFT,
+                        org.springframework.data.domain.PageRequest.of(0, limit))
+                .getContent();
+
+        int activated      = 0;
+        int answersUpserted = 0;
+        List<String> errors = new ArrayList<>();
+
+        log.info("Bulk activate: {} draft questions selected (limit={})", drafts.size(), limit);
+
+        for (Question q : drafts) {
+            try {
+                QuestionResponse result = updateStatus(q.getId(), Question.STATUS_ACTIVE);
+                activated++;
+                answersUpserted += result.getAnswerCount();
+            } catch (Exception ex) {
+                String msg = "Question " + q.getId() + ": " + ex.getMessage();
+                log.error("Bulk activate failed for {}: {}", q.getId(), ex.getMessage());
+                errors.add(msg);
+            }
+        }
+
+        long remainingDraft = questionRepository.findByStatus(Question.STATUS_DRAFT).size();
+
+        log.info("Bulk activate complete: {} activated, {} answers upserted, {} errors, {} draft remaining",
+                activated, answersUpserted, errors.size(), remainingDraft);
+
+        return Map.of(
+                "activated",       activated,
+                "answersUpserted", answersUpserted,
+                "errors",          errors.size(),
+                "remainingDraft",  remainingDraft
+        );
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private QuestionResponse mapToResponse(Question question) {
@@ -260,6 +315,8 @@ public class AdminQuestionService {
         response.setUpdatedAt(question.getUpdatedAt());
         response.setAnswerCount(answerRepository.countByQuestionId(question.getId()));
         response.setValidDartsCount(answerRepository.countByQuestionIdAndIsValidDartsTrue(question.getId()));
+        response.setTotalPointsPool(answerRepository.sumValidDartsScores(question.getId()));
+        response.setHighValueAnswerCount(answerRepository.countHighValueAnswers(question.getId()));
 
         return response;
     }

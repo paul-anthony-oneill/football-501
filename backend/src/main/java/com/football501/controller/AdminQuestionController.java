@@ -16,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -101,6 +103,37 @@ public class AdminQuestionController {
             "questionId",      id.toString(),
             "answersUpserted", count
         ));
+    }
+
+    /**
+     * Activates up to {@code limit} draft questions in one call.
+     *
+     * <p>Each promoted question is auto-materialised (answers computed from
+     * {@code player_season_stints}).  Failures on individual questions are
+     * caught and counted rather than aborting the batch.
+     *
+     * <p>Call repeatedly until {@code remainingDraft} reaches 0 to fully
+     * populate the game question pool.
+     *
+     * <p>Returns:
+     * <pre>
+     * {
+     *   "activated":       150,
+     *   "answersUpserted": 6823,
+     *   "errors":          2,
+     *   "remainingDraft":  10856
+     * }
+     * </pre>
+     *
+     * @param limit max questions to activate per call (default 100, max 500)
+     */
+    @PostMapping("/bulk-activate")
+    public ResponseEntity<Map<String, Object>> bulkActivate(
+            @RequestParam(defaultValue = "100") int limit) {
+        int clampedLimit = Math.min(limit, 500);
+        log.info("Admin triggered bulk-activate (limit={})", clampedLimit);
+        Map<String, Object> result = adminQuestionService.bulkActivateDraft(clampedLimit);
+        return ResponseEntity.ok(result);
     }
 
     @DeleteMapping("/{id}")

@@ -1,6 +1,8 @@
 import type {
+  BulkActivateResult,
   Category,
   CreateCategoryRequest,
+  EntityBackfillResult,
   UpdateCategoryRequest,
   Question,
   QuestionListResponse,
@@ -229,6 +231,31 @@ class AdminApiClient {
     return this.request<RematerializeResult>(`/questions/${questionId}/rematerialize`, {
       method: "POST",
     });
+  }
+
+  // ── Bulk operations ────────────────────────────────────────────────────────
+
+  /**
+   * Backfill the entities autocomplete table from the players source table.
+   * Idempotent — safe to run multiple times.
+   */
+  async backfillEntities(): Promise<EntityBackfillResult> {
+    return this.request<EntityBackfillResult>("/entities/backfill-from-players", {
+      method: "POST",
+    });
+  }
+
+  /**
+   * Activate up to `limit` draft questions, materialising each one.
+   * Call repeatedly until remainingDraft reaches 0.
+   *
+   * @param limit max questions to activate per call (backend caps at 500)
+   */
+  async bulkActivateQuestions(limit = 100): Promise<BulkActivateResult> {
+    return this.request<BulkActivateResult>(
+      `/questions/bulk-activate?limit=${limit}`,
+      { method: "POST" }
+    );
   }
 }
 

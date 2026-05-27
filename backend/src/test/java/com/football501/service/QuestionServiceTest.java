@@ -67,7 +67,7 @@ class QuestionServiceTest {
             .categoryId(categoryId)
             .questionText("Appearances for Manchester City in Premier League 2023/24")
             .metricKey("appearances")
-            .isActive(true)
+            .status(Question.STATUS_ACTIVE)
             .build();
 
         question2 = Question.builder()
@@ -75,7 +75,7 @@ class QuestionServiceTest {
             .categoryId(categoryId)
             .questionText("Goals for Arsenal in Premier League 2023/24")
             .metricKey("goals")
-            .isActive(true)
+            .status(Question.STATUS_ACTIVE)
             .build();
     }
 

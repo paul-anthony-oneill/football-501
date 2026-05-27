@@ -1,10 +1,12 @@
 package com.football501.controller;
 
+import com.football501.dto.GameHints;
 import com.football501.dto.GameStateResponse;
 import com.football501.dto.StartPracticeRequest;
 import com.football501.dto.SubmitAnswerRequest;
 import com.football501.dto.SubmitAnswerResponse;
 import com.football501.model.*;
+import com.football501.service.GameHintsService;
 import com.football501.service.GameService;
 import com.football501.service.MatchService;
 import com.football501.service.QuestionService;
@@ -14,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -32,17 +35,20 @@ public class PracticeGameController {
     private final MatchService matchService;
     private final GameService gameService;
     private final QuestionService questionService;
+    private final GameHintsService gameHintsService;
 
     private static final String DEFAULT_CATEGORY_SLUG = "football";
 
     public PracticeGameController(
         MatchService matchService,
         GameService gameService,
-        QuestionService questionService
+        QuestionService questionService,
+        GameHintsService gameHintsService
     ) {
         this.matchService = matchService;
         this.gameService = gameService;
         this.questionService = questionService;
+        this.gameHintsService = gameHintsService;
     }
 
     /**
@@ -135,8 +141,9 @@ public class PracticeGameController {
     /**
      * Get current game state.
      *
-     * @param gameId the game UUID
-     * @param playerId the player UUID
+     * @param gameId   the game UUID
+     * @param playerId the requesting player UUID (logged for auditing; ownership
+     *                 enforcement is deferred until auth is wired up — TODO)
      * @return game state response
      */
     @GetMapping("/games/{gameId}")
@@ -144,7 +151,7 @@ public class PracticeGameController {
         @PathVariable UUID gameId,
         @RequestParam UUID playerId
     ) {
-        log.debug("Getting game state for game {}", gameId);
+        log.debug("Getting game state for game {} (requestedBy={})", gameId, playerId);
 
         Game game = gameService.getGameById(gameId)
             .orElse(null);
@@ -184,6 +191,15 @@ public class PracticeGameController {
             }
         }
 
+        // Compute hint stats for the current player.
+        // Uses two lightweight COUNT queries against the answers table —
+        // sub-millisecond at typical answer-set sizes.
+        GameHints hints = gameHintsService.computeHints(
+            game.getId(),
+            game.getQuestionId(),
+            currentScore
+        );
+
         return GameStateResponse.builder()
             .gameId(game.getId())
             .matchId(game.getMatchId())
@@ -195,6 +211,7 @@ public class PracticeGameController {
             .isWin(isWin)
             .turnTimerSeconds(game.getTurnTimerSeconds())
             .entityType(entityType)
+            .hints(hints)
             .build();
     }
 
@@ -208,11 +225,23 @@ public class PracticeGameController {
     }
 
     /**
-     * Global exception handler for bad requests.
+     * Bad request handler (e.g. category not found, invalid input).
+     * Returns a JSON body so the frontend can parse it with {@code res.json()}.
      */
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleBadRequest(IllegalArgumentException e) {
+    public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException e) {
         log.warn("Bad request: {}", e.getMessage());
-        return ResponseEntity.badRequest().body(e.getMessage());
+        return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+    }
+
+    /**
+     * Conflict handler for illegal game states
+     * (e.g. no questions available, game already completed).
+     * Returns a JSON body so the frontend can parse it with {@code res.json()}.
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, String>> handleConflict(IllegalStateException e) {
+        log.warn("Conflict: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
     }
 }

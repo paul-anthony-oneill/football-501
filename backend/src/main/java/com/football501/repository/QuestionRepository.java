@@ -85,18 +85,23 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
      *
      * <p>Uses a native JSONB equality check because Spring Data cannot
      * auto-derive a {@code Map}-equality predicate from method names.
+     *
+     * <p>Pass {@code paramsJson} as a pre-serialised JSON string; the query casts
+     * it to {@code jsonb} server-side.  Using {@code CAST} instead of the
+     * {@code ::jsonb} shorthand avoids a SpEL-expression parsing quirk in
+     * Spring Data's native-query parameter binder.
      */
     @Query(value = """
         SELECT CASE WHEN COUNT(*) > 0 THEN TRUE ELSE FALSE END
           FROM questions
          WHERE template_id     = :templateId
-           AND template_params = :#{#params}::jsonb
+           AND template_params = CAST(:paramsJson AS jsonb)
            AND status         != :status
         """, nativeQuery = true)
     boolean existsByTemplateIdAndTemplateParamsAndStatusNot(
-        @Param("templateId") UUID templateId,
-        @Param("params")     Object params,
-        @Param("status")     String status
+        @Param("templateId")  UUID   templateId,
+        @Param("paramsJson")  String paramsJson,
+        @Param("status")      String status
     );
 
     // ── Counts ────────────────────────────────────────────────────────────────

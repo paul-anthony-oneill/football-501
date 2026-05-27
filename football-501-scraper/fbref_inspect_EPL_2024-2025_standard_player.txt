@@ -1,0 +1,86 @@
+=== EPL 2024-2025 — standard — player ===
+
+Shape: (574, 27)
+
+--- COLUMN REPORT ---
+Column                                        dtype        non-null   null%  sample_values
+--------------------------------------------------------------------------------------------------------------
+Rk                                            object            574    0.0%  '1', '2', '3'
+Player                                        object            574    0.0%  'Max Aarons', 'Joshua Acheampong', 'Tyler Adams'
+Nation                                        object            573    0.2%  'eng ENG', 'us USA', 'ci CIV'
+Pos                                           object            574    0.0%  'DF', 'MF', 'MF,DF'
+Squad                                         object            574    0.0%  'Bournemouth', 'Chelsea', 'Brighton'
+Age                                           object            573    0.2%  '24', '18', '25'
+Born                                          object            573    0.2%  '2000', '2006', '1999'
+Playing Time_MP                               object            574    0.0%  '3', '4', '28'
+Playing Time_Starts                           object            574    0.0%  '1', '2', '21'
+Playing Time_Min                              object            574    0.0%  '86', '170', '1965'
+Playing Time_90s                              object            574    0.0%  '1.0', '1.9', '21.8'
+Performance_Gls                               object            574    0.0%  '0', '1', '2'
+Performance_Ast                               object            574    0.0%  '0', '3', '1'
+Performance_G+A                               object            574    0.0%  '0', '3', '2'
+Performance_G-PK                              object            574    0.0%  '0', '1', '2'
+Performance_PK                                object            574    0.0%  '0', '1', '2'
+Performance_PKatt                             object            574    0.0%  '0', '1', '2'
+Performance_CrdY                              object            574    0.0%  '0', '1', '7'
+Performance_CrdR                              object            574    0.0%  '0', '1', '2'
+Per 90 Minutes_Gls                            object            574    0.0%  '0.00', '0.06', '0.16'
+Per 90 Minutes_Ast                            object            574    0.0%  '0.00', '0.14', '0.06'
+Per 90 Minutes_G+A                            object            574    0.0%  '0.00', '0.14', '0.13'
+Per 90 Minutes_G-PK                           object            574    0.0%  '0.00', '0.06', '0.16'
+Per 90 Minutes_G+A-PK                         object            574    0.0%  '0.00', '0.14', '0.13'
+Matches                                       object            574    0.0%  'Matches'
+Player Link_                                  object            574    0.0%  'https://fbref.com/en/players/774cf58b/Max-Aarons', 'https://fbref.com/en/players/b7e62e1d/Joshua-Acheampong', 'https://fbref.com/en/players/2b09d998/Tyler-Adams'
+Player ID_                                    object            574    0.0%  '774cf58b', 'b7e62e1d', '2b09d998'
+
+--- SQUAD NAMES (unique values in Squad column) ---
+  'Arsenal'
+  'Aston Villa'
+  'Bournemouth'
+  'Brentford'
+  'Brighton'
+  'Chelsea'
+  'Crystal Palace'
+  'Everton'
+  'Fulham'
+  'Ipswich Town'
+  'Leicester City'
+  'Liverpool'
+  'Manchester City'
+  'Manchester Utd'
+  'Newcastle United'
+  'Nottingham Forest'
+  'Southampton'
+  'Tottenham Hotspur'
+  'West Ham United'
+  'Wolves'
+
+--- FIRST 5 ROWS (transposed for readability) ---
+                                                                      0                                                        1                                                  2                                                       3                                                    4
+Rk                                                                    1                                                        2                                                  3                                                       4                                                    5
+Player                                                       Max Aarons                                        Joshua Acheampong                                        Tyler Adams                                        Tosin Adarabioyo                                        Simon Adingra
+Nation                                                          eng ENG                                                  eng ENG                                             us USA                                                 eng ENG                                               ci CIV
+Pos                                                                  DF                                                       DF                                                 MF                                                      DF                                                   MF
+Squad                                                       Bournemouth                                                  Chelsea                                        Bournemouth                                                 Chelsea                                             Brighton
+Age                                                                  24                                                       18                                                 25                                                      26                                                   22
+Born                                                               2000                                                     2006                                               1999                                                    1997                                                 2002
+Playing Time_MP                                                       3                                                        4                                                 28                                                      22                                                   29
+Playing Time_Starts                                                   1                                                        2                                                 21                                                      15                                                   12
+Playing Time_Min                                                     86                                                      170                                               1965                                                    1409                                                 1097
+Playing Time_90s                                                    1.0                                                      1.9                                               21.8                                                    15.7                                                 12.2
+Performance_Gls                                                       0                                                        0                                                  0                                                       1                                                    2
+Performance_Ast                                                       0                                                        0                                                  3                                                       1                                                    2
+Performance_G+A                                                       0                                                        0                                                  3                                                       2                                                    4
+Performance_G-PK                                                      0                                                        0                                                  0                                                       1                                                    2
+Performance_PK                                                        0                                                        0                                                  0                                                       0                                                    0
+Performance_PKatt                                                     0                                                        0                                                  0                                                       0                                                    0
+Performance_CrdY                                                      0                                                        1                                                  7                                                       4                                                    0
+Performance_CrdR                                                      0                                                        0                                                  0                                                       0                                                    0
+Per 90 Minutes_Gls                                                 0.00                                                     0.00                                               0.00                                                    0.06                                                 0.16
+Per 90 Minutes_Ast                                                 0.00                                                     0.00                                               0.14                                                    0.06                                                 0.16
+Per 90 Minutes_G+A                                                 0.00                                                     0.00                                               0.14                                                    0.13                                                 0.33
+Per 90 Minutes_G-PK                                                0.00                                                     0.00                                               0.00                                                    0.06                                                 0.16
+Per 90 Minutes_G+A-PK                                              0.00                                                     0.00                                               0.14                                                    0.13                                                 0.33
+Matches                                                         Matches                                                  Matches                                            Matches                                                 Matches                                              Matches
+Player Link_           https://fbref.com/en/players/774cf58b/Max-Aarons  https://fbref.com/en/players/b7e62e1d/Joshua-Acheampong  https://fbref.com/en/players/2b09d998/Tyler-Adams  https://fbref.com/en/players/c81d773d/Tosin-Adarabioyo  https://fbref.com/en/players/4dcec659/Simon-Adingra
+Player ID_                                                     774cf58b                                                 b7e62e1d                                           2b09d998                                                c81d773d                                             4dcec659

@@ -1,0 +1,90 @@
+=== EPL 2024-2025 — goalkeeping — player ===
+
+Shape: (44, 29)
+
+--- COLUMN REPORT ---
+Column                                        dtype        non-null   null%  sample_values
+--------------------------------------------------------------------------------------------------------------
+Rk                                            object             44    0.0%  '1', '2', '3'
+Player                                        object             44    0.0%  'Alisson', 'Alphonse Areola', 'Kepa Arrizabalaga'
+Nation                                        object             44    0.0%  'br BRA', 'fr FRA', 'es ESP'
+Pos                                           object             44    0.0%  'GK'
+Squad                                         object             44    0.0%  'Liverpool', 'West Ham United', 'Bournemouth'
+Age                                           object             44    0.0%  '31', '29', '25'
+Born                                          object             44    0.0%  '1992', '1993', '1994'
+Playing Time_MP                               object             44    0.0%  '28', '26', '31'
+Playing Time_Starts                           object             44    0.0%  '28', '25', '31'
+Playing Time_Min                              object             44    0.0%  '2508', '2260', '2790'
+Playing Time_90s                              object             44    0.0%  '27.9', '25.1', '31.0'
+Performance_GA                                object             44    0.0%  '29', '41', '39'
+Performance_GA90                              object             44    0.0%  '1.04', '1.63', '1.26'
+Performance_SoTA                              object             44    0.0%  '106', '121', '132'
+Performance_Saves                             object             44    0.0%  '74', '80', '97'
+Performance_Save%                             object             43    2.3%  '73.6', '66.1', '73.5'
+Performance_W                                 object             44    0.0%  '18', '5', '13'
+Performance_D                                 object             44    0.0%  '7', '0', '4'
+Performance_L                                 object             44    0.0%  '3', '13', '11'
+Performance_CS                                object             44    0.0%  '10', '5', '8'
+Performance_CS%                               object             42    4.5%  '35.7', '20.0', '25.8'
+Penalty Kicks_PKatt                           object             44    0.0%  '1', '0', '4'
+Penalty Kicks_PKA                             object             44    0.0%  '1', '0', '4'
+Penalty Kicks_PKsv                            object             44    0.0%  '0', '1', '2'
+Penalty Kicks_PKm                             object             44    0.0%  '0'
+Penalty Kicks_Save%                           object             29   34.1%  '0.0', '50.0', '25.0'
+Matches                                       object             44    0.0%  'Matches'
+Player Link_                                  object             44    0.0%  'https://fbref.com/en/players/7a2e46a8/Alisson', 'https://fbref.com/en/players/2f965a72/Alphonse-Areola', 'https://fbref.com/en/players/28d596a0/Kepa-Arrizabalaga'
+Player ID_                                    object             44    0.0%  '7a2e46a8', '2f965a72', '28d596a0'
+
+--- SQUAD NAMES (unique values in Squad column) ---
+  'Arsenal'
+  'Aston Villa'
+  'Bournemouth'
+  'Brentford'
+  'Brighton'
+  'Chelsea'
+  'Crystal Palace'
+  'Everton'
+  'Fulham'
+  'Ipswich Town'
+  'Leicester City'
+  'Liverpool'
+  'Manchester City'
+  'Manchester Utd'
+  'Newcastle United'
+  'Nottingham Forest'
+  'Southampton'
+  'Tottenham Hotspur'
+  'West Ham United'
+  'Wolves'
+
+--- FIRST 5 ROWS (transposed for readability) ---
+                                                                 0                                                      1                                                        2                                                     3                                                     4
+Rk                                                               1                                                      2                                                        3                                                     4                                                     5
+Player                                                     Alisson                                        Alphonse Areola                                        Kepa Arrizabalaga                                        Brandon Austin                                        Altay Bayındır
+Nation                                                      br BRA                                                 fr FRA                                                   es ESP                                               eng ENG                                                tr TUR
+Pos                                                             GK                                                     GK                                                       GK                                                    GK                                                    GK
+Squad                                                    Liverpool                                        West Ham United                                              Bournemouth                                     Tottenham Hotspur                                        Manchester Utd
+Age                                                             31                                                     31                                                       29                                                    25                                                    26
+Born                                                          1992                                                   1993                                                     1994                                                  1999                                                  1998
+Playing Time_MP                                                 28                                                     26                                                       31                                                     1                                                     4
+Playing Time_Starts                                             28                                                     25                                                       31                                                     1                                                     4
+Playing Time_Min                                              2508                                                   2260                                                     2790                                                    90                                                   360
+Playing Time_90s                                              27.9                                                   25.1                                                     31.0                                                   1.0                                                   4.0
+Performance_GA                                                  29                                                     41                                                       39                                                     2                                                    10
+Performance_GA90                                              1.04                                                   1.63                                                     1.26                                                  2.00                                                  2.50
+Performance_SoTA                                               106                                                    121                                                      132                                                     4                                                    18
+Performance_Saves                                               74                                                     80                                                       97                                                     2                                                     8
+Performance_Save%                                             73.6                                                   66.1                                                     73.5                                                  50.0                                                  44.4
+Performance_W                                                   18                                                      5                                                       13                                                     0                                                     1
+Performance_D                                                    7                                                      7                                                        7                                                     0                                                     0
+Performance_L                                                    3                                                     13                                                       11                                                     1                                                     3
+Performance_CS                                                  10                                                      5                                                        8                                                     0                                                     1
+Performance_CS%                                               35.7                                                   20.0                                                     25.8                                                   0.0                                                  25.0
+Penalty Kicks_PKatt                                              1                                                      0                                                        4                                                     0                                                     0
+Penalty Kicks_PKA                                                1                                                      0                                                        4                                                     0                                                     0
+Penalty Kicks_PKsv                                               0                                                      0                                                        0                                                     0                                                     0
+Penalty Kicks_PKm                                                0                                                      0                                                        0                                                     0                                                     0
+Penalty Kicks_Save%                                            0.0                                                    NaN                                                      0.0                                                   NaN                                                   NaN
+Matches                                                    Matches                                                Matches                                                  Matches                                               Matches                                               Matches
+Player Link_         https://fbref.com/en/players/7a2e46a8/Alisson  https://fbref.com/en/players/2f965a72/Alphonse-Areola  https://fbref.com/en/players/28d596a0/Kepa-Arrizabalaga  https://fbref.com/en/players/5e253986/Brandon-Austin  https://fbref.com/en/players/072e68ed/Altay-Bayindir
+Player ID_                                                7a2e46a8                                               2f965a72                                                 28d596a0                                              5e253986                                              072e68ed

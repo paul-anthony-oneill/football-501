@@ -1,199 +1,109 @@
 @import "tailwindcss";
 
-/* ─── Design Tokens ─────────────────────────────────────────────────────────── */
-/* Tailwind v4 @theme block — exposes these as utility classes (bg-primary, etc.) */
 @theme inline {
-  /* Brand colours (Material Design 3, dark theme) */
-  --color-primary:                 #4ade80;
-  --color-on-primary:              #00391c;
-  --color-primary-container:       #00522b;
-  --color-on-primary-container:    #67ff9a;
+  /* Fonts */
+  --font-hanken: var(--font-hanken), system-ui, sans-serif;
+  --font-plex: var(--font-plex-mono), monospace;
+  --font-bricolage: var(--font-bricolage), sans-serif;
+  --font-vt323: var(--font-vt323), monospace;
 
-  --color-secondary:               #b6ccb8;
-  --color-on-secondary:            #223526;
-  --color-secondary-container:     #384b3c;
-  --color-on-secondary-container:  #d2e8d4;
-
-  --color-error:                   #ffb4ab;
-  --color-on-error:                #690005;
-  --color-error-container:         #93000a;
-  --color-on-error-container:      #ffdad6;
-
-  --color-background:              #1a1c1a;
-  --color-on-background:           #e2e3de;
-  --color-surface:                 #1a1c1a;
-  --color-on-surface:              #e2e3de;
-  --color-surface-variant:         #414941;
-  --color-on-surface-variant:      #c1c9be;
-  --color-outline:                 #8b9389;
+  /* Theme Defaults (Neutral/Home) */
+  --color-h-bg: #f5f1e8;
+  --color-h-fg: #18171a;
+  --color-h-dim: #6f6a62;
+  --color-h-accent: #e84545;
+  --color-h-rule: rgba(24, 23, 26, 0.1);
 
   /* Spacing */
-  --spacing-xs:   0.25rem;
-  --spacing-sm:   0.5rem;
-  --spacing-md:   1rem;
-  --spacing-lg:   1.5rem;
-  --spacing-xl:   2rem;
-  --spacing-xxl:  3rem;
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-xxl: 3rem;
 
-  /* Border radius */
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 28px;
+  /* Global Radius (Design uses sharp 4px or 0 for teletext) */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
 }
 
-/* ─── CSS custom properties (for non-Tailwind usage inside globals) ──────────── */
+/* ─── Themes ────────────────────────────────────────────────────────────────── */
+
 :root {
-  --color-primary:                 #4ade80;
-  --color-on-primary:              #00391c;
-  --color-primary-container:       #00522b;
-  --color-on-primary-container:    #67ff9a;
-
-  --color-secondary:               #b6ccb8;
-  --color-on-secondary:            #223526;
-  --color-secondary-container:     #384b3c;
-  --color-on-secondary-container:  #d2e8d4;
-
-  --color-error:                   #ffb4ab;
-  --color-on-error:                #690005;
-  --color-error-container:         #93000a;
-  --color-on-error-container:      #ffdad6;
-
-  --color-background:              #1a1c1a;
-  --color-on-background:           #e2e3de;
-  --color-surface:                 #1a1c1a;
-  --color-on-surface:              #e2e3de;
-  --color-surface-variant:         #414941;
-  --color-on-surface-variant:      #c1c9be;
-  --color-outline:                 #8b9389;
-
-  --space-xs:  0.25rem;
-  --space-sm:  0.5rem;
-  --space-md:  1rem;
-  --space-lg:  1.5rem;
-  --space-xl:  2rem;
-  --space-xxl: 3rem;
-
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 28px;
-
-  --shadow-1: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06);
-  --shadow-2: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-  --shadow-3: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+  /* Teletext Theme Vars */
+  --tele-bg: #000000;
+  --tele-fg: #ffffff;
+  --tele-accent: #ffff00;
+  --tele-danger: #ff0000;
+  --tele-cyan: #00ffff;
+  --tele-magenta: #ff00ff;
+  --tele-green: #00ff00;
+  --tele-blue: #00008c;
 }
 
-/* ─── Base styles ────────────────────────────────────────────────────────────── */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+.theme-home {
+  background-color: var(--color-h-bg);
+  color: var(--color-h-fg);
+  font-family: var(--font-hanken);
 }
 
-html,
-body {
-  height: 100%;
+.theme-teletext {
+  background-color: var(--tele-bg);
+  color: var(--tele-fg);
+  font-family: var(--font-vt323);
 }
+
+/* ─── Base Styles ───────────────────────────────────────────────────────────── */
 
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--color-background);
-  color: var(--color-on-background);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  color: var(--color-primary);
-  margin-top: 0;
+/* ─── Layout Components (Tailwind v4 @layer utilities) ───────────────────────── */
+
+@layer utilities {
+  .h-mark {
+    @apply font-plex text-[12px] tracking-[0.2em] bg-[#18171a] text-[#f5f1e8] px-2.5 py-1;
+  }
+
+  .h-kicker {
+    @apply font-plex text-[11px] tracking-[0.25em] text-[#6f6a62] uppercase;
+  }
+
+  .h-hero-num {
+    @apply font-bricolage font-extrabold text-[120px] md:text-[200px] leading-[0.85] tracking-[-0.05em] text-[#18171a];
+    font-variation-settings: 'wdth' 80;
+  }
+
+  .h-hero-h1 {
+    @apply font-bricolage font-extrabold text-[48px] md:text-[72px] leading-[0.9] tracking-[-0.03em];
+    font-variation-settings: 'wdth' 96, 'opsz' 96;
+  }
+
+  /* Teletext Specific Utility overrides */
+  .theme-teletext .sb-big {
+    @apply font-vt323 text-[128px] leading-none text-[#00ff00];
+  }
 }
 
-button {
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+/* ─── Dart Trajectory Animation ────────────────────────────────────────────── */
+
+@keyframes h-draw { to { stroke-dashoffset: 0; } }
+@keyframes h-dart-in {
+  from { opacity: 0; transform: scale(.4) rotate(8deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0); }
 }
 
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
+.animate-draw {
+  stroke-dasharray: 1600;
+  stroke-dashoffset: 1600;
+  animation: h-draw 1.6s cubic-bezier(.4,.1,.2,1) .15s forwards;
 }
 
-input, select, textarea {
-  font-family: inherit;
-  background-color: var(--color-surface);
-  color: var(--color-on-surface);
-  border: 1px solid var(--color-outline);
-  border-radius: var(--radius-sm);
-  padding: var(--space-sm) var(--space-md);
-  transition: border-color 0.2s;
+.animate-dart-in {
+  opacity: 0;
+  animation: h-dart-in .35s ease-out 1.55s forwards;
 }
-
-input:focus, select:focus, textarea:focus {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
-/* ─── Scrollbar ──────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar           { width: 8px; }
-::-webkit-scrollbar-track     { background: var(--color-background); }
-::-webkit-scrollbar-thumb     { background: var(--color-surface-variant); border-radius: var(--radius-xs); }
-::-webkit-scrollbar-thumb:hover { background: var(--color-outline); }
-
-/* ─── Game animations ────────────────────────────────────────────────────────── */
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes tension-pulse {
-  0%, 100% { transform: scale(1); }
-  50%       { transform: scale(1.05); }
-}
-
-@keyframes slide-up {
-  from { transform: translateY(20px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
-}
-
-@keyframes shaking {
-  0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-  20%, 40%, 60%, 80%      { transform: translateX(4px); }
-}
-
-@keyframes busting {
-  0%   { transform: scale(1) rotate(0deg);   opacity: 1; }
-  50%  { transform: scale(1.2) rotate(5deg); opacity: 0.7; }
-  100% { transform: scale(0) rotate(-10deg); opacity: 0; }
-}
-
-@keyframes point-counter {
-  0%   { transform: translateY(0);    opacity: 1; }
-  100% { transform: translateY(-40px); opacity: 0; }
-}
-
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slide-down {
-  from { opacity: 0; transform: translateY(-10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ─── Animation utility classes ──────────────────────────────────────────────── */
-.animate-spin-slow       { animation: spin 1s linear infinite; }
-.animate-tension-pulse   { animation: tension-pulse 1s ease-in-out infinite; }
-.animate-slide-up        { animation: slide-up 0.3s ease-out; }
-.animate-shaking         { animation: shaking 0.5s ease-in-out; }
-.animate-busting         { animation: busting 0.6s ease-in-out forwards; }
-.animate-point-counter   { animation: point-counter 1s ease-out forwards; }
-.animate-fade-in         { animation: fade-in 0.3s ease-out; }
-.animate-slide-down      { animation: slide-down 0.2s ease-out; }

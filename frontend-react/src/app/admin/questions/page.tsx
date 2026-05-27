@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { adminApi } from "@/lib/api/admin";
-import type { Category, Question, QuestionStatus } from "@/lib/types/admin";
+import type { BulkActivateResult, Category, Question, QuestionStatus } from "@/lib/types/admin";
 import DataTable from "@/components/admin/DataTable";
 import Select from "@/components/ui/Select";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -61,8 +61,13 @@ export default function QuestionsPage() {
   const [appliedStatus, setAppliedStatus] = useState("");
 
   // Delete dialog
-  const [showDelete, setShowDelete] = useState(false);
+  const [showDelete, setShowDelete]             = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
+
+  // Bulk activate
+  const [bulkLimit, setBulkLimit]         = useState(200);
+  const [bulkActivating, setBulkActivating] = useState(false);
+  const [lastBulkResult, setLastBulkResult] = useState<BulkActivateResult | null>(null);
 
   const loadQuestions = useCallback(
     async (page: number, catId: string, status: string) => {
@@ -115,6 +120,23 @@ export default function QuestionsPage() {
     loadQuestions(page, appliedCategory, appliedStatus);
   }
 
+  async function handleBulkActivate() {
+    setBulkActivating(true);
+    try {
+      const result = await adminApi.bulkActivateQuestions(bulkLimit);
+      setLastBulkResult(result);
+      addToast(
+        `Activated ${result.activated} questions · ${result.answersUpserted.toLocaleString()} answers · ${result.remainingDraft.toLocaleString()} draft remaining`,
+        result.errors > 0 ? "info" : "success"
+      );
+      loadQuestions(currentPage, appliedCategory, appliedStatus);
+    } catch (err) {
+      addToast((err as Error).message, "error");
+    } finally {
+      setBulkActivating(false);
+    }
+  }
+
   async function handleDelete() {
     if (!selectedQuestion) return;
     try {
@@ -143,6 +165,53 @@ export default function QuestionsPage() {
         >
           + New Question
         </Link>
+      </div>
+
+      {/* Bulk Activate panel */}
+      <div className="mb-8 p-5 rounded-xl bg-[#2a2a2a] border border-[var(--color-outline)]">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h3 className="m-0 text-sm font-semibold text-[var(--color-on-surface)]">
+              Bulk Activate Draft Questions
+            </h3>
+            <p className="m-0 mt-1 text-xs text-[var(--color-on-surface-variant)]">
+              Promotes draft → active and materialises answers from{" "}
+              <code className="bg-[#1a1a1a] px-1 rounded">player_season_stints</code>.
+              Run repeatedly until all 11k questions are active.
+              {lastBulkResult && (
+                <span className="ml-2 text-[var(--color-primary)]">
+                  Last run: {lastBulkResult.activated} activated ·{" "}
+                  {lastBulkResult.answersUpserted.toLocaleString()} answers ·{" "}
+                  {lastBulkResult.remainingDraft.toLocaleString()} remaining
+                  {lastBulkResult.errors > 0 && (
+                    <span className="text-[#fbbf24]"> · {lastBulkResult.errors} errors</span>
+                  )}
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-[var(--color-on-surface-variant)]">
+              <label htmlFor="bulk-limit">Batch size:</label>
+              <input
+                id="bulk-limit"
+                type="number"
+                min={1}
+                max={500}
+                value={bulkLimit}
+                onChange={(e) => setBulkLimit(Math.min(500, Math.max(1, Number(e.target.value))))}
+                className="w-20 px-2 py-1 rounded bg-[#1a1a1a] border border-[#444] text-white text-sm text-center"
+              />
+            </div>
+            <button
+              onClick={handleBulkActivate}
+              disabled={bulkActivating}
+              className="px-5 py-2 rounded-lg bg-[var(--color-primary)] text-black text-sm font-semibold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 border-0 whitespace-nowrap"
+            >
+              {bulkActivating ? "Activating…" : "⚡ Bulk Activate"}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}

@@ -124,6 +124,31 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
     long countByQuestionIdAndIsValidDartsTrue(UUID questionId);
 
     /**
+     * Sum of scores for all valid, non-bust answers for a question.
+     * This is the total "points pool" — the maximum achievable score if a
+     * player named every valid answer correctly. A pool below 501 means the
+     * question literally cannot be finished from 501 points.
+     *
+     * @param questionId the question UUID
+     * @return sum of valid-darts scores, or 0 if no answers exist
+     */
+    @Query("SELECT COALESCE(SUM(a.score), 0) FROM Answer a " +
+           "WHERE a.questionId = :questionId AND a.isValidDarts = true AND a.isBust = false")
+    long sumValidDartsScores(@Param("questionId") UUID questionId);
+
+    /**
+     * Count of valid, non-bust answers with a score above 100.
+     * A higher count here means the question has strong "finishing power" —
+     * players can make large progress per correct answer.
+     *
+     * @param questionId the question UUID
+     * @return count of high-value answers (score > 100)
+     */
+    @Query("SELECT COUNT(a) FROM Answer a " +
+           "WHERE a.questionId = :questionId AND a.isValidDarts = true AND a.isBust = false AND a.score > 100")
+    long countHighValueAnswers(@Param("questionId") UUID questionId);
+
+    /**
      * Get top N scoring answers for a question.
      *
      * @param questionId the question UUID
@@ -147,4 +172,66 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
 
     @Query("SELECT a.answerKey FROM Answer a WHERE a.questionId = :questionId")
     java.util.Set<String> findAnswerKeysByQuestionId(@Param("questionId") UUID questionId);
+
+    // ── In-game hint queries ──────────────────────────────────────────────────
+    //
+    // Two hint types are computed after every move:
+    //   maxScoresLeft  — remaining answers worth exactly 180 (max darts score)
+    //   checkoutsLeft  — remaining answers that would end the game in one move
+    //
+    // Each query has a pair (no-exclusion / with-exclusion) to avoid the
+    // NULL/empty-list type-inference failure in Hibernate 7 + PostgreSQL.
+    // The default dispatch methods pick the right variant automatically.
+
+    @Query("SELECT COUNT(a) FROM Answer a " +
+           "WHERE a.questionId = :questionId " +
+           "AND a.score = 180 AND a.isValidDarts = true AND a.isBust = false")
+    long countMaxScoreAnswers(@Param("questionId") UUID questionId);
+
+    @Query("SELECT COUNT(a) FROM Answer a " +
+           "WHERE a.questionId = :questionId " +
+           "AND a.score = 180 AND a.isValidDarts = true AND a.isBust = false " +
+           "AND a.id NOT IN :usedIds")
+    long countMaxScoreAnswersExcluding(
+        @Param("questionId") UUID questionId,
+        @Param("usedIds") List<UUID> usedIds
+    );
+
+    @Query("SELECT COUNT(a) FROM Answer a " +
+           "WHERE a.questionId = :questionId " +
+           "AND a.score >= :minScore AND a.score <= :maxScore " +
+           "AND a.isValidDarts = true AND a.isBust = false")
+    long countCheckoutAnswers(
+        @Param("questionId") UUID questionId,
+        @Param("minScore") int minScore,
+        @Param("maxScore") int maxScore
+    );
+
+    @Query("SELECT COUNT(a) FROM Answer a " +
+           "WHERE a.questionId = :questionId " +
+           "AND a.score >= :minScore AND a.score <= :maxScore " +
+           "AND a.isValidDarts = true AND a.isBust = false " +
+           "AND a.id NOT IN :usedIds")
+    long countCheckoutAnswersExcluding(
+        @Param("questionId") UUID questionId,
+        @Param("minScore") int minScore,
+        @Param("maxScore") int maxScore,
+        @Param("usedIds") List<UUID> usedIds
+    );
+
+    /** Dispatches to the correct max-score query based on whether usedIds is empty. */
+    default long countRemainingMaxScores(UUID questionId, List<UUID> usedIds) {
+        if (usedIds == null || usedIds.isEmpty()) {
+            return countMaxScoreAnswers(questionId);
+        }
+        return countMaxScoreAnswersExcluding(questionId, usedIds);
+    }
+
+    /** Dispatches to the correct checkout query based on whether usedIds is empty. */
+    default long countRemainingCheckouts(UUID questionId, int minScore, int maxScore, List<UUID> usedIds) {
+        if (usedIds == null || usedIds.isEmpty()) {
+            return countCheckoutAnswers(questionId, minScore, maxScore);
+        }
+        return countCheckoutAnswersExcluding(questionId, minScore, maxScore, usedIds);
+    }
 }

@@ -114,15 +114,20 @@ public class Question {
     }
 
     // ── Convenience helpers ───────────────────────────────────────────────────
+    // @Transient prevents Hibernate 6 from treating these boolean isXxx() methods
+    // as persistent properties (which would generate non-existent is_active, etc. columns).
 
+    @Transient
     public boolean isActive() {
         return STATUS_ACTIVE.equals(status);
     }
 
+    @Transient
     public boolean isDraft() {
         return STATUS_DRAFT.equals(status);
     }
 
+    @Transient
     public boolean isRetired() {
         return STATUS_RETIRED.equals(status);
     }

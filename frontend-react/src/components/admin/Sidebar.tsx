@@ -7,6 +7,7 @@ const links = [
   { href: "/admin/categories", label: "Categories", icon: "📁" },
   { href: "/admin/questions",  label: "Questions",  icon: "❓" },
   { href: "/admin/templates",  label: "Templates",  icon: "🧩" },
+  { href: "/admin/entities",   label: "Entities",   icon: "🔤" },
 ];
 
 export default function Sidebar() {
