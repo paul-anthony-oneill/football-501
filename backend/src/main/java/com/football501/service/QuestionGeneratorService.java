@@ -262,7 +262,7 @@ public class QuestionGeneratorService {
      */
     private Map<String, Object> buildConfig(QuestionTemplate template, Map<String, Object> params) {
         Map<String, Object> config = new HashMap<>(params);
-        config.put("entity_type", "footballer");   // autocomplete pool
+        config.put("entity_type", EntityType.FOOTBALLER);   // autocomplete pool
         config.put("materializer_key", template.getMaterializerKey());
         config.put("metric_key", template.getMetricKey());
         return config;

@@ -1,6 +1,7 @@
 package com.football501.controller;
 
 import com.football501.dto.PlayerSearchResponse;
+import com.football501.model.EntityType;
 import com.football501.service.EntitySearchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +38,7 @@ import java.util.List;
 public class EntityController {
 
     /** Default entity type used when the question config does not specify one. */
-    private static final String DEFAULT_ENTITY_TYPE = "footballer";
+    private static final String DEFAULT_ENTITY_TYPE = EntityType.FOOTBALLER;
 
     private final EntitySearchService entitySearchService;
 

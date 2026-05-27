@@ -5,7 +5,9 @@ import com.football501.dto.admin.BulkCreateAnswersRequest;
 import com.football501.dto.admin.BulkCreateAnswersResponse;
 import com.football501.dto.admin.CreateAnswerRequest;
 import com.football501.engine.DartsValidator;
+import com.football501.mapper.AnswerMapper;
 import com.football501.model.Answer;
+import com.football501.model.EntityType;
 import com.football501.repository.AnswerRepository;
 import com.football501.repository.QuestionRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,13 +29,7 @@ public class AdminAnswerService {
     private final AnswerRepository answerRepository;
     private final QuestionRepository questionRepository;
     private final EntitySearchService entitySearchService;
-
-    /**
-     * Entity type used when registering footballer answers for autocomplete.
-     * TODO: derive from the question's config JSONB (config.entity_type) once
-     * non-football question types are introduced.
-     */
-    private static final String DEFAULT_ENTITY_TYPE = "footballer";
+    private final AnswerMapper answerMapper;
 
     @Transactional
     public AnswerResponse createAnswer(UUID questionId, CreateAnswerRequest request) {
@@ -58,9 +54,9 @@ public class AdminAnswerService {
 
         Answer saved = answerRepository.save(answer);
         // Register in the global entity autocomplete registry (idempotent).
-        entitySearchService.upsertEntity(request.getDisplayText(), DEFAULT_ENTITY_TYPE, null);
+        entitySearchService.upsertEntity(request.getDisplayText(), EntityType.FOOTBALLER, null);
         log.info("Created answer '{}' for question {}", saved.getDisplayText(), questionId);
-        return mapToResponse(saved);
+        return answerMapper.toResponse(saved);
     }
 
     @Transactional
@@ -94,7 +90,7 @@ public class AdminAnswerService {
 
         answerRepository.saveAll(toSave);
         // Register each new name in the global entity autocomplete registry (idempotent).
-        toSave.forEach(a -> entitySearchService.upsertEntity(a.getDisplayText(), DEFAULT_ENTITY_TYPE, null));
+        toSave.forEach(a -> entitySearchService.upsertEntity(a.getDisplayText(), EntityType.FOOTBALLER, null));
 
         BulkCreateAnswersResponse response = new BulkCreateAnswersResponse();
         response.setErrors(new ArrayList<>());
@@ -109,7 +105,7 @@ public class AdminAnswerService {
             throw new IllegalArgumentException("Question not found with id: " + questionId);
         }
         return answerRepository.findByQuestionIdOrderByScoreDesc(questionId).stream()
-                .map(this::mapToResponse)
+                .map(answerMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
@@ -136,7 +132,7 @@ public class AdminAnswerService {
 
         Answer saved = answerRepository.save(answer);
         log.info("Updated answer: {}", saved.getId());
-        return mapToResponse(saved);
+        return answerMapper.toResponse(saved);
     }
 
     @Transactional
@@ -166,17 +162,4 @@ public class AdminAnswerService {
         return !DartsValidator.isValidDartsScore(score);
     }
 
-    private AnswerResponse mapToResponse(Answer answer) {
-        AnswerResponse response = new AnswerResponse();
-        response.setId(answer.getId());
-        response.setQuestionId(answer.getQuestionId());
-        response.setAnswerKey(answer.getAnswerKey());
-        response.setDisplayText(answer.getDisplayText());
-        response.setScore(answer.getScore());
-        response.setIsValidDarts(answer.getIsValidDarts());
-        response.setIsBust(answer.getIsBust());
-        response.setMetadata(answer.getMetadata());
-        response.setCreatedAt(answer.getCreatedAt());
-        return response;
-    }
 }

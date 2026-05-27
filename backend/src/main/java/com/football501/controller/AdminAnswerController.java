@@ -73,9 +73,4 @@ public class AdminAnswerController {
         }
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleBadRequest(IllegalArgumentException e) {
-        log.warn("Bad request: {}", e.getMessage());
-        return ResponseEntity.badRequest().body(e.getMessage());
-    }
 }

@@ -5,6 +5,7 @@ import com.football501.dto.admin.CreateCategoryRequest;
 import com.football501.dto.admin.UpdateCategoryRequest;
 import com.football501.exception.CategoryHasQuestionsException;
 import com.football501.exception.DuplicateEntityException;
+import com.football501.mapper.CategoryMapper;
 import com.football501.model.Category;
 import com.football501.repository.CategoryRepository;
 import com.football501.repository.QuestionRepository;
@@ -24,6 +25,7 @@ public class AdminCategoryService {
 
     private final CategoryRepository categoryRepository;
     private final QuestionRepository questionRepository;
+    private final CategoryMapper categoryMapper;
 
     @Transactional
     public CategoryResponse createCategory(CreateCategoryRequest request) {
@@ -42,7 +44,7 @@ public class AdminCategoryService {
 
         Category saved = categoryRepository.save(category);
         log.info("Created new category: {}", saved.getName());
-        return mapToResponse(saved);
+        return categoryMapper.toResponse(saved);
     }
 
     @Transactional
@@ -62,7 +64,7 @@ public class AdminCategoryService {
 
         Category saved = categoryRepository.save(category);
         log.info("Updated category: {}", saved.getName());
-        return mapToResponse(saved);
+        return categoryMapper.toResponse(saved);
     }
 
     @Transactional
@@ -77,7 +79,7 @@ public class AdminCategoryService {
     @Transactional(readOnly = true)
     public List<CategoryResponse> listCategories() {
         return categoryRepository.findAll().stream()
-                .map(this::mapToResponse)
+                .map(categoryMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
@@ -85,18 +87,7 @@ public class AdminCategoryService {
     public CategoryResponse getCategory(UUID id) {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Category not found with id: " + id));
-        return mapToResponse(category);
+        return categoryMapper.toResponse(category);
     }
 
-    private CategoryResponse mapToResponse(Category category) {
-        CategoryResponse response = new CategoryResponse();
-        response.setId(category.getId());
-        response.setName(category.getName());
-        response.setSlug(category.getSlug());
-        response.setDescription(category.getDescription());
-        response.setQuestionCount(questionRepository.countByCategoryId(category.getId()));
-        response.setCreatedAt(category.getCreatedAt());
-        response.setUpdatedAt(category.getUpdatedAt());
-        return response;
-    }
 }

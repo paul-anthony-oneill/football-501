@@ -1,6 +1,7 @@
 package com.football501.service;
 
 import com.football501.dto.PlayerSearchResponse;
+import com.football501.model.EntityType;
 import com.football501.model.NamedEntity;
 import com.football501.repository.NamedEntityRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,11 +83,11 @@ class EntitySearchNormalizationContainerTest {
     @DisplayName("Searching without accent finds player stored with acute accent (ü → u)")
     void searchWithoutAccent_findsAccentedStoredName() {
         // Given — stored via Java normalisation (Normalizer.NFD + strip combining marks)
-        entitySearchService.upsertEntity("Sergio Agüero", "footballer", "Argentina");
+        entitySearchService.upsertEntity("Sergio Agüero", EntityType.FOOTBALLER, "Argentina");
 
         // When — SQL uses unaccent(lower("aguero")); stored normalized_name = "sergio aguero"
         List<PlayerSearchResponse> results =
-                entitySearchService.search("footballer", "aguero", 10);
+                entitySearchService.search(EntityType.FOOTBALLER, "aguero", 10);
 
         // Then — Java normalisation must produce the same string as PostgreSQL unaccent()
         assertThat(results)
@@ -98,10 +99,10 @@ class EntitySearchNormalizationContainerTest {
     @Test
     @DisplayName("Searching with the full accented query also finds the player")
     void searchWithAccentedQuery_findsPlayer() {
-        entitySearchService.upsertEntity("Sergio Agüero", "footballer", "Argentina");
+        entitySearchService.upsertEntity("Sergio Agüero", EntityType.FOOTBALLER, "Argentina");
 
         List<PlayerSearchResponse> results =
-                entitySearchService.search("footballer", "agüero", 10);
+                entitySearchService.search(EntityType.FOOTBALLER, "agüero", 10);
 
         assertThat(results)
                 .extracting(PlayerSearchResponse::getName)
@@ -111,10 +112,10 @@ class EntitySearchNormalizationContainerTest {
     @Test
     @DisplayName("Umlaut ö — Mesut Özil stored and found via unaccented query")
     void umlaut_o_storedAndFound() {
-        entitySearchService.upsertEntity("Mesut Özil", "footballer", "Germany");
+        entitySearchService.upsertEntity("Mesut Özil", EntityType.FOOTBALLER, "Germany");
 
         List<PlayerSearchResponse> results =
-                entitySearchService.search("footballer", "ozil", 10);
+                entitySearchService.search(EntityType.FOOTBALLER, "ozil", 10);
 
         assertThat(results)
                 .as("Search for 'ozil' should find 'Mesut Özil'")
@@ -139,14 +140,14 @@ class EntitySearchNormalizationContainerTest {
         // Manually insert a NamedEntity the way the bulk upsert would (using Java-normalised key)
         // to verify the search can find it through the SQL LIKE path.
         namedEntityRepository.save(NamedEntity.builder()
-                .entityType("footballer")
+                .entityType(EntityType.FOOTBALLER)
                 .displayName("Raphaël Varane")
                 .normalizedName(EntitySearchService.stripAccents("raphaël varane"))
                 .hint("France")
                 .build());
 
         List<PlayerSearchResponse> results =
-                entitySearchService.search("footballer", "varane", 10);
+                entitySearchService.search(EntityType.FOOTBALLER, "varane", 10);
 
         assertThat(results)
                 .extracting(PlayerSearchResponse::getName)

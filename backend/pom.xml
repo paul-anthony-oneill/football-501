@@ -89,6 +89,13 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- MapStruct — compile-time DTO-to-entity mapping (no runtime overhead) -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>1.5.5.Final</version>
+        </dependency>
+
         <!-- Testing — core + MVC slice + JPA slice (no security-test to avoid classpath requirement for security) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -170,9 +177,22 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <annotationProcessorPaths>
+                        <!-- Lombok must come first so MapStruct sees generated getters/setters -->
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
+                        </path>
+                        <!-- Binding ensures correct compilation order between Lombok and MapStruct -->
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>0.2.0</version>
+                        </path>
+                        <!-- MapStruct annotation processor — generates mapper implementations -->
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>1.5.5.Final</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>

@@ -7,6 +7,7 @@ import com.football501.materializer.MaterializationContext;
 import com.football501.materializer.MaterializedAnswer;
 import com.football501.materializer.QuestionMaterializer;
 import com.football501.model.Answer;
+import com.football501.model.EntityType;
 import com.football501.model.Question;
 import com.football501.model.QuestionTemplate;
 import com.football501.repository.AnswerRepository;
@@ -229,7 +230,7 @@ public class QuestionMaterializerService {
             }
 
             // Register the player name in the entities autocomplete pool
-            entitySearchService.upsertEntity(ma.displayText(), "footballer", null);
+            entitySearchService.upsertEntity(ma.displayText(), EntityType.FOOTBALLER, null);
 
             // Accumulate zone counts for difficulty / viability calculation
             if (isValidDarts && !isBust) {

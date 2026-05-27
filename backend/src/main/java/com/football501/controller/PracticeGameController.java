@@ -12,12 +12,10 @@ import com.football501.service.MatchService;
 import com.football501.service.QuestionService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -46,7 +44,7 @@ public class PracticeGameController {
     private final QuestionService questionService;
     private final GameHintsService gameHintsService;
 
-    private static final String DEFAULT_CATEGORY_SLUG = "football";
+    private static final String DEFAULT_CATEGORY_SLUG = CategorySlug.FOOTBALL;
 
     public PracticeGameController(
         MatchService matchService,
@@ -203,7 +201,7 @@ public class PracticeGameController {
             && game.getWinnerId() != null
             && game.getWinnerId().equals(match.getPlayer1Id());
 
-        String entityType = "footballer";
+        String entityType = EntityType.FOOTBALLER;
         if (question.getConfig() != null) {
             Object configEntityType = question.getConfig().get("entity_type");
             if (configEntityType instanceof String s && !s.isBlank()) {
@@ -241,15 +239,4 @@ public class PracticeGameController {
         };
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException e) {
-        log.warn("Bad request: {}", e.getMessage());
-        return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-    }
-
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<Map<String, String>> handleConflict(IllegalStateException e) {
-        log.warn("Conflict: {}", e.getMessage());
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
-    }
 }

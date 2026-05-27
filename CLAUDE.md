@@ -6,11 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Football 501 is a competitive football trivia game that combines football knowledge with darts 501 scoring mechanics. Players compete to reduce their score from 501 to exactly 0 by naming football players whose statistics match a given question.
 
-**Current Status**: Game Engine & Admin UI Implemented (Phase 3 Complete).
+**Current Status**: Audit Fixes Complete (Phase 5 of 5).
 
 **Tech Stack**:
 - Frontend: Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS 4 — `frontend-react/`
-- Frontend (legacy reference): SvelteKit — `frontend/` (kept intact, not actively developed)
 - Backend: Spring Boot 4.0.6 + Java 25 + PostgreSQL 15+
 - Data Source: ScraperFC (Python Microservice)
 - Real-time: WebSocket (STOMP protocol) - *In Progress*
@@ -234,13 +233,6 @@ cd frontend-react
 npm install
 npm run dev  # Dev server on http://localhost:3000
 # API calls proxied to http://localhost:8080 via next.config.ts
-```
-
-**Frontend (SvelteKit — legacy reference only)**:
-```bash
-cd frontend
-npm install
-npm run dev  # Dev server on http://localhost:5173
 ```
 
 **Backend**:
