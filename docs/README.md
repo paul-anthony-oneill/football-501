@@ -1,6 +1,9 @@
 # Football 501 Documentation
 
-Welcome to the Football 501 documentation! This guide will help you navigate all available documents.
+Welcome to the Football 501 documentation. This index is the canonical entry point for navigating the project.
+
+**Last Updated**: 2026-05-27  
+**Status**: Audit Fixes Complete (Phase 5 of 5) — Moving to MVP Features
 
 ---
 
@@ -8,199 +11,109 @@ Welcome to the Football 501 documentation! This guide will help you navigate all
 
 ### 🚀 Start Here
 
-**New to the project?** Start with these documents in order:
+**New to the project?** Read these in order:
 
-1. **[Project Log](PROJECT_LOG.md)** - What we've implemented so far (Updated: 2026-01-18)
-2. **[Scraping Service Summary](SCRAPING_SERVICE_SUMMARY.md)** - Quick overview of how the scraping service works
-3. **[CLAUDE.md](../CLAUDE.md)** - Project overview and context for development
+1. **[CLAUDE.md](../CLAUDE.md)** — Project overview, architecture principles, tech stack, common pitfalls, and development workflow. The single most important document.
+2. **[Project Log](PROJECT_LOG.md)** — Full chronological record of design sessions and implementation phases, including all 5 audit fix phases.
+3. **[Current Implementation](CURRENT_IMPLEMENTATION.md)** — Plain-English explanation of what is built and how each layer works right now.
 
 ---
 
 ## 📋 Planning & Requirements
 
-### Core Documents
-
-- **[PRD.md](PRD.md)** - Product Requirements Document
-  - Full product vision
-  - Feature specifications
-  - User stories
-  - Success metrics
-
-- **[GAME_RULES.md](GAME_RULES.md)** - Game Mechanics
-  - Scoring system (501 darts rules)
-  - Question types
-  - Turn rules
-  - Win conditions
+- **[PRD.md](PRD.md)** — Product Requirements Document. Full product vision, feature specifications, user stories, and success metrics.
+- **[GAME_RULES.md](GAME_RULES.md)** — Authoritative game mechanics: 501 scoring, bust rules, checkout range, close-finish rule, turn timers, question types.
+- **[AUDIT_SUMMARY.md](AUDIT_SUMMARY.md)** — Comprehensive security, architectural, and code-quality audit (2026-05-26). All findings implemented across Phases 1–5. Retained as a historical record.
 
 ---
 
 ## 🏗️ Architecture & Design
 
-### Technical Design
+### System Architecture
 
-- **[design/TECHNICAL_DESIGN.md](design/TECHNICAL_DESIGN.md)** - System Architecture
-  - High-level architecture
-  - Frontend design (SvelteKit)
-  - Backend design (Spring Boot)
-  - Database schema
-  - WebSocket protocol
-  - Security considerations
+- **[design/TECHNICAL_DESIGN.md](design/TECHNICAL_DESIGN.md)** — High-level system design: client-server architecture, module breakdown, database schema, WebSocket protocol.
+- **[design/BACKEND_ARCHITECTURE.md](design/BACKEND_ARCHITECTURE.md)** — Detailed backend architecture. Covers all packages (`engine/`, `security/`, `mapper/`, `service/`, `controller/`), JPA auditing pattern, error handling pattern, identity model, and Mermaid diagrams. Reflects audit Phases 1–5.
+- **[design/FRONTEND_ARCHITECTURE.md](design/FRONTEND_ARCHITECTURE.md)** — Detailed frontend architecture. Covers page structure, hook responsibilities (`useGameLoop`, `useQuestionDetail`), component tree, Tailwind theming, and admin page decomposition. Reflects audit Phase 3.
+- **[design/DATA_MODEL_RELATIONSHIPS.md](design/DATA_MODEL_RELATIONSHIPS.md)** — Entity-relationship overview and table descriptions.
 
-### Data Source Implementation
+### Security
 
-- **[design/SCRAPERFC_INTEGRATION.md](design/SCRAPERFC_INTEGRATION.md)** - Implementation Guide (30+ pages)
-  - ScraperFC overview and API reference
-  - Python microservice architecture
-  - Database schema mapping
-  - 4-phase implementation plan (7-12 days)
-  - Code examples for all question types
-  - Risk assessment and testing strategy
+- **[SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md)** — Current security model: `SecurityConfig`, `DevModeAuthFilter`, URL-level access policy, `@PreAuthorize` on admin controllers, CORS. Includes what is deferred (real OAuth, CSRF, CSP) and the production migration path.
 
-- **[design/SCRAPING_SERVICE_OPERATIONS.md](design/SCRAPING_SERVICE_OPERATIONS.md)** - Operations Guide
-  - How the scraping service works
-  - Service workflows (initial, weekly, manual)
-  - Complete data flow diagrams
-  - API endpoint specifications
-  - Configuration and monitoring
-  - Error handling
+### Game & Scoring
+
+- **[design/DIFFICULTY_SCORING.md](design/DIFFICULTY_SCORING.md)** — Continuous difficulty score (0.00–10.00): formula, zone boundaries, saturation thresholds, viability gate, recalibration endpoint. Implemented in Phase 4.
+- **[design/GAME_MODES_STRETCH_GOALS.md](design/GAME_MODES_STRETCH_GOALS.md)** — Designed-but-not-built game modes (Daily Challenge, Rapid Fire, Draft, Category Lock). Includes the architectural guardrails to keep these options open.
+
+### Autocomplete & Entity Search
+
+- **[design/AUTOCOMPLETE_ENTITY_DESIGN.md](design/AUTOCOMPLETE_ENTITY_DESIGN.md)** — The `entities` table, `EntityType` constants, upsert strategy, PostgreSQL trigram search, normalisation contract, and guide for adding new entity types.
+
+### Data Source
+
+- **[design/QUESTION_PIPELINE.md](design/QUESTION_PIPELINE.md)** — How questions move from template → draft → active, including materialisation and auto-exclusion.
+- **[design/SCRAPERFC_INTEGRATION.md](design/SCRAPERFC_INTEGRATION.md)** — Python microservice architecture, ScraperFC API reference, database schema mapping, ETL flow.
+- **[design/SCRAPING_SERVICE_OPERATIONS.md](design/SCRAPING_SERVICE_OPERATIONS.md)** — Operational guide: service workflows, data flow diagrams, API endpoint specs, error handling.
 
 ---
 
-## 🛠️ Implementation
+## 🛠️ Implementation Status
 
-### Current Status (2026-01-18)
+### ✅ Complete
 
-✅ **Completed**:
-- Data source research and selection (ScraperFC)
-- Proof of concept validation (603 EPL players scraped)
-- Comprehensive documentation (3 design docs)
+| Area | Details |
+|---|---|
+| Spring Security | `SecurityConfig` + `DevModeAuthFilter`; `@PreAuthorize` on admin controllers |
+| Identity model | `Principal.getName()` — no `@RequestParam playerId` |
+| JPA Auditing | `@EnableJpaAuditing`, `@CreatedDate`/`@LastModifiedDate` on all models |
+| Backfill upsert | `INSERT … ON CONFLICT DO NOTHING` — race-safe, restartable |
+| Normalisation contract | Integration test: Java `Normalizer` vs PostgreSQL `unaccent()` |
+| Game State Machine | `GameStateMachine` — pure transition coordinator in `engine/` |
+| Frontend game hook | `useGameLoop` — owns all game state and API calls |
+| Admin page decomposition | `questions/[id]/page.tsx` 622 → 113 lines; `useQuestionDetail`, `QuestionMetaPanel`, `AnswerTableSection` |
+| Difficulty scoring | `DifficultyConstants`, `DifficultyCalculator`, V13 migration, recalibration endpoint |
+| Viability gate | Auto-exclusion at materialisation; `viability_exclusion_reason` populated |
+| MapStruct mappers | `AnswerMapper`, `CategoryMapper` — compile-time DTO mapping |
+| GlobalExceptionHandler | Central `@RestControllerAdvice`; consistent error JSON across all controllers |
+| EntityType constants | `EntityType.FOOTBALLER` etc. — no bare `"footballer"` string literals |
+| SvelteKit deleted | `frontend/` removed; `frontend-react/` is the only frontend |
 
-⏳ **Next Steps**:
-- Python microservice implementation (3-5 days)
-- Database integration (2-3 days)
-- Deployment (1-2 days)
+### ⏳ Remaining MVP Work
 
-### Code Artifacts
-
-- **[backend/scripts/](../backend/scripts/)** - Proof of Concept Scripts
-  - `poc_validated.py` - ✅ Working PoC (PRIMARY)
-  - `requirements.txt` - Python dependencies
-  - `README.md` - Setup instructions
+| Area | Priority | Notes |
+|---|---|---|
+| Real authentication | 🔴 High | Replace `DevModeAuthFilter` with JWT filter; OAuth 2.0 (Google first) + guest accounts |
+| Data population | 🔴 High | Python scraper must run and populate `questions`, `answers`, `entities` |
+| WebSocket multiplayer | 🟡 Medium | STOMP broker config; `GameStateMachine` is ready to receive WebSocket events |
+| Matchmaking | 🟡 Medium | Queue entry/exit; skill-based pairing; lobby → game handoff |
+| Player profiles & ranking UI | 🟡 Medium | MMR, league points, rank badge — backend models exist, no frontend |
+| Turn timer | 🟡 Medium | 45s→30s→15s→forfeit; server-side enforcement + client display |
+| Daily Challenge | 🟢 Low | Tables exist; needs scheduler, service, frontend page |
+| CSP + rate limiting | 🟢 Low | Next.js `middleware.ts` CSP; Spring rate limiting |
 
 ---
 
 ## 📖 Quick Reference
 
-### Common Questions
-
-**Q: How does the scraping service work?**
-→ Read: [Scraping Service Summary](SCRAPING_SERVICE_SUMMARY.md)
-
-**Q: What's the detailed implementation plan?**
-→ Read: [ScraperFC Integration Guide](design/SCRAPERFC_INTEGRATION.md)
-
-**Q: What have we implemented so far?**
-→ Read: [Project Log](PROJECT_LOG.md)
-
-**Q: What are the game rules?**
-→ Read: [Game Rules](GAME_RULES.md)
-
-**Q: What's the database schema?**
-→ Read: [Technical Design - Database Schema](design/TECHNICAL_DESIGN.md#database-schema)
-
-**Q: How do I run the proof of concept?**
-→ Read: [backend/scripts/README.md](../backend/scripts/README.md)
-
----
-
-## 🎯 Document Roadmap
-
-### Essential Reading (Before Development)
-
-1. [Project Log](PROJECT_LOG.md) - Current status
-2. [Scraping Service Summary](SCRAPING_SERVICE_SUMMARY.md) - How it works
-3. [ScraperFC Integration](design/SCRAPERFC_INTEGRATION.md) - Implementation details
-
-### Reference Documents (During Development)
-
-- [Technical Design](design/TECHNICAL_DESIGN.md) - Architecture reference
-- [Scraping Service Operations](design/SCRAPING_SERVICE_OPERATIONS.md) - Operational workflows
-- [Game Rules](GAME_RULES.md) - Game mechanics reference
-
----
-
-## 📊 Project Timeline
-
-### Phase 1: Planning & Design ✅ COMPLETE
-- Product requirements defined
-- Technical architecture designed
-- Data source selected and validated
-
-### Phase 2: MVP Development (Current)
-- **Week 1-2**: Python microservice + database integration
-- **Week 3**: Spring Boot backend (game engine, WebSocket)
-- **Week 4**: SvelteKit frontend (basic UI)
-- **Week 5**: Testing and deployment
-
-### Phase 3: Beta Launch
-- Limited user testing
-- Performance optimization
-- Bug fixes
+| Question | Where to look |
+|---|---|
+| How does the scoring system work? | [GAME_RULES.md](GAME_RULES.md) |
+| How does security / auth work? | [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) |
+| How does autocomplete avoid revealing answers? | [AUTOCOMPLETE_ENTITY_DESIGN.md](design/AUTOCOMPLETE_ENTITY_DESIGN.md) |
+| How is question difficulty computed? | [DIFFICULTY_SCORING.md](design/DIFFICULTY_SCORING.md) |
+| How does game state transition work? | [BACKEND_ARCHITECTURE.md](design/BACKEND_ARCHITECTURE.md) — GameStateMachine section |
+| How does the frontend own game state? | [FRONTEND_ARCHITECTURE.md](design/FRONTEND_ARCHITECTURE.md) — useGameLoop section |
+| What audit findings were fixed? | [AUDIT_SUMMARY.md](AUDIT_SUMMARY.md) + [PROJECT_LOG.md](PROJECT_LOG.md) |
+| How does the data scraper work? | [SCRAPERFC_INTEGRATION.md](design/SCRAPERFC_INTEGRATION.md) |
+| What game modes are planned? | [GAME_MODES_STRETCH_GOALS.md](design/GAME_MODES_STRETCH_GOALS.md) |
 
 ---
 
 ## 🔗 External Resources
 
-### Data Sources
 - **ScraperFC**: https://scraperfc.readthedocs.io/
 - **FBref**: https://fbref.com/
-- **API-Football** (future): https://www.api-football.com/
-
-### Technologies
 - **Spring Boot**: https://spring.io/projects/spring-boot
-- **SvelteKit**: https://kit.svelte.dev/
-- **PostgreSQL**: https://www.postgresql.org/
-- **FastAPI**: https://fastapi.tiangolo.com/
-
----
-
-## 📝 Contributing
-
-### Adding New Documentation
-
-When creating new documents, follow this structure:
-
-```markdown
-# Document Title
-
-**Version**: 1.0
-**Date**: YYYY-MM-DD
-**Status**: Draft | Review | Final
-
-## Table of Contents
-...
-
-## Overview
-...
-```
-
-### Document Types
-
-- **Planning**: PRD, requirements, specifications
-- **Design**: Architecture, technical design, implementation plans
-- **Operations**: Deployment, monitoring, maintenance guides
-- **Reference**: API docs, schemas, configuration guides
-
----
-
-## 📧 Contact
-
-For questions about this documentation:
-- See: [CLAUDE.md](../CLAUDE.md) for project context
-- Check: [Project Log](PROJECT_LOG.md) for recent changes
-
----
-
-**Last Updated**: 2026-01-18
-**Total Documents**: 8 (3 planning, 4 design, 1 implementation log)
-**Status**: MVP Development Phase
+- **Next.js**: https://nextjs.org/docs
+- **PostgreSQL trigrams**: https://www.postgresql.org/docs/current/pgtrgm.html
+- **MapStruct**: https://mapstruct.org/documentation/stable/reference/html/

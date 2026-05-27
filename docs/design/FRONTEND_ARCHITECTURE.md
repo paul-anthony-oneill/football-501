@@ -1,8 +1,8 @@
 # Frontend Design & Architecture (React)
 
-**Version**: 2.0
-**Last Updated**: 2026-05-25
-**Status**: Implemented (Lobby + Teletext Theme)
+**Version**: 2.1  
+**Last Updated**: 2026-05-27  
+**Status**: Implemented — Lobby, Teletext Theme, Admin Page Decomposition, useGameLoop hook
 
 ---
 
@@ -54,37 +54,80 @@ Key features implemented:
 
 ### Component Structure
 
-The frontend has been modularized to separate the lobby logic from the active match logic.
+The frontend is modularized to separate the lobby logic from the active match logic, and to keep admin components focused on single concerns. The admin question detail page was decomposed in Phase 3 from 622 lines to 113 lines.
 
 ```
 src/
 ├── app/
-│   ├── page.tsx (Main Orchestrator)
-│   └── globals.css (Theme Definitions)
+│   ├── page.tsx                    (97 lines — lobby state only; uses useGameLoop)
+│   ├── globals.css                 (Theme Definitions)
+│   └── admin/
+│       ├── questions/
+│       │   └── [id]/page.tsx       (113 lines — thin coordinator; uses useQuestionDetail)
+│       └── categories/
 ├── components/
 │   ├── game/
 │   │   ├── lobby/
-│   │   │   └── LobbyView.tsx (Lobby & Mode Selection)
+│   │   │   └── LobbyView.tsx       (Lobby & Mode Selection)
 │   │   ├── match/
-│   │   │   └── MatchView.tsx (Game UI & Scoreboard)
-│   │   └── EntitySearch.tsx (Theme-aware Autocomplete)
+│   │   │   └── MatchView.tsx       (Game UI & Scoreboard)
+│   │   └── EntitySearch.tsx        (Theme-aware Autocomplete)
+│   └── admin/
+│       ├── AnswerTableSection.tsx  (Answers table rendering)
+│       ├── QuestionMetaPanel.tsx   (Question metadata form fields)
+│       └── AnswerPreview.tsx       (Individual answer row rendering)
+└── hooks/
+    ├── useGameLoop.ts              (Game session state + API calls)
+    └── useQuestionDetail.ts        (Admin question detail state + mutations)
 ```
 
 ---
 
 ## 3. Implementation Patterns
 
+### State Management — Custom Hooks, Not Zustand
+
+All game and admin state is managed through custom React hooks backed by `useState`. This matches the architecture decision in `CLAUDE.md`: no Redux or Zustand. A custom hook is sufficient and consistent with the React Context pattern already in use.
+
+**`useGameLoop`** (`src/hooks/useGameLoop.ts`)  
+Owns the entire game session. Exposes typed state and three actions:
+
+| State field | Type | Description |
+|---|---|---|
+| `score` | `number` | Current score (starts at 501) |
+| `question` | `string` | Active question text |
+| `turnCount` | `number` | Turns taken |
+| `gameStatus` | `GameStatus` | `NOT_STARTED \| IN_PROGRESS \| COMPLETED` |
+| `moves` | `Move[]` | History, newest first |
+| `entityType` | `string` | Autocomplete pool (e.g. `"footballer"`) |
+| `hints` | `GameHints \| null` | In-game hint stats |
+
+| Action | Signature | Description |
+|---|---|---|
+| `startNewGame` | `(categorySlug: string) => Promise<void>` | POST to `/api/practice/start` |
+| `submitAnswer` | `(answer: string) => Promise<void>` | POST to `/api/practice/games/{id}/submit` |
+| `exitGame` | `() => void` | Resets state, switches theme back to home |
+
+WebSocket lifecycle will be added inside `useGameLoop` when multiplayer is implemented — `page.tsx` will not need to change.
+
+**`useQuestionDetail`** (`src/hooks/useQuestionDetail.ts`)  
+Owns the admin question detail workflow: fetching question data, form state for metadata edits, bulk answer import, and mutations. The `questions/[id]/page.tsx` component calls this hook and passes the returned values to focused sub-components.
+
 ### Theme Switching
 
-The orchestrator (`page.tsx`) handles the transition between Home and Game by updating the `gameStatus` and manipulating the body class.
+Theme transitions are owned by `useGameLoop`, not by `page.tsx`. The hook applies the body class change as a side-effect of `startNewGame` and `exitGame`:
 
 ```typescript
-function startNewGame() {
-  setGameStatus("IN_PROGRESS");
-  document.body.classList.remove('theme-home');
-  document.body.classList.add('theme-teletext');
-}
+// Inside useGameLoop — startNewGame
+document.body.classList.remove("theme-home");
+document.body.classList.add("theme-teletext");
+
+// Inside useGameLoop — exitGame
+document.body.classList.remove("theme-teletext");
+document.body.classList.add("theme-home");
 ```
+
+`page.tsx` only reads `gameStatus` from the hook and conditionally renders `LobbyView` or `MatchView`.
 
 ### Theme-Aware Components
 

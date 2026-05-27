@@ -1,7 +1,8 @@
 # Backend Architecture — Mermaid Diagrams
 
 > Generated from source analysis of `backend/src/main/java/com/football501/`.  
-> Spring Boot 4.x · Java 25 · PostgreSQL 15 · Flyway 12
+> Spring Boot 4.x · Java 25 · PostgreSQL 15 · Flyway 12  
+> Last updated: 2026-05-27 (reflects audit fix Phases 1–5)
 
 ---
 
@@ -17,9 +18,12 @@ graph TB
 
     subgraph BACKEND["Spring Boot Backend\n(backend/)"]
         direction TB
+        SEC["Security Layer\nSecurityConfig · DevModeAuthFilter"]
         CTRL["REST Controllers\n/api/practice\n/api/admin\n/api/entities\n/api/categories"]
-        SVC["Service Layer\nGameService · MatchService\nQuestionService · AdminAnswerService\nEntitySearchService · QuestionMaterializerService"]
-        ENGINE["Game Engine\nAnswerEvaluator · ScoringService\nDartsValidator"]
+        EXC["Exception Handling\nGlobalExceptionHandler"]
+        SVC["Service Layer\nGameService · MatchService\nQuestionService · AdminAnswerService\nEntitySearchService · QuestionMaterializerService\nDifficultyRecalibrationService"]
+        MAP["Mapper Layer\nAnswerMapper · CategoryMapper\n(MapStruct)"]
+        ENGINE["Game Engine\nGameStateMachine · GameTransition\nAnswerEvaluator · ScoringService\nDartsValidator · DifficultyCalculator\nDifficultyConstants"]
         MAT["Materializers\nFootballTeamCompetitionSeason\nFootballTeamCompetitionMetricSince\nFootballPlayerCareerMetric\nFootballPlayerCompetitionMetricSince"]
         REPO["Repository Layer\nJPA Repositories (Spring Data)"]
     end
@@ -35,8 +39,11 @@ graph TB
         SC["ScraperFC\n(FBref data)"]
     end
 
-    FE -- "HTTPS REST" --> CTRL
+    FE -- "HTTPS REST" --> SEC
+    SEC --> CTRL
+    CTRL --> EXC
     CTRL --> SVC
+    SVC --> MAP
     SVC --> ENGINE
     SVC --> MAT
     SVC --> REPO
@@ -50,7 +57,7 @@ graph TB
 
 ## 2. Backend Package Architecture (Layers)
 
-Shows how the six main packages relate to each other, with their key responsibilities.
+Shows how the main packages relate to each other, with their key responsibilities. Packages added by the audit fix campaign are marked with `(new)`.
 
 ```mermaid
 graph LR
@@ -58,33 +65,52 @@ graph LR
         REQ(("HTTP\nRequest"))
     end
 
+    subgraph SEC["security/ (new)"]
+        SC["SecurityConfig\n@EnableMethodSecurity"]
+        DMF["DevModeAuthFilter\n@Profile(!prod)"]
+    end
+
     subgraph CTRL["controller/"]
-        PGC["PracticeGameController"]
-        AAC["AdminAnswerController"]
-        AQC["AdminQuestionController"]
-        ATC["AdminTemplateController"]
-        ACC["AdminCategoryController"]
-        AEC["AdminEntityController"]
+        PGC["PracticeGameController\n(Principal identity)"]
+        AAC["AdminAnswerController\n@PreAuthorize ADMIN"]
+        AQC["AdminQuestionController\n@PreAuthorize ADMIN"]
+        ATC["AdminTemplateController\n@PreAuthorize ADMIN"]
+        ACC["AdminCategoryController\n@PreAuthorize ADMIN"]
+        AEC["AdminEntityController\n@PreAuthorize ADMIN"]
         CC["CategoryController"]
         EC["EntityController"]
     end
 
+    subgraph EXC["exception/ (new)"]
+        GEH["GlobalExceptionHandler\n@RestControllerAdvice"]
+    end
+
     subgraph SVC["service/"]
-        GS["GameService"]
+        GS["GameService\n(delegates to GSM)"]
         MS["MatchService"]
         QS["QuestionService"]
         AAS["AdminAnswerService"]
-        ESS["EntitySearchService"]
-        QMS["QuestionMaterializerService"]
+        ESS["EntitySearchService\n(bulk upsert)"]
+        QMS["QuestionMaterializerService\n(zone counts + viability)"]
         QGS["QuestionGeneratorService"]
         ACS["AdminCategoryService"]
         AQS["AdminQuestionService"]
+        DRS["DifficultyRecalibrationService (new)"]
+    end
+
+    subgraph MAP["mapper/ (new)"]
+        AM["AnswerMapper\nMapStruct"]
+        CM["CategoryMapper\nMapStruct"]
     end
 
     subgraph ENGINE["engine/"]
+        GSM["GameStateMachine (new)\npure transition rules"]
+        GT["GameTransition (new)\nimmutable result record"]
         AE["AnswerEvaluator"]
         SS["ScoringService"]
         DV["DartsValidator\n(static utility)"]
+        DC["DifficultyCalculator (new)\npure static formula"]
+        DCON["DifficultyConstants (new)\nall tunable parameters"]
     end
 
     subgraph MAT["materializer/"]
@@ -100,8 +126,8 @@ graph LR
         GR["GameRepository"]
         GMR["GameMoveRepository"]
         MR["MatchRepository"]
-        QR["QuestionRepository"]
-        NER["NamedEntityRepository"]
+        QR["QuestionRepository\n(difficulty/viability queries)"]
+        NER["NamedEntityRepository\n(bulk upsert)"]
         PR["PlayerRepository"]
         PSR["PlayerSeasonStintRepository"]
         TR["TeamRepository"]
@@ -116,10 +142,18 @@ graph LR
         MOD1["Question · Answer\nNamedEntity · Category"]
         MOD2["Match · Game · GameMove"]
         MOD3["Player · Team · Season\nCompetition · PlayerSeasonStint\nQuestionTemplate"]
+        MOD4["EntityType · CategorySlug (new)\nconstants classes"]
     end
 
-    REQ --> CTRL
+    subgraph CFG["config/ (new)"]
+        JC["JpaConfig\n@EnableJpaAuditing"]
+    end
+
+    REQ --> SEC
+    SEC --> CTRL
+    CTRL --> EXC
     CTRL --> SVC
+    SVC --> MAP
     SVC --> ENGINE
     SVC --> MAT
     ENGINE --> REPO
@@ -127,6 +161,9 @@ graph LR
     SVC --> REPO
     QMI --> M1 & M2 & M3 & M4
     REPO --> MODEL
+    CFG -. "auditing" .-> MODEL
+    DC -. "uses" .-> DCON
+    GSM -. "returns" .-> GT
 ```
 
 ---
@@ -135,18 +172,23 @@ graph LR
 
 Sequence diagram for a single `POST /api/practice/games/{gameId}/submit` call.
 
+Identity is derived from the Spring Security `Principal` (injected by `DevModeAuthFilter` in dev, by a JWT filter in prod). The `playerId` request parameter has been removed.
+
 ```mermaid
 sequenceDiagram
     participant Client
     participant PracticeGameController
     participant GameService
+    participant GameStateMachine
     participant AnswerEvaluator
     participant ScoringService
     participant DartsValidator
     participant AnswerRepository
     participant DB as PostgreSQL
 
-    Client->>PracticeGameController: POST /api/practice/games/{id}/submit\n{answer: "Erling Haaland"}
+    Client->>PracticeGameController: POST /api/practice/games/{id}/submit\n{answer: "Erling Haaland"}\n[Spring Security Principal: DEV_PLAYER_ID]
+
+    Note over PracticeGameController: playerId = UUID.fromString(principal.getName())
 
     PracticeGameController->>GameService: processPlayerMove(gameId, playerId, answer)
 
@@ -174,6 +216,10 @@ sequenceDiagram
 
     AnswerEvaluator-->>GameService: AnswerResult{valid, displayText, score=35, newTotal=466}
 
+    GameService->>GameStateMachine: onMoveSubmitted(game, match, playerId, answerResult)
+    Note over GameStateMachine: Classifies move (VALID/BUST/INVALID/CHECKOUT)\nApplies timer rules, close-finish rule\nNo DB dependencies — pure function
+    GameStateMachine-->>GameService: GameTransition{result=VALID, scoreAfter=466, turnAdvanced=true, …}
+
     GameService->>DB: save(GameMove{result=VALID, scoreBefore=501, scoreAfter=466})
     GameService->>DB: save(Game{player1Score=466, currentTurnPlayerId=…})
 
@@ -186,15 +232,23 @@ sequenceDiagram
 
 ## 4. Question Lifecycle — State Machine
 
+The `excluded` status was added by the V13 migration (Phase 4). Questions that fail viability checks at materialisation time are automatically set to `excluded` by `QuestionMaterializerService`.
+
 ```mermaid
 stateDiagram-v2
     [*] --> draft : Admin creates question\n(or QuestionGeneratorService)
 
-    draft --> active : Admin promotes via\nPOST /api/admin/questions/{id}/status\n\nTriggers QuestionMaterializerService.materialize()
+    draft --> active : Admin promotes via\nPATCH /api/admin/questions/{id}/status\n\nTriggers QuestionMaterializerService.materialize()
+
+    draft --> excluded : Materialisation runs;\nviability check fails\n(auto-exclusion)
+
+    active --> excluded : Materialisation runs;\nviability check fails\n(auto-exclusion by QuestionMaterializerService)
 
     active --> retired : Admin retires\n(removed from game rotation;\nanswers retained for replay)
 
     retired --> active : Admin re-activates\n(re-materializes answers)
+
+    excluded --> draft : Admin resets to draft\n(after fixing the question template)
 
     draft --> [*] : Admin deletes draft
 
@@ -204,9 +258,19 @@ stateDiagram-v2
     end note
 
     note right of active
-        QuestionMaterializerService
-        upserts answers + entities
-        before status flips.
+        QuestionMaterializerService upserts
+        answers + entities, computes zone
+        counts, difficulty_score, and
+        verifies viability before status flips.
+    end note
+
+    note right of excluded
+        Auto-excluded when:
+          total_score_pool < 501, OR
+          total_valid_count < 15
+        viability_exclusion_reason populated.
+        Admin can review via
+        GET /api/admin/questions?status=excluded
     end note
 
     note right of retired
@@ -440,7 +504,8 @@ sequenceDiagram
 
         Note over FE: Autocomplete uses\nGET /api/entities/search\nnot /api/answers (never!)
 
-        FE->>PGC: POST /api/practice/games/{gameId}/submit?playerId=…\n{answer: "Erling Haaland"}
+        FE->>PGC: POST /api/practice/games/{gameId}/submit\n{answer: "Erling Haaland"}\n[Spring Security Principal carries playerId]
+        Note over PGC: playerId = UUID.fromString(principal.getName())\nNever from request param (spoofing prevention)
         PGC->>GS: processPlayerMove(gameId, playerId, answer)
         GS-->>PGC: GameMove{result, scoreBefore, scoreAfter}
         PGC-->>FE: 200 SubmitAnswerResponse\n{result, scoreAfter, isWin, gameState}
@@ -515,3 +580,59 @@ graph TB
     style VALIDATION fill:#fce8e8,stroke:#F44336
     style POPULATION fill:#e8fce8,stroke:#4CAF50
 ```
+
+---
+
+## 10. JPA Auditing Pattern
+
+All model classes must follow this pattern (introduced in Phase 2). Manual `LocalDateTime.now()` in `@PrePersist` is the old pattern — do not reintroduce it.
+
+```java
+@Entity
+@EntityListeners(AuditingEntityListener.class)  // required — without this, @CreatedDate/@LastModifiedDate do not fire
+public class MyEntity {
+
+    @CreatedDate
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
+
+    // Business-purpose timestamps that are NOT audit fields stay manual:
+    // @PrePersist void onPersist() { this.startedAt = LocalDateTime.now(); }
+}
+```
+
+`JpaConfig.java` (`@EnableJpaAuditing`) activates this framework-wide. It is already in place — new model classes just need the `@EntityListeners` annotation.
+
+**Test note**: `@WebMvcTest` slices do not load a real JPA context. Add `@MockitoBean JpaMetamodelMappingContext` to the test class to prevent a `NoSuchBeanDefinitionException` at test startup.
+
+---
+
+## 11. Error Response Convention
+
+All REST error responses are produced by `GlobalExceptionHandler` (`com.football501.exception`). Do not add local `@ExceptionHandler` methods to individual controllers.
+
+**Standard error shape:**
+```json
+{ "error": "human-readable message" }
+```
+
+**Bean-validation failure shape (400):**
+```json
+{
+  "error": "Validation failed",
+  "fieldErrors": { "fieldName": "constraint message" }
+}
+```
+
+| Exception | HTTP Status |
+|---|---|
+| `IllegalArgumentException` | 400 |
+| `MethodArgumentNotValidException` | 400 (+ fieldErrors) |
+| `IllegalStateException` | 409 |
+| `DuplicateEntityException` | 409 |
+| `CategoryHasQuestionsException` | 409 |
+
+To handle a new exception type, add an `@ExceptionHandler` method to `GlobalExceptionHandler` only.
