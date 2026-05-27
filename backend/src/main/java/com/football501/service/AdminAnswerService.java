@@ -13,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -55,7 +54,7 @@ public class AdminAnswerService {
         answer.setMetadata(request.getMetadata());
         answer.setIsValidDarts(isValidDartsScore(request.getScore()));
         answer.setIsBust(isBust(request.getScore()));
-        answer.setCreatedAt(LocalDateTime.now());
+        // createdAt set automatically by @CreatedDate / AuditingEntityListener on save
 
         Answer saved = answerRepository.save(answer);
         // Register in the global entity autocomplete registry (idempotent).
@@ -89,7 +88,7 @@ public class AdminAnswerService {
             answer.setMetadata(item.getMetadata());
             answer.setIsValidDarts(isValidDartsScore(item.getScore()));
             answer.setIsBust(isBust(item.getScore()));
-            answer.setCreatedAt(LocalDateTime.now());
+            // createdAt set automatically by @CreatedDate / AuditingEntityListener on save
             toSave.add(answer);
         }
 

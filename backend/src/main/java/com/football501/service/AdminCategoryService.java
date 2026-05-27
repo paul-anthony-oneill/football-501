@@ -13,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -39,8 +38,7 @@ public class AdminCategoryService {
         category.setName(request.getName());
         category.setSlug(request.getSlug().toLowerCase());
         category.setDescription(request.getDescription());
-        category.setCreatedAt(LocalDateTime.now());
-        category.setUpdatedAt(LocalDateTime.now());
+        // createdAt / updatedAt set automatically by @CreatedDate / @LastModifiedDate on save
 
         Category saved = categoryRepository.save(category);
         log.info("Created new category: {}", saved.getName());
@@ -60,7 +58,7 @@ public class AdminCategoryService {
 
         category.setName(request.getName());
         category.setDescription(request.getDescription());
-        category.setUpdatedAt(LocalDateTime.now());
+        // updatedAt set automatically by @LastModifiedDate on save
 
         Category saved = categoryRepository.save(category);
         log.info("Updated category: {}", saved.getName());

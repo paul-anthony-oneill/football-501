@@ -18,6 +18,7 @@ import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -63,6 +64,15 @@ class PracticeGameControllerTest {
 
     @MockitoBean
     private GameHintsService gameHintsService;
+
+    /**
+     * Satisfies the dependency introduced by {@code @EnableJpaAuditing} in
+     * {@code JpaConfig}.  WebMvcTest does not load a real JPA context, so the
+     * {@code JpaMetamodelMappingContext} bean that Spring Data JPA auditing
+     * requires must be provided as a mock.
+     */
+    @MockitoBean
+    private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     /** Stub hints returned by the service — non-zero so assertions are meaningful. */
     private static final GameHints STUB_HINTS = GameHints.builder()

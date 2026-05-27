@@ -2,18 +2,14 @@ package com.football501.service;
 
 import com.football501.dto.PlayerSearchResponse;
 import com.football501.model.NamedEntity;
-import com.football501.model.Player;
 import com.football501.repository.NamedEntityRepository;
 import com.football501.repository.PlayerRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
-import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,8 +41,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class EntitySearchService {
-
-    private static final int BACKFILL_BATCH_SIZE = 500;
 
     private final NamedEntityRepository namedEntityRepository;
     private final PlayerRepository      playerRepository;
@@ -105,7 +99,6 @@ public class EntitySearchService {
                 .displayName(displayText.trim())
                 .normalizedName(normalized)
                 .hint(hint)
-                .createdAt(LocalDateTime.now())
                 .build();
 
         namedEntityRepository.save(entity);
@@ -130,57 +123,32 @@ public class EntitySearchService {
     }
 
     /**
-     * Backfills the {@code entities} table from the {@code players} source table.
+     * Backfills the {@code entities} autocomplete table from the {@code players}
+     * source table.
      *
-     * <p>This is a one-time (idempotent) operation that populates autocomplete
+     * <p>This is a one-time, idempotent operation that populates autocomplete
      * coverage without having to materialise every question first.  The scraper
      * already loaded all known footballers into {@code players}; this method
      * registers each one as a {@code "footballer"} entity so the autocomplete
      * dropdown has data immediately.
      *
-     * <p>Processes players in pages of {@value #BACKFILL_BATCH_SIZE} to avoid
-     * loading 17 k+ rows into memory at once.  Each page runs in its own
-     * transaction via {@link #upsertEntity}, so the method itself is not
-     * {@code @Transactional}.
+     * <p>Implemented as a single native {@code INSERT … ON CONFLICT DO NOTHING}
+     * so the entire backfill runs in one round-trip, eliminating the O(n) query
+     * pattern of the former check-then-insert loop and removing the race
+     * condition that could produce duplicate inserts under concurrent calls.
      *
-     * @return a map with keys {@code inserted} and {@code skipped}
+     * @return map with keys {@code inserted} (rows written) and {@code skipped}
+     *         (rows already present, derived from total player count)
      */
+    @Transactional
     public Map<String, Long> backfillFromPlayers() {
-        long inserted = 0;
-        long skipped  = 0;
-        int  pageNum  = 0;
-
         log.info("Starting entity backfill from players table…");
-
-        Page<Player> page;
-        do {
-            page = playerRepository.findAll(PageRequest.of(pageNum, BACKFILL_BATCH_SIZE));
-            for (Player player : page.getContent()) {
-                String normalized = stripAccents(player.getName().toLowerCase().trim());
-                if (namedEntityRepository
-                        .findByEntityTypeAndNormalizedName("footballer", normalized)
-                        .isPresent()) {
-                    skipped++;
-                } else {
-                    NamedEntity entity = NamedEntity.builder()
-                            .entityType("footballer")
-                            .displayName(player.getName().trim())
-                            .normalizedName(normalized)
-                            .hint(player.getNationality())
-                            .createdAt(LocalDateTime.now())
-                            .build();
-                    namedEntityRepository.save(entity);
-                    inserted++;
-                }
-            }
-            log.debug("Backfill page {}/{}: {} inserted, {} skipped so far",
-                    pageNum + 1, page.getTotalPages(), inserted, skipped);
-            pageNum++;
-        } while (page.hasNext());
-
+        long total    = playerRepository.count();
+        int  inserted = namedEntityRepository.bulkUpsertFootballersFromPlayers();
+        long skipped  = total - inserted;
         log.info("Entity backfill complete: {} inserted, {} skipped (already existed).",
                 inserted, skipped);
-        return Map.of("inserted", inserted, "skipped", skipped);
+        return Map.of("inserted", (long) inserted, "skipped", skipped);
     }
 
     // -------------------------------------------------------------------------
