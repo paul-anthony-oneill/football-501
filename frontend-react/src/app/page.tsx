@@ -39,7 +39,7 @@ export default function GamePage() {
   const [categories,           setCategories]           = useState<Category[]>([]);
   const [selectedCategorySlug, setSelectedCategorySlug] = useState("football");
   const [playerName,           setPlayerName]           = useState("GUEST_PLAYER");
-  const [gameMode,             setGameMode]             = useState<"practice" | "ranked">("practice");
+  const [gameMode,             setGameMode]             = useState<\"solo\" | \"ranked\">(\"solo\");
 
   // ── Init ───────────────────────────────────────────────────────────────────
 

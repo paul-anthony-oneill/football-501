@@ -43,7 +43,7 @@ export interface GameLoopState {
 }
 
 export interface GameLoopActions {
-  /** Start a new practice game for the given category slug. */
+  /** Start a new solo game for the given category slug. */
   startNewGame: (categorySlug: string) => Promise<void>;
   /** Submit an answer for the current game turn. */
   submitAnswer: (answer: string) => Promise<void>;
@@ -71,11 +71,6 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
   const [entityType, setEntityType] = useState("footballer");
   const [hints,      setHints]      = useState<GameHints | null>(null);
 
-  // Stable guest identity for the session — ignored server-side post Phase 1
-  // (principal comes from the Spring Security context), but kept in the
-  // request body until the DTO's playerId field is formally removed.
-  const [playerId] = useState<string>(() => crypto.randomUUID());
-
   // Internal game ID used to address subsequent move submissions
   const [gameId, setGameId] = useState<string | null>(null);
 
@@ -83,10 +78,10 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
   async function startNewGame(categorySlug: string) {
     try {
-      const res = await fetch("/api/practice/start", {
+      const res = await fetch("/api/solo/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId, categorySlug }),
+        body: JSON.stringify({ categorySlug }),
       });
 
       if (!res.ok) {
@@ -117,7 +112,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
     if (!gameId || !answer.trim()) return;
 
     try {
-      const res = await fetch(`/api/practice/games/${gameId}/submit`, {
+      const res = await fetch(`/api/solo/games/${gameId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ answer: answer.trim() }),

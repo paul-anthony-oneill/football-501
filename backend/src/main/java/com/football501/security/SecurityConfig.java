@@ -31,7 +31,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * <h3>Endpoint access policy</h3>
  * <pre>
  *   /api/admin/**           → ROLE_ADMIN   (enforced by @PreAuthorize at method level)
- *   /api/practice/**        → ROLE_USER    (enforced at URL level here)
+ *   /api/solo/**        → ROLE_USER    (enforced at URL level here)
  *   /api/entities/search    → permitAll    (public autocomplete)
  *   /api/categories         → permitAll    (public category listing)
  *   /actuator/health        → permitAll    (liveness probe)
@@ -82,8 +82,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/categories/**").permitAll()
                 // Health / liveness probes
                 .requestMatchers("/actuator/health").permitAll()
-                // Practice game — requires an authenticated user
-                .requestMatchers("/api/practice/**").hasAnyRole("USER", "ADMIN")
+                // Solo game — requires an authenticated user
+                .requestMatchers("/api/solo/**").hasAnyRole("USER", "ADMIN")
                 // Admin — also enforced at method level via @PreAuthorize
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // Deny everything else by default (safe)

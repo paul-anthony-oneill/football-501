@@ -64,7 +64,7 @@ public class GameStateMachine {
             AnswerResult answerResult
     ) {
         GameMove.MoveResult moveResult = classifyMove(answerResult);
-        boolean isPractice = match.getPlayer2Id() == null;
+        boolean isSolo = match.getPlayer2Id() == null;
         int currentScore = getPlayerScore(game, match, playerId);
 
         // ── default values (for INVALID: nothing changes) ──────────────────
@@ -87,7 +87,7 @@ public class GameStateMachine {
             // Reset timeout tracking before handling the checkout branch
             if (playerId.equals(match.getPlayer1Id())) p1Timeouts = 0;
             else                                       p2Timeouts = 0;
-            return handleCheckout(game, match, playerId, answerResult, isPractice,
+            return handleCheckout(game, match, playerId, answerResult, isSolo,
                     p1Timeouts, p2Timeouts);
         }
 
@@ -102,10 +102,10 @@ public class GameStateMachine {
         // For BUST: scoreAfter stays = currentScore (no score change)
 
         turnAdvanced = true;
-        if (!isPractice) {
+        if (!isSolo) {
             nextTurnPlayerId = opponentOf(match, playerId);
         }
-        // In practice mode, nextTurnPlayerId remains the same player.
+        // In solo mode, nextTurnPlayerId remains the same player.
 
         return new GameTransition(moveResult, scoreAfter, turnAdvanced, nextTurnPlayerId,
                 nextStatus, winnerId, nextTimer, p1Timeouts, p2Timeouts);
@@ -120,7 +120,7 @@ public class GameStateMachine {
      * @return an immutable transition descriptor; never {@code null}
      */
     public GameTransition onTimeout(Game game, Match match, UUID playerId) {
-        boolean isPractice = match.getPlayer2Id() == null;
+        boolean isSolo = match.getPlayer2Id() == null;
         int currentScore   = getPlayerScore(game, match, playerId);
 
         int p1Timeouts = game.getPlayer1ConsecutiveTimeouts();
@@ -135,7 +135,7 @@ public class GameStateMachine {
         // Forfeit threshold reached
         if (consecutiveTimeouts >= FORFEIT_TIMEOUT_THRESHOLD) {
             log.warn("Player {} forfeited after {} consecutive timeouts", playerId, consecutiveTimeouts);
-            UUID winner = isPractice ? null : opponentOf(match, playerId);
+            UUID winner = isSolo ? null : opponentOf(match, playerId);
             return new GameTransition(
                     GameMove.MoveResult.TIMEOUT, currentScore, true, null,
                     Game.GameStatus.COMPLETED, winner,
@@ -149,7 +149,7 @@ public class GameStateMachine {
         if (consecutiveTimeouts == 1)      nextTimer = REDUCED_TIMER_1;
         else if (consecutiveTimeouts == 2) nextTimer = REDUCED_TIMER_2;
 
-        UUID nextTurnPlayerId = isPractice ? playerId : opponentOf(match, playerId);
+        UUID nextTurnPlayerId = isSolo ? playerId : opponentOf(match, playerId);
 
         return new GameTransition(
                 GameMove.MoveResult.TIMEOUT, currentScore, true, nextTurnPlayerId,
@@ -176,7 +176,7 @@ public class GameStateMachine {
      *
      * <h3>Cases</h3>
      * <ol>
-     *   <li><b>Practice mode</b> — immediate win.</li>
+     *   <li><b>Solo mode</b> — immediate win.</li>
      *   <li><b>P2 responding to P1's close-finish turn</b> — compare distances to 0.</li>
      *   <li><b>P1 checks out first</b> — grant P2 one final turn (close-finish rule).</li>
      *   <li><b>P2 checks out first</b> — immediate win (no close-finish needed).</li>
@@ -187,15 +187,15 @@ public class GameStateMachine {
             Match match,
             UUID playerId,
             AnswerResult answerResult,
-            boolean isPractice,
+            boolean isSolo,
             int p1Timeouts,
             int p2Timeouts
     ) {
         int scoreAfter = answerResult.getNewTotal();
 
-        // ── Case 1: Practice mode ───────────────────────────────────────────
-        if (isPractice) {
-            log.info("Practice checkout: player {} wins", playerId);
+        // ── Case 1: Solo mode ───────────────────────────────────────────
+        if (isSolo) {
+            log.info("Solo checkout: player {} wins", playerId);
             return new GameTransition(
                     GameMove.MoveResult.CHECKOUT, scoreAfter, false, null,
                     Game.GameStatus.COMPLETED, playerId,

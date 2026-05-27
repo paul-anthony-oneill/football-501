@@ -28,7 +28,7 @@ class GameStateMachineTest {
     private UUID player1Id;
     private UUID player2Id;
     private Match multiMatch;   // two-player match
-    private Match practiceMatch; // practice match (player2 = null)
+    private Match soloMatch; // solo match (player2 = null)
     private Game game;
 
     @BeforeEach
@@ -52,10 +52,10 @@ class GameStateMachineTest {
                 .player2GamesWon(0)
                 .build();
 
-        practiceMatch = Match.builder()
+        soloMatch = Match.builder()
                 .id(UUID.randomUUID())
                 .player1Id(player1Id)
-                .player2Id(null) // practice = no opponent
+                .player2Id(null) // solo = no opponent
                 .type(Match.MatchType.CASUAL)
                 .format(Match.MatchFormat.BEST_OF_1)
                 .status(Match.MatchStatus.IN_PROGRESS)
@@ -115,12 +115,12 @@ class GameStateMachineTest {
     }
 
     @Test
-    @DisplayName("VALID move in practice mode — keeps same player (no turn switch)")
-    void validMove_practiceMode_keepsCurrentPlayer() {
+    @DisplayName("VALID move in solo mode — keeps same player (no turn switch)")
+    void validMove_soloMode_keepsCurrentPlayer() {
         AnswerResult answer = AnswerResult.valid("Player", UUID.randomUUID(),
                 30, true, false, 471, false, null, 0.9);
 
-        GameTransition t = stateMachine.onMoveSubmitted(game, practiceMatch, player1Id, answer);
+        GameTransition t = stateMachine.onMoveSubmitted(game, soloMatch, player1Id, answer);
 
         assertThat(t.turnAdvanced()).isTrue();
         assertThat(t.nextTurnPlayerId()).isEqualTo(player1Id); // stays on player1
@@ -194,13 +194,13 @@ class GameStateMachineTest {
     }
 
     @Test
-    @DisplayName("CHECKOUT in practice mode — immediate win")
-    void checkoutPracticeMode_immediateWin() {
+    @DisplayName("CHECKOUT in solo mode — immediate win")
+    void checkoutSoloMode_immediateWin() {
         game.setPlayer1Score(20);
         AnswerResult answer = AnswerResult.valid("Player", UUID.randomUUID(),
                 20, true, false, 0, true, "Win!", 0.95);
 
-        GameTransition t = stateMachine.onMoveSubmitted(game, practiceMatch, player1Id, answer);
+        GameTransition t = stateMachine.onMoveSubmitted(game, soloMatch, player1Id, answer);
 
         assertThat(t.nextGameStatus()).isEqualTo(Game.GameStatus.COMPLETED);
         assertThat(t.winnerId()).isEqualTo(player1Id);
@@ -284,9 +284,9 @@ class GameStateMachineTest {
     }
 
     @Test
-    @DisplayName("Timeout in practice mode — keeps same player (no opponent to switch to)")
-    void timeout_practiceMode_keepsCurrentPlayer() {
-        GameTransition t = stateMachine.onTimeout(game, practiceMatch, player1Id);
+    @DisplayName("Timeout in solo mode — keeps same player (no opponent to switch to)")
+    void timeout_soloMode_keepsCurrentPlayer() {
+        GameTransition t = stateMachine.onTimeout(game, soloMatch, player1Id);
 
         assertThat(t.nextTurnPlayerId()).isEqualTo(player1Id);
     }

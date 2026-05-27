@@ -1,7 +1,7 @@
 package com.football501.engine;
 
 import tools.jackson.databind.ObjectMapper;
-import com.football501.dto.StartPracticeRequest;
+import com.football501.dto.StartSoloGameRequest;
 import com.football501.dto.SubmitAnswerRequest;
 import com.football501.model.Answer;
 import com.football501.model.Category;
@@ -120,7 +120,7 @@ class FuzzyMatchingContainerTest {
     void exactMatch_returnsValid() throws Exception {
         UUID gameId = startGame();
 
-        mockMvc.perform(post("/api/practice/games/{id}/submit", gameId)
+        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
                 .param("playerId", playerId.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("Erling Haaland")))
@@ -135,7 +135,7 @@ class FuzzyMatchingContainerTest {
         UUID gameId = startGame();
 
         // "Erling Haland" (missing one 'a') should fuzzy-match "Erling Haaland"
-        mockMvc.perform(post("/api/practice/games/{id}/submit", gameId)
+        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
                 .param("playerId", playerId.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("Erling Haland")))
@@ -149,7 +149,7 @@ class FuzzyMatchingContainerTest {
     void unknownName_returnsInvalid() throws Exception {
         UUID gameId = startGame();
 
-        mockMvc.perform(post("/api/practice/games/{id}/submit", gameId)
+        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
                 .param("playerId", playerId.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("Zxqwerty Fakename9999")))
@@ -162,12 +162,12 @@ class FuzzyMatchingContainerTest {
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private UUID startGame() throws Exception {
-        StartPracticeRequest req = StartPracticeRequest.builder()
+        StartSoloGameRequest req = StartSoloGameRequest.builder()
             .playerId(playerId)
             .categorySlug("football")
             .build();
 
-        String body = mockMvc.perform(post("/api/practice/start")
+        String body = mockMvc.perform(post("/api/solo/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
             .andExpect(status().isOk())

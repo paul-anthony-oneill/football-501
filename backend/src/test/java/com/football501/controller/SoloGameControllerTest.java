@@ -1,7 +1,7 @@
 package com.football501.controller;
 
 import com.football501.dto.GameHints;
-import com.football501.dto.StartPracticeRequest;
+import com.football501.dto.StartSoloGameRequest;
 import com.football501.dto.SubmitAnswerRequest;
 import com.football501.model.*;
 import com.football501.security.DevModeAuthFilter;
@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Slice tests for {@link PracticeGameController}.
+ * Slice tests for {@link SoloGameController}.
  *
  * <h3>Authentication</h3>
  * Class-level {@code @WithMockUser} provides a principal whose name is
@@ -41,11 +41,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code UUID.fromString(DEV_PLAYER_ID)} — the same value the real
  * {@link DevModeAuthFilter} injects during local development.
  */
-@WebMvcTest(PracticeGameController.class)
+@WebMvcTest(SoloGameController.class)
 @Import(JacksonAutoConfiguration.class)
 @WithMockUser(username = DevModeAuthFilter.DEV_PLAYER_ID, roles = {"USER", "ADMIN"})
-@DisplayName("PracticeGameController Tests")
-class PracticeGameControllerTest {
+@DisplayName("SoloGameController Tests")
+class SoloGameControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -142,9 +142,9 @@ class PracticeGameControllerTest {
     }
 
     @Test
-    @DisplayName("Should start practice game and return game state with hints")
-    void shouldStartPracticeGame() throws Exception {
-        StartPracticeRequest request = StartPracticeRequest.builder()
+    @DisplayName("Should start solo game and return game state with hints")
+    void shouldStartSoloGame() throws Exception {
+        StartSoloGameRequest request = StartSoloGameRequest.builder()
             .categorySlug("football")
             .build();
 
@@ -156,7 +156,7 @@ class PracticeGameControllerTest {
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
-        mockMvc.perform(post("/api/practice/start")
+        mockMvc.perform(post("/api/solo/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
@@ -206,8 +206,7 @@ class PracticeGameControllerTest {
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(465))).thenReturn(STUB_HINTS);
 
-        // No @RequestParam playerId — identity comes from the authenticated principal
-        mockMvc.perform(post("/api/practice/games/{gameId}/submit", gameId)
+        mockMvc.perform(post("/api/solo/games/{gameId}/submit", gameId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
@@ -242,7 +241,7 @@ class PracticeGameControllerTest {
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
-        mockMvc.perform(post("/api/practice/games/{gameId}/submit", gameId)
+        mockMvc.perform(post("/api/solo/games/{gameId}/submit", gameId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
@@ -280,7 +279,7 @@ class PracticeGameControllerTest {
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(0)))
             .thenReturn(GameHints.builder().maxScoresLeft(0).checkoutsLeft(0).build());
 
-        mockMvc.perform(post("/api/practice/games/{gameId}/submit", gameId)
+        mockMvc.perform(post("/api/solo/games/{gameId}/submit", gameId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
@@ -299,8 +298,7 @@ class PracticeGameControllerTest {
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
-        // No @RequestParam playerId — identity comes from the authenticated principal
-        mockMvc.perform(get("/api/practice/games/{gameId}", gameId))
+        mockMvc.perform(get("/api/solo/games/{gameId}", gameId))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.gameId").value(gameId.toString()))
             .andExpect(jsonPath("$.questionText").value("Appearances for Manchester City in Premier League 2023/24"))
@@ -317,20 +315,20 @@ class PracticeGameControllerTest {
         UUID nonExistentGameId = UUID.randomUUID();
         when(gameService.getGameById(nonExistentGameId)).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/practice/games/{gameId}", nonExistentGameId))
+        mockMvc.perform(get("/api/solo/games/{gameId}", nonExistentGameId))
             .andExpect(status().isNotFound());
     }
 
     @Test
     @DisplayName("Should return 400 when category not found")
     void shouldReturn400WhenCategoryNotFound() throws Exception {
-        StartPracticeRequest request = StartPracticeRequest.builder()
+        StartSoloGameRequest request = StartSoloGameRequest.builder()
             .categorySlug("invalid-category")
             .build();
 
         when(questionService.getCategoryBySlug("invalid-category")).thenReturn(Optional.empty());
 
-        mockMvc.perform(post("/api/practice/start")
+        mockMvc.perform(post("/api/solo/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest());
@@ -339,7 +337,7 @@ class PracticeGameControllerTest {
     @Test
     @DisplayName("Should use default category when not specified")
     void shouldUseDefaultCategory() throws Exception {
-        StartPracticeRequest request = StartPracticeRequest.builder().build();
+        StartSoloGameRequest request = StartSoloGameRequest.builder().build();
 
         when(questionService.getCategoryBySlug("football")).thenReturn(Optional.of(category));
         when(matchService.createMatch(eq(playerId), isNull(), eq(categoryId),
@@ -349,7 +347,7 @@ class PracticeGameControllerTest {
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
-        mockMvc.perform(post("/api/practice/start")
+        mockMvc.perform(post("/api/solo/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())

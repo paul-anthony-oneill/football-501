@@ -1,24 +1,21 @@
 package com.football501.dto;
 
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.UUID;
-
 /**
- * Request DTO for starting a practice game.
+ * Request DTO for starting a solo (single-player) game.
+ *
+ * <p>Player identity is never supplied by the client — it is derived from
+ * the authenticated {@link java.security.Principal} in the controller.
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class StartPracticeRequest {
-
-    @NotNull
-    private UUID playerId;
+public class StartSoloGameRequest {
 
     private String categorySlug;
 

@@ -74,7 +74,7 @@ public class MatchService {
             .type(type)
             .format(format)
             .difficulty(difficulty != null ? difficulty : 2)
-            // Practice (CASUAL with no opponent) starts immediately; ranked matchmaking waits for p2
+            // Solo (CASUAL with no opponent) starts immediately; ranked matchmaking waits for p2
             .status(player2Id != null || type == Match.MatchType.CASUAL
                 ? Match.MatchStatus.IN_PROGRESS
                 : Match.MatchStatus.WAITING)

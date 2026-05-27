@@ -2,7 +2,7 @@ package com.football501.controller;
 
 import com.football501.dto.GameHints;
 import com.football501.dto.GameStateResponse;
-import com.football501.dto.StartPracticeRequest;
+import com.football501.dto.StartSoloGameRequest;
 import com.football501.dto.SubmitAnswerRequest;
 import com.football501.dto.SubmitAnswerResponse;
 import com.football501.model.*;
@@ -19,7 +19,7 @@ import java.security.Principal;
 import java.util.UUID;
 
 /**
- * REST controller for practice (single player) game mode.
+ * REST controller for solo (single-player) game mode.
  *
  * <h3>Authentication</h3>
  * Player identity is derived from the authenticated {@link Principal} rather
@@ -29,15 +29,15 @@ import java.util.UUID;
  *
  * Endpoints:
  * <ul>
- *   <li>POST /api/practice/start            — Start a new practice game</li>
- *   <li>POST /api/practice/games/{id}/submit — Submit an answer</li>
- *   <li>GET  /api/practice/games/{id}        — Get current game state</li>
+ *   <li>POST /api/solo/start            — Start a new solo game</li>
+ *   <li>POST /api/solo/games/{id}/submit — Submit an answer</li>
+ *   <li>GET  /api/solo/games/{id}        — Get current game state</li>
  * </ul>
  */
 @RestController
-@RequestMapping("/api/practice")
+@RequestMapping("/api/solo")
 @Slf4j
-public class PracticeGameController {
+public class SoloGameController {
 
     private final MatchService matchService;
     private final GameService gameService;
@@ -46,7 +46,7 @@ public class PracticeGameController {
 
     private static final String DEFAULT_CATEGORY_SLUG = CategorySlug.FOOTBALL;
 
-    public PracticeGameController(
+    public SoloGameController(
         MatchService matchService,
         GameService gameService,
         QuestionService questionService,
@@ -59,23 +59,22 @@ public class PracticeGameController {
     }
 
     /**
-     * Start a new practice game.
+     * Start a new solo game.
      *
-     * <p>Player identity is read from the authenticated principal — the
-     * {@code playerId} field in the request body is ignored and will be
-     * removed in a future cleanup once all clients have been updated.
+     * <p>Player identity is read from the authenticated principal — the client
+     * cannot supply or override the player ID.
      *
      * @param request   optional category / difficulty preferences
      * @param principal injected by Spring Security from the current auth token
      * @return initial game state
      */
     @PostMapping("/start")
-    public ResponseEntity<GameStateResponse> startPracticeGame(
-        @Valid @RequestBody StartPracticeRequest request,
+    public ResponseEntity<GameStateResponse> startSoloGame(
+        @Valid @RequestBody StartSoloGameRequest request,
         Principal principal
     ) {
         UUID playerId = playerIdFrom(principal);
-        log.debug("Starting practice game for player {}", playerId);
+        log.debug("Starting solo game for player {}", playerId);
 
         String categorySlug = request.getCategorySlug() != null
             ? request.getCategorySlug()
@@ -98,7 +97,7 @@ public class PracticeGameController {
         Question question = questionService.getQuestionById(game.getQuestionId())
             .orElseThrow(() -> new IllegalStateException("Question not found"));
 
-        log.info("Practice game started: gameId={}, playerId={}", game.getId(), playerId);
+        log.info("Solo game started: gameId={}, playerId={}", game.getId(), playerId);
 
         return ResponseEntity.ok(buildGameStateResponse(game, question, match));
     }
