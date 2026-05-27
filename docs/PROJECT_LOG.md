@@ -99,3 +99,73 @@ Reflected the completion of Phase 3, highlighting the new Game Engine capabiliti
 1. **Multiplayer Implementation**: Begin work on WebSocket handlers for real-time play.
 2. **User Authentication**: Secure the admin routes and allow player profiles.
 3. **Integration**: Fully connect the Python scraper to populate the new V3 schema tables automatically.
+
+---
+
+## Design Session: Game Modes & Stretch Goals
+
+### Session Date: 2026-05-26
+
+### Key Design Insight
+The interesting difficulty in Football 501 is **strategic, not knowledge-based**. The game's depth comes from deciding *when* to play an answer and *which score to target*, not just from knowing valid answers. This means question difficulty ≠ game difficulty, and easy/medium questions can produce deeply competitive games.
+
+### Decisions Made
+- **Question pool weighting / difficulty stratification**: Parked as a stretch goal. The priority is a solid, well-known-clubs question pool for the core game.
+- **Multiple game modes**: Designed and documented, but not being implemented yet. See `docs/design/GAME_MODES_STRETCH_GOALS.md`.
+
+### Modes Documented (stretch goals)
+| Mode | Summary |
+|---|---|
+| Daily Challenge | One question/day, global leaderboard, solo, easy/medium questions only |
+| Standard H2H | Current implementation — one question, shared answer pool |
+| Rapid Fire H2H | Question changes every dart; only one answer needed per question |
+| Draft Mode | Pick from 3 questions each turn |
+| Category Lock | Pre-agreed category for the whole match |
+| Blind Mode | Question hidden until your turn |
+| Tournament/League | Brackets or league tables over multiple games |
+
+### Architectural Guardrails (act on these now)
+These small decisions in the core game keep future modes open without building them:
+- `game_mode` column on `matches` (default `'STANDARD'`)
+- `question_id` on `game_moves` (not just on `games`) — needed for Rapid Fire
+- `difficulty_score NUMERIC(4,2)` on `questions` — continuous 0–10 scale (see Difficulty Scoring session below)
+- `suitable_for_daily` boolean on `questions`
+
+---
+
+## Design Session: Question Difficulty Scoring
+
+### Session Date: 2026-05-26
+
+### Problem
+The existing `difficulty INTEGER` (1/2/3 scale) is a classification, not a measurement. The variance within a single tier is too wide — the hardest "Easy" question and the easiest "Medium" question may play identically.
+
+### Key Design Insight: Knowability Correlates With Score Value
+A player who scored 175 goals is a household name. A player who scored 3 goals is obscure. The *effective* answer pool a player can draw from is always skewed toward high-value answers. This means measuring the statistical distribution of all answers is misleading — what matters is the count of answers players will realistically know (high-value) and whether the critical game phases are covered.
+
+### Decisions Made
+
+**Replaced `difficulty_tier ENUM` with `difficulty_score NUMERIC(4,2)` (0.00–10.00)**
+- Labels like "Easy" or "Hard" are derived from score ranges at render time and never stored
+- Avoids the bucketing cliff-edge problem entirely
+
+**Three score zones with relative importance**
+| Zone | Range | Weight | Role |
+|---|---|---|---|
+| High-value | 100–180 | 50% | Velocity; most knowable answers |
+| Mid-range | 20–99 | 30% | Navigation toward checkout |
+| Checkout | 1–19 | 20% | Precision approach; absence is severely penalised |
+
+**Checkout floor**: If `checkout_count = 0`, minimum difficulty is 7.0 regardless of other zones.
+
+**Depth modifier**: Large total answer pools reduce difficulty by up to 1.5 points (saturates at 200 answers). Shifts game from knowledge to strategy.
+
+**Raw counts stored alongside computed score**: Changing formula constants only requires a single SQL UPDATE — no re-materialisation of answers needed. Zone boundary changes are the expensive operation.
+
+**`difficulty_locked BOOLEAN`**: Admin override flag to pin individual question scores when the formula computes incorrectly.
+
+**`single_question_viable BOOLEAN`**: `true` when sum of valid answer scores ≥ 501. Questions failing this are excluded from standard single-question mode.
+
+### Documents Created
+- `docs/design/DIFFICULTY_SCORING.md` — full design, formula, implementation plan
+- Question draw logic in a dedicated service method (not inline)
