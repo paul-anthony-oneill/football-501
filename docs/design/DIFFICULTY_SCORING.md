@@ -12,6 +12,8 @@ Questions need a difficulty signal so the game engine can select appropriate que
 
 The replacement is a **continuous difficulty score** from 0.00 (easiest) to 10.00 (hardest), computed from the question's answer pool at materialisation time and stored in the database. Labels like "Easy" or "Hard" are derived from score ranges at render time and never stored.
 
+> **Difficulty and viability are separate concerns.** Difficulty measures how hard a viable question is to play. Viability measures whether a question is playable at all. A question can be correctly scored by the formula and still be unplayable — because it has too few distinct answers, or because its stat type structurally cannot produce values in the ranges the game needs. These two checks must be treated as independent conditions and must never be conflated.
+
 ---
 
 ## Key Design Insights
@@ -39,6 +41,10 @@ To win, a player's remaining score minus their answer must land between −10 an
 ### 4. The score is computed from stored counts, not re-derived from answers
 
 The raw zone counts (`high_value_count`, `mid_range_count`, `checkout_count`, `total_valid_count`) are stored alongside the computed `difficulty_score`. This means **changing the formula costs a single SQL UPDATE** — no re-materialisation required. Tuning constants is cheap; changing zone boundaries is not (they require recounting from the answers table).
+
+### 5. The depth bonus rewards good questions but does not penalise scarce ones
+
+The formula's depth bonus (`saturate(total_valid_count, 200) × 1.5`) ranges from 0 to −1.5 as answer count grows from 0 to 200. This correctly makes large pools easier, but the penalty for tiny pools is almost zero — a question with 3 answers gets nearly the same depth signal as one with 8. **Answer count must be enforced as a hard minimum, not just a soft signal in the formula.**
 
 ---
 
@@ -153,7 +159,126 @@ public static final double WEIGHT_CHECKOUT           = 0.20;
 
 public static final double DEPTH_BONUS_MAX           = 1.5;
 public static final double CHECKOUT_FLOOR            = 7.0;
+
+// Viability thresholds — enforced as hard minimums at materialisation time.
+// These are NOT formula inputs; they gate whether the question enters standard play.
+public static final int    MIN_SCORE_POOL            = 501;   // total_score_pool condition
+public static final int    MIN_ANSWER_COUNT          = 15;    // total_valid_count condition
 ```
+
+---
+
+## Question Viability
+
+Viability is a **pre-condition for gameplay**, not a difficulty measurement. A question is viable for standard single-question mode if and only if it satisfies both conditions:
+
+```
+total_score_pool  >= MIN_SCORE_POOL  (501)
+total_valid_count >= MIN_ANSWER_COUNT (15)
+```
+
+Both conditions must pass. Either failure independently makes the question unplayable:
+
+| Failure | Effect on gameplay |
+|---|---|
+| `total_score_pool < 501` | A player cannot theoretically reach zero — the game cannot be won |
+| `total_valid_count < 15` | Both players exhaust the answer pool within a few turns; game stalls and becomes a memory test |
+
+### Why the formula alone is insufficient
+
+Consider a question with 5 players at 101, 102, 103, 101, 104 appearances respectively:
+- `total_score_pool` = 511 (passes the 501 check)
+- `total_valid_count` = 5 (fails the 15-answer minimum)
+- `difficulty_score` ≈ 8.96 (the formula sees a hard question, not a broken one)
+- `single_question_viable` **must be false** — both players run out of answers by turn 3
+
+The depth bonus in the formula rewards depth but barely penalises scarcity. A question with 3 answers has nearly identical depth signal to one with 8. **Only a hard minimum enforced outside the formula prevents these questions from entering the game.**
+
+### Question status lifecycle
+
+```
+draft
+  │
+  ▼  Admin promotes via PATCH /api/admin/questions/{id}/status
+active  ◄─── materialisation runs, both conditions pass
+  │
+  ▼  materialisation finds viability failure (auto)
+excluded   ← status set automatically; viability_exclusion_reason populated
+  │
+  ▼  Admin can also set manually
+archived   ← intentionally deprecated questions (separate from auto-exclusion)
+```
+
+**Auto-exclusion happens at materialisation time, not in a separate cleanup job.** When an admin promotes `draft → active`, `QuestionMaterializerService` runs, computes zone counts, evaluates both viability conditions, and sets `status = 'excluded'` if either fails. The admin does not need to run a cleanup sweep.
+
+### `viability_exclusion_reason` field
+
+A `TEXT` column on `questions` that is populated whenever `single_question_viable = false`. It explains which condition(s) failed and by how much. Example values:
+
+```
+insufficient_score_pool: 234 < 501
+insufficient_answer_count: 8 < 15
+insufficient_score_pool: 234 < 501; insufficient_answer_count: 8 < 15
+```
+
+This is essential for admin observability. Without it, excluded questions are opaque — the admin cannot distinguish "borderline" from "completely broken" or understand which templates are structurally problematic.
+
+---
+
+## Structurally Incompatible Templates
+
+Some question templates are incompatible with the darts scoring mechanic at specific materialiser scopes. The problem is not marginal data — it is structural. No combination of team or season parameters can fix it.
+
+### `team_competition_sub_appearances_since` — disable immediately
+
+**Why it is broken**: Substitute appearances for a single club over any time window are almost always 1–30 per player. No player accumulates 100+ substitute appearances for one club in a real dataset. This means the template **structurally cannot produce high-value answers (100–180)**. Every answer lands in the checkout (1–19) or low mid-range zone.
+
+Consequence: the game has no velocity phase. Players chip away 3, 7, 12 points per turn. With starting score of 501 and answers averaging ~10, a game takes ~50 turns. The game stalls and is not fun to play.
+
+**Action**: Set `is_active = false` on this template row in the database. Do not generate draft questions from it. The league-scope version (`player_competition_sub_appearances_since`) is fine — it draws from 500+ players across a whole league, including players with 30–60 career sub appearances in that competition, giving adequate mid-range coverage.
+
+### Identifying other broken templates
+
+When a template produces a large proportion of auto-excluded questions, treat it as a structural signal rather than a data gap. Run this diagnostic after backfilling:
+
+```sql
+SELECT
+    qt.slug,
+    COUNT(*)                                               AS total_questions,
+    COUNT(*) FILTER (WHERE q.status = 'excluded')         AS excluded_count,
+    ROUND(
+        100.0 * COUNT(*) FILTER (WHERE q.status = 'excluded') / COUNT(*),
+        1
+    )                                                      AS exclusion_rate_pct,
+    AVG(q.total_valid_count)                               AS avg_answer_count,
+    AVG(q.total_score_pool)                                AS avg_score_pool
+FROM questions q
+JOIN question_templates qt ON q.template_id = qt.id
+GROUP BY qt.slug
+ORDER BY exclusion_rate_pct DESC;
+```
+
+Any template with `exclusion_rate_pct > 50` or `avg_answer_count < 20` should be reviewed and likely disabled.
+
+---
+
+## Difficulty Cap for Standard Play
+
+`single_question_viable` gates whether a question is *playable at all*. A difficulty cap gates whether a question is *appropriate for standard ranked matchmaking*.
+
+For standard ranked play, game selection queries should cap at **`difficulty_score <= 8.5`**. Questions scoring above this are playable in principle but produce such a constrained answer pool that games become frustrating rather than strategic. They can be reserved for future specialist modes (Expert Challenge, Handicap Mode).
+
+```sql
+-- Standard ranked play selection
+SELECT q FROM Question q
+WHERE q.categoryId           = :categoryId
+  AND q.status               = 'active'
+  AND q.singleQuestionViable = true
+  AND q.difficultyScore      BETWEEN :minScore AND 8.5
+ORDER BY FUNCTION('random')
+```
+
+The `8.5` ceiling is a starting point. Adjust after observing real question distributions — the goal is to exclude the tail where games stall, not to exclude legitimately hard questions that still play well.
 
 ---
 
@@ -162,17 +287,20 @@ public static final double CHECKOUT_FLOOR            = 7.0;
 ### New columns on `questions` (V13 migration)
 
 ```sql
-high_value_count       INT          NOT NULL DEFAULT 0
-mid_range_count        INT          NOT NULL DEFAULT 0
-checkout_count         INT          NOT NULL DEFAULT 0
-total_valid_count      INT          NOT NULL DEFAULT 0
-total_score_pool       INT          NOT NULL DEFAULT 0
-single_question_viable BOOLEAN      NOT NULL DEFAULT TRUE
-difficulty_score       NUMERIC(4,2) NOT NULL DEFAULT 5.00
-difficulty_locked      BOOLEAN      NOT NULL DEFAULT FALSE
+high_value_count           INT          NOT NULL DEFAULT 0
+mid_range_count            INT          NOT NULL DEFAULT 0
+checkout_count             INT          NOT NULL DEFAULT 0
+total_valid_count          INT          NOT NULL DEFAULT 0
+total_score_pool           INT          NOT NULL DEFAULT 0
+single_question_viable     BOOLEAN      NOT NULL DEFAULT TRUE
+viability_exclusion_reason TEXT         NULL
+difficulty_score           NUMERIC(4,2) NOT NULL DEFAULT 5.00
+difficulty_locked          BOOLEAN      NOT NULL DEFAULT FALSE
 ```
 
-**`single_question_viable`**: `true` when `total_score_pool >= 501`. Questions that fail this check cannot theoretically be completed in standard single-question mode and are excluded from game selection queries.
+**`single_question_viable`**: `true` when `total_score_pool >= 501` AND `total_valid_count >= 15` (constants from `DifficultyConstants.MIN_SCORE_POOL` / `MIN_ANSWER_COUNT`). Both conditions must pass. Questions that fail either check are automatically set to `status = 'excluded'` at materialisation time and are excluded from all game selection queries.
+
+**`viability_exclusion_reason`**: `NULL` on viable questions. Populated with a human-readable string explaining which condition(s) failed whenever `single_question_viable = false`. Exposed in the admin question list view so the cause of exclusion is always visible.
 
 **`difficulty_locked`**: Admin override flag. When `true`, the recalibration job skips this question. Allows manual pinning of scores that the formula computes incorrectly.
 
@@ -181,6 +309,7 @@ difficulty_locked      BOOLEAN      NOT NULL DEFAULT FALSE
 ```sql
 CREATE INDEX idx_questions_difficulty_score ON questions (difficulty_score) WHERE status = 'active';
 CREATE INDEX idx_questions_viable           ON questions (single_question_viable) WHERE status = 'active';
+CREATE INDEX idx_questions_excluded         ON questions (status) WHERE status = 'excluded';
 ```
 
 ### Deprecated: `difficulty INTEGER`
@@ -212,7 +341,13 @@ The `difficulty INTEGER` column (1/2/3 scale, added in V4) is superseded by `dif
 
 **File**: `backend/src/main/resources/db/migration/V13__question_difficulty_metrics.sql`
 
-Add all columns listed above. Include `COMMENT ON COLUMN` for each. Add the two indexes.
+Add all columns listed above. Include `COMMENT ON COLUMN` for each. Add the three indexes. The `viability_exclusion_reason` column is nullable — add a `CHECK` constraint enforcing that it is non-null whenever `single_question_viable = false`:
+
+```sql
+ALTER TABLE questions
+    ADD CONSTRAINT chk_viability_reason
+    CHECK (single_question_viable = true OR viability_exclusion_reason IS NOT NULL);
+```
 
 ---
 
@@ -220,7 +355,7 @@ Add all columns listed above. Include `COMMENT ON COLUMN` for each. Add the two 
 
 **File**: `backend/src/main/java/com/football501/engine/DifficultyConstants.java`
 
-A `final` class with a private constructor. All constants are `public static final`. No Spring annotations — this is a pure Java constants holder. See constants listing above.
+A `final` class with a private constructor. All constants are `public static final`. No Spring annotations — this is a pure Java constants holder. See constants listing in the Formula Constants section above, including the two new viability constants `MIN_SCORE_POOL` and `MIN_ANSWER_COUNT`.
 
 ---
 
@@ -260,7 +395,22 @@ private static double saturate(int count, double threshold) {
 
 **File**: `backend/src/main/java/com/football501/model/Question.java`
 
-Add eight new Lombok-mapped fields (all with `@Builder.Default`). Do not remove the existing `difficulty` field. Add a `@Transient boolean isViable()` convenience method.
+Add nine new Lombok-mapped fields (all with `@Builder.Default` where appropriate). Do not remove the existing `difficulty` field. Add a `@Transient boolean isViable()` convenience method.
+
+```java
+@Builder.Default private int     highValueCount           = 0;
+@Builder.Default private int     midRangeCount            = 0;
+@Builder.Default private int     checkoutCount            = 0;
+@Builder.Default private int     totalValidCount          = 0;
+@Builder.Default private int     totalScorePool           = 0;
+@Builder.Default private boolean singleQuestionViable     = true;
+                 private String  viabilityExclusionReason;        // null when viable
+@Builder.Default private double  difficultyScore          = 5.0;
+@Builder.Default private boolean difficultyLocked         = false;
+
+@Transient
+public boolean isViable() { return singleQuestionViable; }
+```
 
 ---
 
@@ -268,13 +418,13 @@ Add eight new Lombok-mapped fields (all with `@Builder.Default`). Do not remove 
 
 **File**: `backend/src/main/java/com/football501/service/QuestionMaterializerService.java`
 
-Modify `upsertAnswers()` to accumulate zone counts during the existing answer iteration loop, then call `DifficultyCalculator.calculate()` at the end and persist back to the question.
+Modify `upsertAnswers()` to accumulate zone counts during the existing answer iteration loop. After all answers are processed: compute difficulty, evaluate viability, and if non-viable auto-exclude the question before saving.
 
 Key implementation notes:
 - Add `QuestionRepository` to the constructor injection (currently absent)
 - Only update the question metrics when `difficulty_locked` is `false`
 - Update the question with a single `questionRepository.save(question)` call after all answers are processed
-- Log the computed metrics at `INFO` level for observability
+- Log computed metrics at `INFO` level; log auto-exclusion at `WARN` level
 
 Zone assignment during iteration:
 ```java
@@ -288,34 +438,100 @@ if (isValidDarts && !isBust) {
 }
 ```
 
+Viability check and auto-exclusion after the loop:
+```java
+// Compute and persist difficulty metrics
+question.setHighValueCount(highValueCount);
+question.setMidRangeCount(midRangeCount);
+question.setCheckoutCount(checkoutCount);
+question.setTotalValidCount(totalValidCount);
+question.setTotalScorePool(totalScorePool);
+
+double score = DifficultyCalculator.calculate(
+    highValueCount, midRangeCount, checkoutCount, totalValidCount);
+question.setDifficultyScore(score);
+
+// Evaluate viability — two hard conditions, both must pass
+boolean viable = totalScorePool  >= DifficultyConstants.MIN_SCORE_POOL
+              && totalValidCount  >= DifficultyConstants.MIN_ANSWER_COUNT;
+question.setSingleQuestionViable(viable);
+
+if (!viable) {
+    String reason = buildViabilityReason(totalScorePool, totalValidCount);
+    question.setViabilityExclusionReason(reason);
+    question.setStatus("excluded");
+    log.warn("Question {} auto-excluded: {}", question.getId(), reason);
+} else {
+    question.setViabilityExclusionReason(null);
+}
+
+questionRepository.save(question);
+log.info("Question {} materialised — hv={} mid={} co={} total={} pool={} score={} viable={}",
+    question.getId(), highValueCount, midRangeCount, checkoutCount,
+    totalValidCount, totalScorePool, score, viable);
+```
+
+Private helper:
+```java
+private String buildViabilityReason(int scorePool, int validCount) {
+    List<String> reasons = new ArrayList<>();
+    if (scorePool < DifficultyConstants.MIN_SCORE_POOL) {
+        reasons.add("insufficient_score_pool: " + scorePool
+                  + " < " + DifficultyConstants.MIN_SCORE_POOL);
+    }
+    if (validCount < DifficultyConstants.MIN_ANSWER_COUNT) {
+        reasons.add("insufficient_answer_count: " + validCount
+                  + " < " + DifficultyConstants.MIN_ANSWER_COUNT);
+    }
+    return String.join("; ", reasons);
+}
+```
+
 ---
 
 ### Step 6 — `DifficultyRecalibrationService.java`
 
 **File**: `backend/src/main/java/com/football501/service/DifficultyRecalibrationService.java`
 
-A Spring `@Service` that bulk-recalculates `difficulty_score` for all unlocked questions using stored counts. Does not touch the `answers` table.
+A Spring `@Service` that bulk-recalculates `difficulty_score` for all unlocked questions using stored counts. Does not touch the `answers` table. Also re-evaluates viability on each question so that threshold changes (e.g. raising `MIN_ANSWER_COUNT` from 15 to 20) propagate correctly.
 
 ```java
 @Transactional
 public RecalibrationResult recalculateAll() {
     List<Question> questions = questionRepository.findByDifficultyLockedFalse();
     int updated = 0;
+    int reExcluded = 0;
     for (Question q : questions) {
         double newScore = DifficultyCalculator.calculate(
             q.getHighValueCount(), q.getMidRangeCount(),
             q.getCheckoutCount(),  q.getTotalValidCount()
         );
-        if (Math.abs(newScore - q.getDifficultyScore()) > 0.005) {
+        boolean nowViable = q.getTotalScorePool()  >= DifficultyConstants.MIN_SCORE_POOL
+                         && q.getTotalValidCount() >= DifficultyConstants.MIN_ANSWER_COUNT;
+
+        boolean changed = Math.abs(newScore - q.getDifficultyScore()) > 0.005
+                       || nowViable != q.isSingleQuestionViable();
+        if (changed) {
             q.setDifficultyScore(newScore);
+            q.setSingleQuestionViable(nowViable);
+            if (!nowViable) {
+                q.setViabilityExclusionReason(
+                    buildViabilityReason(q.getTotalScorePool(), q.getTotalValidCount()));
+                if (!"excluded".equals(q.getStatus())) {
+                    q.setStatus("excluded");
+                    reExcluded++;
+                }
+            } else {
+                q.setViabilityExclusionReason(null);
+            }
             questionRepository.save(q);
             updated++;
         }
     }
-    return new RecalibrationResult(questions.size(), updated);
+    return new RecalibrationResult(questions.size(), updated, reExcluded);
 }
 
-public record RecalibrationResult(int total, int updated) {}
+public record RecalibrationResult(int total, int updated, int reExcluded) {}
 ```
 
 ---
@@ -324,13 +540,13 @@ public record RecalibrationResult(int total, int updated) {}
 
 **File**: `backend/src/main/java/com/football501/repository/QuestionRepository.java`
 
-Add three new methods alongside the existing ones. Do not remove `findByCategoryIdAndDifficultyAndStatus` — it may still be referenced by callers using the old integer field.
+Add the following methods alongside the existing ones. Do not remove `findByCategoryIdAndDifficultyAndStatus` — it may still be referenced by callers using the old integer field.
 
 ```java
 // Used by recalibration service
 List<Question> findByDifficultyLockedFalse();
 
-// Replaces the integer-difficulty game-selection queries
+// Standard game selection — callers pass maxScore ≤ 8.5 for ranked standard play
 @Query("""
     SELECT q FROM Question q
     WHERE q.categoryId           = :categoryId
@@ -345,8 +561,9 @@ List<Question> findViableByDifficultyRange(
     @Param("maxScore")   double maxScore
 );
 
-// Admin diagnostic: find questions with no checkout answers
+// Admin diagnostics
 List<Question> findByCheckoutCountAndStatus(int checkoutCount, String status);
+List<Question> findByStatus(String status);  // for listing excluded questions in admin UI
 ```
 
 > If `FUNCTION('random')` causes a Hibernate parsing issue, convert to `nativeQuery = true`.
@@ -362,12 +579,18 @@ Add to the existing controller:
 ```
 POST  /api/admin/questions/recalculate-difficulty
       → DifficultyRecalibrationService.recalculateAll()
-      → 200 { "total": 142, "updated": 38 }
+      → 200 { "total": 142, "updated": 38, "reExcluded": 12 }
 
 PATCH /api/admin/questions/{id}/difficulty-lock
       → body: { "locked": true, "difficultyScore": 6.5 }
       → sets difficulty_locked; difficultyScore is optional override
+
+GET   /api/admin/questions?status=excluded
+      → lists all auto-excluded questions with viabilityExclusionReason
+      → allows admin to review what was excluded and why
 ```
+
+The `viabilityExclusionReason` field must be included in `QuestionResponse` DTO so it appears in the admin question list when `status=excluded` is filtered.
 
 ---
 
@@ -397,7 +620,17 @@ SET
     checkout_count         = m.checkout_count,
     total_valid_count      = m.total_valid_count,
     total_score_pool       = m.total_score_pool,
-    single_question_viable = (m.total_score_pool >= 501)
+    single_question_viable = (m.total_score_pool >= 501 AND m.total_valid_count >= 15),
+    viability_exclusion_reason = CASE
+        WHEN m.total_score_pool >= 501 AND m.total_valid_count >= 15 THEN NULL
+        WHEN m.total_score_pool < 501 AND m.total_valid_count < 15 THEN
+            'insufficient_score_pool: ' || m.total_score_pool || ' < 501; '
+         || 'insufficient_answer_count: ' || m.total_valid_count || ' < 15'
+        WHEN m.total_score_pool < 501 THEN
+            'insufficient_score_pool: ' || m.total_score_pool || ' < 501'
+        ELSE
+            'insufficient_answer_count: ' || m.total_valid_count || ' < 15'
+    END
 FROM metrics m
 WHERE q.id = m.question_id;
 
@@ -422,6 +655,31 @@ SET difficulty_score = GREATEST(0.0, LEAST(10.0,
     END
 ))
 WHERE difficulty_locked = FALSE;
+
+-- Step 3: Set status = 'excluded' for non-viable questions.
+-- REVIEW the list below BEFORE running this step — do not run blindly.
+-- SELECT id, text, viability_exclusion_reason FROM questions WHERE single_question_viable = false;
+UPDATE questions
+SET status = 'excluded'
+WHERE single_question_viable = false
+  AND status = 'active';
+
+-- Step 4: Run the template diagnostic to identify structurally broken templates
+SELECT
+    qt.slug,
+    COUNT(*)                                               AS total_questions,
+    COUNT(*) FILTER (WHERE q.status = 'excluded')         AS excluded_count,
+    ROUND(
+        100.0 * COUNT(*) FILTER (WHERE q.status = 'excluded') / NULLIF(COUNT(*), 0),
+        1
+    )                                                      AS exclusion_rate_pct,
+    ROUND(AVG(q.total_valid_count), 1)                     AS avg_answer_count,
+    ROUND(AVG(q.total_score_pool), 0)                      AS avg_score_pool
+FROM questions q
+JOIN question_templates qt ON q.template_id = qt.id
+GROUP BY qt.slug
+ORDER BY exclusion_rate_pct DESC;
+-- Any template with exclusion_rate_pct > 50 or avg_answer_count < 20 should be reviewed.
 ```
 
 ---
@@ -442,10 +700,19 @@ WHERE difficulty_locked = FALSE;
 | Score never exceeds 10 | (0, 0, 0, 0) | ≤ 10.0 |
 | Score never below 0 | (30, 50, 15, 500) | ≥ 0.0 |
 
-Also update `QuestionMaterializerService` tests to assert that after materialisation:
-- Zone counts on the question are correctly populated
-- `singleQuestionViable` reflects whether `totalScorePool >= 501`
-- `difficultyLocked = true` prevents metrics from being overwritten
+**File**: `backend/src/test/java/com/football501/service/QuestionMaterializerServiceTest.java`
+
+Update existing tests and add:
+
+| Test case | Setup | Expected |
+|---|---|---|
+| Zone counts populated correctly | 10 answers across all zones | Counts match expected zone assignments |
+| `singleQuestionViable` true when both conditions pass | pool ≥ 501 and count ≥ 15 | `singleQuestionViable = true`, status remains `active` |
+| Auto-excluded on insufficient score pool | pool = 234, count = 20 | `status = 'excluded'`, reason contains `insufficient_score_pool` |
+| Auto-excluded on insufficient answer count | pool = 800, count = 8 | `status = 'excluded'`, reason contains `insufficient_answer_count` |
+| Auto-excluded when both conditions fail | pool = 100, count = 5 | Reason contains both failure messages |
+| `difficultyLocked = true` prevents metrics overwrite | locked question re-materialised | Counts and score unchanged |
+| `viabilityExclusionReason` null on viable question | pool = 600, count = 20 | `viabilityExclusionReason = null` |
 
 ---
 
@@ -457,6 +724,12 @@ If the difficulty scores feel wrong after observing real questions:
 2. Call `POST /api/admin/questions/recalculate-difficulty`
 3. Review scores in the admin question list
 
+If viability thresholds feel wrong (too many or too few questions excluded):
+
+1. **Adjust `MIN_SCORE_POOL` or `MIN_ANSWER_COUNT`** in `DifficultyConstants.java`
+2. Call `POST /api/admin/questions/recalculate-difficulty` — it re-evaluates viability using stored counts, no re-materialisation needed
+3. Review the `?status=excluded` admin list to see what changed
+
 If a specific question scores incorrectly and needs manual fixing:
 1. Call `PATCH /api/admin/questions/{id}/difficulty-lock` with `{ "locked": true, "difficultyScore": X.X }`
 
@@ -465,12 +738,14 @@ If zone boundaries need changing (e.g. checkout range 1–19 → 1–25):
 2. Run the backfill SQL against the live database (this re-counts from the answers table)
 3. Or trigger re-materialisation of all affected questions
 
-Zone boundary changes are the expensive operation. Formula constant changes are free.
+Zone boundary changes are the expensive operation. Formula constant changes and viability threshold changes are free.
 
 ---
 
 ## Out of Scope (Future Work)
 
 - **Remove old `difficulty INTEGER` field** — once all callers of `findByCategoryIdAndDifficultyAndStatus` are migrated, drop the column in a dedicated cleanup migration
-- **Expose `difficulty_score` in admin UI** — add to `QuestionResponse` DTO and the question list view
+- **Expose `difficulty_score` and `viabilityExclusionReason` in admin UI** — add to `QuestionResponse` DTO and the question list view; show exclusion reason inline on excluded rows
 - **Difficulty range presets** — named bands (e.g. Accessible 0–4, Competitive 4–7, Expert 7–10) defined as UI constants at render time, never stored
+- **Expert Challenge mode** — questions with `difficulty_score > 8.5` that are excluded from standard play could be surfaced here; requires a new game mode flag on `matches`
+- **Template suitability flags** — a `suitable_for_game_modes JSONB` column on `question_templates` to declare which modes a template can support; prevents future scope creep where unsuitable templates are re-enabled for the wrong modes

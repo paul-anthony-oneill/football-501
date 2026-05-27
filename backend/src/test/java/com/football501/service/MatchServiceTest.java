@@ -89,7 +89,7 @@ class MatchServiceTest {
             .categoryId(categoryId)
             .questionText("Test Question")
             .metricKey("goals")
-            .isActive(true)
+            .status(Question.STATUS_ACTIVE)
             .build();
     }
 

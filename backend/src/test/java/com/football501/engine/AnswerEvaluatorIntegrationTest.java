@@ -34,7 +34,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
 @Import({AnswerEvaluator.class, ScoringService.class})
-@ActiveProfiles("test")
 @DisplayName("Answer Evaluator Integration Tests")
 class AnswerEvaluatorIntegrationTest {
 
@@ -64,7 +63,7 @@ class AnswerEvaluatorIntegrationTest {
             .questionText("Test Question")
             .metricKey("points")
             .config(Map.of())
-            .isActive(true)
+            .status(Question.STATUS_ACTIVE)
             .build());
         
         this.questionId = question.getId();
@@ -121,7 +120,7 @@ class AnswerEvaluatorIntegrationTest {
         Category premierLeague = premierLeagueOpt.get();
 
         // 2. Get questions from that category
-        List<Question> questions = questionRepository.findByCategoryIdAndIsActiveTrue(premierLeague.getId());
+        List<Question> questions = questionRepository.findActiveByCategoryId(premierLeague.getId());
         if (questions.isEmpty()) {
             System.out.println("Skipping test: No active questions found for Premier League.");
             return;

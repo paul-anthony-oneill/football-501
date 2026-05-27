@@ -50,7 +50,7 @@ class AnswerRepositoryTest {
             .questionText("Test Question")
             .metricKey("points")
             .config(Map.of())
-            .isActive(true)
+            .status(Question.STATUS_ACTIVE)
             .build();
         entityManager.persist(question);
         
@@ -130,6 +130,72 @@ class AnswerRepositoryTest {
         assertThat(top.get(0).getScore()).isEqualTo(35); // Haaland
         assertThat(top.get(1).getScore()).isEqualTo(28); // KDB
         assertThat(top.get(2).getScore()).isEqualTo(10); // Ederson
+    }
+
+    // ── Hint query tests ────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("countRemainingMaxScores — no 180s → returns 0")
+    void countMaxScores_noMaxScoreAnswers_returnsZero() {
+        // setUp seeds scores 35, 28, 10 — none are 180
+        long count = answerRepository.countRemainingMaxScores(questionId, List.of());
+        assertThat(count).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("countRemainingMaxScores — with a 180 answer → returns 1")
+    void countMaxScores_oneMaxScoreAnswer_returnsOne() {
+        createAnswer("Max Scorer", 180, true);
+        entityManager.flush();
+
+        long count = answerRepository.countRemainingMaxScores(questionId, List.of());
+        assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("countRemainingMaxScores — 180 already used → excluded from count")
+    void countMaxScores_usedAnswerExcluded() {
+        createAnswer("Max Scorer", 180, true);
+        entityManager.flush();
+
+        UUID maxAnswerId = answerRepository
+            .findByQuestionIdAndAnswerKey(questionId, "max scorer")
+            .orElseThrow()
+            .getId();
+
+        long withExclusion = answerRepository.countRemainingMaxScores(questionId, List.of(maxAnswerId));
+        assertThat(withExclusion).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("countRemainingCheckouts — answer in range → returns 1")
+    void countCheckouts_answerInRange_returnsOne() {
+        // Current score = 35; checkout range = [35, 45]
+        // Existing answer at score 35 ("Erling Haaland") qualifies
+        long count = answerRepository.countRemainingCheckouts(questionId, 35, 45, List.of());
+        assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("countRemainingCheckouts — answer out of range → returns 0")
+    void countCheckouts_answerOutOfRange_returnsZero() {
+        // Current score = 10; checkout range = [10, 20] — only Ederson (10) qualifies
+        // But score 28 and 35 are outside → only 1
+        long count = answerRepository.countRemainingCheckouts(questionId, 10, 20, List.of());
+        assertThat(count).isEqualTo(1); // only Ederson (10)
+    }
+
+    @Test
+    @DisplayName("countRemainingCheckouts — checkout answer already used → returns 0")
+    void countCheckouts_usedAnswerExcluded() {
+        // Ederson (score=10) would check out from score 10
+        UUID edersonId = answerRepository
+            .findByQuestionIdAndAnswerKey(questionId, "ederson")
+            .orElseThrow()
+            .getId();
+
+        long count = answerRepository.countRemainingCheckouts(questionId, 10, 20, List.of(edersonId));
+        assertThat(count).isEqualTo(0);
     }
 
     private void createAnswer(String text, int score, boolean validDarts) {
