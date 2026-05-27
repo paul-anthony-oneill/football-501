@@ -1,10 +1,10 @@
 package com.football501.controller;
 
 import com.football501.dto.GameHints;
-import com.football501.dto.GameStateResponse;
 import com.football501.dto.StartPracticeRequest;
 import com.football501.dto.SubmitAnswerRequest;
 import com.football501.model.*;
+import com.football501.security.DevModeAuthFilter;
 import com.football501.service.GameHintsService;
 import com.football501.service.GameService;
 import com.football501.service.MatchService;
@@ -18,6 +18,7 @@ import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -30,18 +31,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * TDD Tests for PracticeGameController.
+ * Slice tests for {@link PracticeGameController}.
  *
- * Test scenarios:
- * 1. Start practice game - returns game state with question
- * 2. Submit valid answer - score deducted, returns result
- * 3. Submit invalid answer - returns invalid result
- * 4. Submit checkout answer - returns win result
- * 5. Get game state - returns current game state
- * 6. Start practice game with invalid category - returns 400
+ * <h3>Authentication</h3>
+ * Class-level {@code @WithMockUser} provides a principal whose name is
+ * {@link DevModeAuthFilter#DEV_PLAYER_ID}.  The controller reads player
+ * identity via {@code Principal.getName()}, so the mock stubs are keyed on
+ * {@code UUID.fromString(DEV_PLAYER_ID)} — the same value the real
+ * {@link DevModeAuthFilter} injects during local development.
  */
 @WebMvcTest(PracticeGameController.class)
 @Import(JacksonAutoConfiguration.class)
+@WithMockUser(username = DevModeAuthFilter.DEV_PLAYER_ID, roles = {"USER", "ADMIN"})
 @DisplayName("PracticeGameController Tests")
 class PracticeGameControllerTest {
 
@@ -63,12 +64,16 @@ class PracticeGameControllerTest {
     @MockitoBean
     private GameHintsService gameHintsService;
 
-    /** Stub returned by gameHintsService in every test — non-zero values so we can assert them. */
+    /** Stub hints returned by the service — non-zero so assertions are meaningful. */
     private static final GameHints STUB_HINTS = GameHints.builder()
         .maxScoresLeft(3)
         .checkoutsLeft(0)
         .build();
 
+    /**
+     * Player ID that matches the principal injected by {@code @WithMockUser}
+     * and by {@link DevModeAuthFilter} in real dev/test runs.
+     */
     private UUID playerId;
     private UUID matchId;
     private UUID gameId;
@@ -81,11 +86,12 @@ class PracticeGameControllerTest {
 
     @BeforeEach
     void setUp() {
-        playerId = UUID.randomUUID();
-        matchId = UUID.randomUUID();
-        gameId = UUID.randomUUID();
-        questionId = UUID.randomUUID();
-        categoryId = UUID.randomUUID();
+        // Must match the @WithMockUser username so controller-resolved principal == mock stub key
+        playerId  = UUID.fromString(DevModeAuthFilter.DEV_PLAYER_ID);
+        matchId   = UUID.randomUUID();
+        gameId    = UUID.randomUUID();
+        questionId  = UUID.randomUUID();
+        categoryId  = UUID.randomUUID();
 
         category = Category.builder()
             .id(categoryId)
@@ -96,7 +102,7 @@ class PracticeGameControllerTest {
         match = Match.builder()
             .id(matchId)
             .player1Id(playerId)
-            .player2Id(null) // Practice mode - no opponent
+            .player2Id(null)
             .type(Match.MatchType.CASUAL)
             .format(Match.MatchFormat.BEST_OF_1)
             .status(Match.MatchStatus.IN_PROGRESS)
@@ -126,11 +132,9 @@ class PracticeGameControllerTest {
     }
 
     @Test
-    @DisplayName("Should start practice game and return game state")
+    @DisplayName("Should start practice game and return game state with hints")
     void shouldStartPracticeGame() throws Exception {
-        // Given
         StartPracticeRequest request = StartPracticeRequest.builder()
-            .playerId(playerId)
             .categorySlug("football")
             .build();
 
@@ -142,7 +146,6 @@ class PracticeGameControllerTest {
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
-        // When/Then
         mockMvc.perform(post("/api/practice/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -159,9 +162,8 @@ class PracticeGameControllerTest {
     }
 
     @Test
-    @DisplayName("Should submit valid answer and return result with updated state")
+    @DisplayName("Should submit valid answer and return result with updated game state")
     void shouldSubmitValidAnswer() throws Exception {
-        // Given
         SubmitAnswerRequest request = SubmitAnswerRequest.builder()
             .answer("Erling Haaland")
             .build();
@@ -183,16 +185,9 @@ class PracticeGameControllerTest {
             .build();
 
         Game updatedGame = Game.builder()
-            .id(gameId)
-            .matchId(matchId)
-            .gameNumber(1)
-            .questionId(questionId)
-            .status(Game.GameStatus.IN_PROGRESS)
-            .currentTurnPlayerId(playerId)
-            .player1Score(465)
-            .player2Score(501)
-            .turnCount(1)
-            .turnTimerSeconds(45)
+            .id(gameId).matchId(matchId).gameNumber(1).questionId(questionId)
+            .status(Game.GameStatus.IN_PROGRESS).currentTurnPlayerId(playerId)
+            .player1Score(465).player2Score(501).turnCount(1).turnTimerSeconds(45)
             .build();
 
         when(gameService.processPlayerMove(gameId, playerId, "Erling Haaland")).thenReturn(move);
@@ -201,9 +196,8 @@ class PracticeGameControllerTest {
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(465))).thenReturn(STUB_HINTS);
 
-        // When/Then
+        // No @RequestParam playerId — identity comes from the authenticated principal
         mockMvc.perform(post("/api/practice/games/{gameId}/submit", gameId)
-                .param("playerId", playerId.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
@@ -222,20 +216,14 @@ class PracticeGameControllerTest {
     @Test
     @DisplayName("Should submit invalid answer and return invalid result")
     void shouldSubmitInvalidAnswer() throws Exception {
-        // Given
         SubmitAnswerRequest request = SubmitAnswerRequest.builder()
             .answer("Unknown Player")
             .build();
 
         GameMove move = GameMove.builder()
-            .id(UUID.randomUUID())
-            .gameId(gameId)
-            .playerId(playerId)
-            .moveNumber(1)
-            .submittedAnswer("Unknown Player")
-            .result(GameMove.MoveResult.INVALID)
-            .scoreBefore(501)
-            .scoreAfter(501)
+            .id(UUID.randomUUID()).gameId(gameId).playerId(playerId)
+            .moveNumber(1).submittedAnswer("Unknown Player")
+            .result(GameMove.MoveResult.INVALID).scoreBefore(501).scoreAfter(501)
             .build();
 
         when(gameService.processPlayerMove(gameId, playerId, "Unknown Player")).thenReturn(move);
@@ -244,9 +232,7 @@ class PracticeGameControllerTest {
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
-        // When/Then
         mockMvc.perform(post("/api/practice/games/{gameId}/submit", gameId)
-                .param("playerId", playerId.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
@@ -260,65 +246,31 @@ class PracticeGameControllerTest {
     @Test
     @DisplayName("Should submit checkout answer and return win result")
     void shouldSubmitCheckoutAnswer() throws Exception {
-        // Given - Player at score 35
-        Game gameAtLowScore = Game.builder()
-            .id(gameId)
-            .matchId(matchId)
-            .gameNumber(1)
-            .questionId(questionId)
-            .status(Game.GameStatus.IN_PROGRESS)
-            .currentTurnPlayerId(playerId)
-            .player1Score(35)
-            .player2Score(501)
-            .turnCount(10)
-            .turnTimerSeconds(45)
-            .build();
-
         SubmitAnswerRequest request = SubmitAnswerRequest.builder()
             .answer("Player with 35")
             .build();
 
-        UUID answerId = UUID.randomUUID();
-
         GameMove move = GameMove.builder()
-            .id(UUID.randomUUID())
-            .gameId(gameId)
-            .playerId(playerId)
-            .moveNumber(11)
-            .submittedAnswer("Player with 35")
-            .matchedAnswerId(answerId)
-            .matchedDisplayText("Player Name")
-            .result(GameMove.MoveResult.CHECKOUT)
-            .scoreValue(35)
-            .scoreBefore(35)
-            .scoreAfter(0)
+            .id(UUID.randomUUID()).gameId(gameId).playerId(playerId)
+            .moveNumber(11).submittedAnswer("Player with 35")
+            .matchedAnswerId(UUID.randomUUID()).matchedDisplayText("Player Name")
+            .result(GameMove.MoveResult.CHECKOUT).scoreValue(35).scoreBefore(35).scoreAfter(0)
             .build();
 
         Game completedGame = Game.builder()
-            .id(gameId)
-            .matchId(matchId)
-            .gameNumber(1)
-            .questionId(questionId)
-            .status(Game.GameStatus.COMPLETED)
-            .currentTurnPlayerId(playerId)
-            .player1Score(0)
-            .player2Score(501)
-            .winnerId(playerId)
-            .turnCount(11)
-            .turnTimerSeconds(45)
+            .id(gameId).matchId(matchId).gameNumber(1).questionId(questionId)
+            .status(Game.GameStatus.COMPLETED).currentTurnPlayerId(playerId)
+            .player1Score(0).player2Score(501).winnerId(playerId).turnCount(11).turnTimerSeconds(45)
             .build();
 
         when(gameService.processPlayerMove(gameId, playerId, "Player with 35")).thenReturn(move);
         when(gameService.getGameById(gameId)).thenReturn(Optional.of(completedGame));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
-        // completedGame.player1Score == 0; hints guard returns 0 checkouts for score ≤ 0
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(0)))
             .thenReturn(GameHints.builder().maxScoresLeft(0).checkoutsLeft(0).build());
 
-        // When/Then
         mockMvc.perform(post("/api/practice/games/{gameId}/submit", gameId)
-                .param("playerId", playerId.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
@@ -332,15 +284,13 @@ class PracticeGameControllerTest {
     @Test
     @DisplayName("Should get current game state")
     void shouldGetGameState() throws Exception {
-        // Given
         when(gameService.getGameById(gameId)).thenReturn(Optional.of(game));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
-        // When/Then
-        mockMvc.perform(get("/api/practice/games/{gameId}", gameId)
-                .param("playerId", playerId.toString()))
+        // No @RequestParam playerId — identity comes from the authenticated principal
+        mockMvc.perform(get("/api/practice/games/{gameId}", gameId))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.gameId").value(gameId.toString()))
             .andExpect(jsonPath("$.questionText").value("Appearances for Manchester City in Premier League 2023/24"))
@@ -354,28 +304,22 @@ class PracticeGameControllerTest {
     @Test
     @DisplayName("Should return 404 when game not found")
     void shouldReturn404WhenGameNotFound() throws Exception {
-        // Given
         UUID nonExistentGameId = UUID.randomUUID();
         when(gameService.getGameById(nonExistentGameId)).thenReturn(Optional.empty());
 
-        // When/Then
-        mockMvc.perform(get("/api/practice/games/{gameId}", nonExistentGameId)
-                .param("playerId", playerId.toString()))
+        mockMvc.perform(get("/api/practice/games/{gameId}", nonExistentGameId))
             .andExpect(status().isNotFound());
     }
 
     @Test
     @DisplayName("Should return 400 when category not found")
     void shouldReturn400WhenCategoryNotFound() throws Exception {
-        // Given
         StartPracticeRequest request = StartPracticeRequest.builder()
-            .playerId(playerId)
             .categorySlug("invalid-category")
             .build();
 
         when(questionService.getCategoryBySlug("invalid-category")).thenReturn(Optional.empty());
 
-        // When/Then
         mockMvc.perform(post("/api/practice/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -385,10 +329,7 @@ class PracticeGameControllerTest {
     @Test
     @DisplayName("Should use default category when not specified")
     void shouldUseDefaultCategory() throws Exception {
-        // Given
-        StartPracticeRequest request = StartPracticeRequest.builder()
-            .playerId(playerId)
-            .build(); // No category specified
+        StartPracticeRequest request = StartPracticeRequest.builder().build();
 
         when(questionService.getCategoryBySlug("football")).thenReturn(Optional.of(category));
         when(matchService.createMatch(eq(playerId), isNull(), eq(categoryId),
@@ -398,7 +339,6 @@ class PracticeGameControllerTest {
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
-        // When/Then
         mockMvc.perform(post("/api/practice/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))

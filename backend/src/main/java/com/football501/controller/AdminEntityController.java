@@ -4,6 +4,7 @@ import com.football501.service.EntitySearchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,11 +19,10 @@ import java.util.Map;
  * per type — useful for verifying the autocomplete pool before activating
  * a new question type (e.g. "city", "country").
  *
- * TODO: restrict to admin role once Spring Security is wired up
- *       (e.g. @PreAuthorize("hasRole('ADMIN')")).
  */
 @RestController
 @RequestMapping("/api/admin/entities")
+@PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
 @Slf4j
 public class AdminEntityController {

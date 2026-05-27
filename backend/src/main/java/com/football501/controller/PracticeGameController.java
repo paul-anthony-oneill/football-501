@@ -16,16 +16,25 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.Map;
 import java.util.UUID;
 
 /**
  * REST controller for practice (single player) game mode.
  *
+ * <h3>Authentication</h3>
+ * Player identity is derived from the authenticated {@link Principal} rather
+ * than an explicit {@code playerId} request parameter.  In development and
+ * test environments a {@code DevModeAuthFilter} provides a fixed principal
+ * automatically.  In production a JWT filter will supply the real user.
+ *
  * Endpoints:
- * - POST /api/practice/start - Start a new practice game
- * - POST /api/practice/games/{gameId}/submit - Submit an answer
- * - GET /api/practice/games/{gameId} - Get current game state
+ * <ul>
+ *   <li>POST /api/practice/start            — Start a new practice game</li>
+ *   <li>POST /api/practice/games/{id}/submit — Submit an answer</li>
+ *   <li>GET  /api/practice/games/{id}        — Get current game state</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/api/practice")
@@ -54,14 +63,22 @@ public class PracticeGameController {
     /**
      * Start a new practice game.
      *
-     * @param request the start practice request
-     * @return game state response
+     * <p>Player identity is read from the authenticated principal — the
+     * {@code playerId} field in the request body is ignored and will be
+     * removed in a future cleanup once all clients have been updated.
+     *
+     * @param request   optional category / difficulty preferences
+     * @param principal injected by Spring Security from the current auth token
+     * @return initial game state
      */
     @PostMapping("/start")
-    public ResponseEntity<GameStateResponse> startPracticeGame(@Valid @RequestBody StartPracticeRequest request) {
-        log.debug("Starting practice game for player {}", request.getPlayerId());
+    public ResponseEntity<GameStateResponse> startPracticeGame(
+        @Valid @RequestBody StartPracticeRequest request,
+        Principal principal
+    ) {
+        UUID playerId = playerIdFrom(principal);
+        log.debug("Starting practice game for player {}", playerId);
 
-        // Get category (default to football if not specified)
         String categorySlug = request.getCategorySlug() != null
             ? request.getCategorySlug()
             : DEFAULT_CATEGORY_SLUG;
@@ -69,24 +86,21 @@ public class PracticeGameController {
         Category category = questionService.getCategoryBySlug(categorySlug)
             .orElseThrow(() -> new IllegalArgumentException("Category not found: " + categorySlug));
 
-        // Create practice match (player vs self, best-of-1)
         Match match = matchService.createMatch(
-            request.getPlayerId(),
-            null, // No opponent in practice mode
+            playerId,
+            null,
             category.getId(),
             Match.MatchType.CASUAL,
             Match.MatchFormat.BEST_OF_1,
             request.getDifficulty()
         );
 
-        // Start first game
         Game game = matchService.startNextGame(match.getId());
 
-        // Get question
         Question question = questionService.getQuestionById(game.getQuestionId())
             .orElseThrow(() -> new IllegalStateException("Question not found"));
 
-        log.info("Practice game started: gameId={}, playerId={}", game.getId(), request.getPlayerId());
+        log.info("Practice game started: gameId={}, playerId={}", game.getId(), playerId);
 
         return ResponseEntity.ok(buildGameStateResponse(game, question, match));
     }
@@ -94,23 +108,25 @@ public class PracticeGameController {
     /**
      * Submit an answer for the current game.
      *
-     * @param gameId the game UUID
-     * @param playerId the player UUID
-     * @param request the submit answer request
-     * @return submit answer response with result and updated game state
+     * <p>Player identity comes from the authenticated principal; the caller
+     * cannot spoof another player's ID.
+     *
+     * @param gameId    the game UUID
+     * @param request   the answer text
+     * @param principal injected by Spring Security
+     * @return move result and updated game state
      */
     @PostMapping("/games/{gameId}/submit")
     public ResponseEntity<SubmitAnswerResponse> submitAnswer(
         @PathVariable UUID gameId,
-        @RequestParam UUID playerId,
-        @Valid @RequestBody SubmitAnswerRequest request
+        @Valid @RequestBody SubmitAnswerRequest request,
+        Principal principal
     ) {
+        UUID playerId = playerIdFrom(principal);
         log.debug("Submitting answer for game {}: '{}'", gameId, request.getAnswer());
 
-        // Process the move
         GameMove move = gameService.processPlayerMove(gameId, playerId, request.getAnswer());
 
-        // Get updated game state
         Game game = gameService.getGameById(gameId)
             .orElseThrow(() -> new IllegalStateException("Game not found after move"));
 
@@ -120,7 +136,6 @@ public class PracticeGameController {
         Question question = questionService.getQuestionById(game.getQuestionId())
             .orElseThrow(() -> new IllegalStateException("Question not found"));
 
-        // Build response
         SubmitAnswerResponse response = SubmitAnswerResponse.builder()
             .result(move.getResult().name())
             .matchedAnswer(move.getMatchedDisplayText())
@@ -141,20 +156,21 @@ public class PracticeGameController {
     /**
      * Get current game state.
      *
-     * @param gameId   the game UUID
-     * @param playerId the requesting player UUID (logged for auditing; ownership
-     *                 enforcement is deferred until auth is wired up — TODO)
-     * @return game state response
+     * <p>Player identity comes from the authenticated principal.
+     *
+     * @param gameId    the game UUID
+     * @param principal injected by Spring Security
+     * @return current game state, or 404 if the game does not exist
      */
     @GetMapping("/games/{gameId}")
     public ResponseEntity<GameStateResponse> getGameState(
         @PathVariable UUID gameId,
-        @RequestParam UUID playerId
+        Principal principal
     ) {
+        UUID playerId = playerIdFrom(principal);
         log.debug("Getting game state for game {} (requestedBy={})", gameId, playerId);
 
-        Game game = gameService.getGameById(gameId)
-            .orElse(null);
+        Game game = gameService.getGameById(gameId).orElse(null);
 
         if (game == null) {
             return ResponseEntity.notFound().build();
@@ -169,20 +185,24 @@ public class PracticeGameController {
         return ResponseEntity.ok(buildGameStateResponse(game, question, match));
     }
 
-    // ========================================
-    // Private Helper Methods
-    // ========================================
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /**
+     * Parses the authenticated principal name as a {@link UUID}.
+     * The principal name is the player's UUID string set by the auth filter
+     * (dev: {@code DevModeAuthFilter}; prod: JWT filter).
+     */
+    private UUID playerIdFrom(Principal principal) {
+        return UUID.fromString(principal.getName());
+    }
 
     private GameStateResponse buildGameStateResponse(Game game, Question question, Match match) {
-        // Determine current score (in practice mode, always player1)
         int currentScore = game.getPlayer1Score();
 
-        // Check if win
         boolean isWin = game.getStatus() == Game.GameStatus.COMPLETED
             && game.getWinnerId() != null
             && game.getWinnerId().equals(match.getPlayer1Id());
 
-        // Extract entity_type from the question config JSONB; default to "footballer".
         String entityType = "footballer";
         if (question.getConfig() != null) {
             Object configEntityType = question.getConfig().get("entity_type");
@@ -191,9 +211,6 @@ public class PracticeGameController {
             }
         }
 
-        // Compute hint stats for the current player.
-        // Uses two lightweight COUNT queries against the answers table —
-        // sub-millisecond at typical answer-set sizes.
         GameHints hints = gameHintsService.computeHints(
             game.getId(),
             game.getQuestionId(),
@@ -224,21 +241,12 @@ public class PracticeGameController {
         };
     }
 
-    /**
-     * Bad request handler (e.g. category not found, invalid input).
-     * Returns a JSON body so the frontend can parse it with {@code res.json()}.
-     */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException e) {
         log.warn("Bad request: {}", e.getMessage());
         return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
     }
 
-    /**
-     * Conflict handler for illegal game states
-     * (e.g. no questions available, game already completed).
-     * Returns a JSON body so the frontend can parse it with {@code res.json()}.
-     */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleConflict(IllegalStateException e) {
         log.warn("Conflict: {}", e.getMessage());

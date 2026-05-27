@@ -11,6 +11,7 @@ import com.football501.service.QuestionMaterializerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
  */
 @RestController
 @RequestMapping("/api/admin/templates")
+@PreAuthorize("hasRole('ADMIN')")
 @Slf4j
 public class AdminTemplateController {
 
