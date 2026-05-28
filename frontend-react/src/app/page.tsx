@@ -36,10 +36,10 @@ export default function GamePage() {
   } = useGameLoop();
 
   // Lobby state — owned here because it's unrelated to the game loop itself
-  const [categories,           setCategories]           = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategorySlug, setSelectedCategorySlug] = useState("football");
-  const [playerName,           setPlayerName]           = useState("GUEST_PLAYER");
-  const [gameMode,             setGameMode]             = useState<\"solo\" | \"ranked\">(\"solo\");
+  const [playerName, setPlayerName] = useState("GUEST_PLAYER");
+  const [gameMode, setGameMode] = useState<"solo" | "ranked">("solo");
 
   // ── Init ───────────────────────────────────────────────────────────────────
 
@@ -54,7 +54,7 @@ export default function GamePage() {
         }));
         setCategories(enriched);
         const def = data.find((c) => c.slug === "football");
-        setSelectedCategorySlug(def ? def.slug : data[0]?.slug ?? "football");
+        setSelectedCategorySlug(def ? def.slug : (data[0]?.slug ?? "football"));
       })
       .catch(() => showToast("Failed to load categories", "error"));
   }, [showToast]);
@@ -76,7 +76,9 @@ export default function GamePage() {
     );
   }
 
-  const selectedCategory = categories.find((c) => c.slug === selectedCategorySlug);
+  const selectedCategory = categories.find(
+    (c) => c.slug === selectedCategorySlug,
+  );
 
   return (
     <MatchView

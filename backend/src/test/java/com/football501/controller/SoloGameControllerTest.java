@@ -23,6 +23,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.security.Principal;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -79,6 +80,9 @@ class SoloGameControllerTest {
         .maxScoresLeft(3)
         .checkoutsLeft(0)
         .build();
+
+    /** Principal that matches {@link DevModeAuthFilter#DEV_PLAYER_ID}. */
+    private static final Principal PRINCIPAL = () -> DevModeAuthFilter.DEV_PLAYER_ID;
 
     /**
      * Player ID that matches the principal injected by {@code @WithMockUser}
@@ -157,6 +161,7 @@ class SoloGameControllerTest {
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
         mockMvc.perform(post("/api/solo/start")
+                .principal(PRINCIPAL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
@@ -207,6 +212,7 @@ class SoloGameControllerTest {
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(465))).thenReturn(STUB_HINTS);
 
         mockMvc.perform(post("/api/solo/games/{gameId}/submit", gameId)
+                .principal(PRINCIPAL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
@@ -242,6 +248,7 @@ class SoloGameControllerTest {
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
         mockMvc.perform(post("/api/solo/games/{gameId}/submit", gameId)
+                .principal(PRINCIPAL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
@@ -280,6 +287,7 @@ class SoloGameControllerTest {
             .thenReturn(GameHints.builder().maxScoresLeft(0).checkoutsLeft(0).build());
 
         mockMvc.perform(post("/api/solo/games/{gameId}/submit", gameId)
+                .principal(PRINCIPAL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
@@ -298,7 +306,8 @@ class SoloGameControllerTest {
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
-        mockMvc.perform(get("/api/solo/games/{gameId}", gameId))
+        mockMvc.perform(get("/api/solo/games/{gameId}", gameId)
+                .principal(PRINCIPAL))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.gameId").value(gameId.toString()))
             .andExpect(jsonPath("$.questionText").value("Appearances for Manchester City in Premier League 2023/24"))
@@ -315,7 +324,8 @@ class SoloGameControllerTest {
         UUID nonExistentGameId = UUID.randomUUID();
         when(gameService.getGameById(nonExistentGameId)).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/solo/games/{gameId}", nonExistentGameId))
+        mockMvc.perform(get("/api/solo/games/{gameId}", nonExistentGameId)
+                .principal(PRINCIPAL))
             .andExpect(status().isNotFound());
     }
 
@@ -329,6 +339,7 @@ class SoloGameControllerTest {
         when(questionService.getCategoryBySlug("invalid-category")).thenReturn(Optional.empty());
 
         mockMvc.perform(post("/api/solo/start")
+                .principal(PRINCIPAL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest());
@@ -348,6 +359,7 @@ class SoloGameControllerTest {
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
         mockMvc.perform(post("/api/solo/start")
+                .principal(PRINCIPAL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())

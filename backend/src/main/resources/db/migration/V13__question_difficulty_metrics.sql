@@ -55,7 +55,7 @@ COMMENT ON COLUMN questions.viability_exclusion_reason IS
 -- ── Difficulty-score columns ───────────────────────────────────────────────
 
 ALTER TABLE questions
-    ADD COLUMN IF NOT EXISTS difficulty_score   NUMERIC(4,2) NOT NULL DEFAULT 5.00;
+    ADD COLUMN IF NOT EXISTS difficulty_score   DOUBLE PRECISION NOT NULL DEFAULT 5.0;
 COMMENT ON COLUMN questions.difficulty_score IS
     'Continuous difficulty value 0.00–10.00 computed from zone counts by DifficultyCalculator. '
     '0.00 = easiest, 10.00 = hardest. Derived labels (Easy/Hard) are computed at render time '
