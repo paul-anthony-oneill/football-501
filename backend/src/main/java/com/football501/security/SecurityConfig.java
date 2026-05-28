@@ -1,5 +1,7 @@
 package com.football501.security;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -8,7 +10,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * Spring Security configuration for Football 501.
@@ -48,18 +49,19 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
+
     private final DevModeAuthFilter devModeAuthFilter;
 
     /**
-     * {@code devModeAuthFilter} is {@code null} on the {@code prod} profile
-     * because the bean is annotated {@code @Profile("!prod")}.
-     * Spring injects {@code null} for optional constructor args — the filter
-     * is only added to the chain when it is non-null.
+     * {@code devModeAuthFilter} is absent on the {@code prod} profile because its
+     * bean is annotated {@code @Profile("!prod")}.  Using {@code ObjectProvider}
+     * avoids the ambiguous resolution that can occur with nullable constructor
+     * injection in Spring Framework 7.x.
      */
-    public SecurityConfig(
-            @org.springframework.beans.factory.annotation.Autowired(required = false)
-            DevModeAuthFilter devModeAuthFilter) {
-        this.devModeAuthFilter = devModeAuthFilter;
+    public SecurityConfig(org.springframework.beans.factory.ObjectProvider<DevModeAuthFilter> provider) {
+        this.devModeAuthFilter = provider.getIfAvailable();
+        log.info("SecurityConfig: devModeAuthFilter = {}", devModeAuthFilter != null ? "PRESENT" : "NULL");
     }
 
     @Bean
@@ -92,7 +94,11 @@ public class SecurityConfig {
 
         // Inject the dev-mode filter when not running in production
         if (devModeAuthFilter != null) {
-            http.addFilterBefore(devModeAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            log.info("Adding DevModeAuthFilter before AuthorizationFilter");
+            http.addFilterBefore(devModeAuthFilter,
+                org.springframework.security.web.access.intercept.AuthorizationFilter.class);
+        } else {
+            log.warn("DevModeAuthFilter is NULL — auth endpoints will require real credentials");
         }
 
         return http.build();

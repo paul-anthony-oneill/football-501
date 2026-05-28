@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -71,11 +72,13 @@ public class DevModeAuthFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
 
-        // Don't override authentication already set by another filter or test harness
-        if (SecurityContextHolder.getContext().getAuthentication() == null) {
-            UsernamePasswordAuthenticationToken auth =
+        // Don't override real authentication already set by another filter or test harness;
+        // but DO replace the anonymous token that AnonymousAuthenticationFilter injects.
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth instanceof AnonymousAuthenticationToken) {
+            UsernamePasswordAuthenticationToken token =
                 new UsernamePasswordAuthenticationToken(DEV_PLAYER_ID, null, DEV_AUTHORITIES);
-            SecurityContextHolder.getContext().setAuthentication(auth);
+            SecurityContextHolder.getContext().setAuthentication(token);
             log.trace("DevModeAuthFilter: injected dev principal for {}", request.getRequestURI());
         }
 

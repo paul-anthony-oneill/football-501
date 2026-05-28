@@ -10,9 +10,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Search and registration service for the {@code entities} autocomplete table.
@@ -104,6 +107,57 @@ public class EntitySearchService {
         namedEntityRepository.save(entity);
         log.debug("Registered '{}' as entity type '{}' for autocomplete", displayText, entityType);
     }
+
+    /**
+     * Batch variant of {@link #upsertEntity} — pre-fetches existing entities in one
+     * query, then saves only new ones via {@code saveAll}.  Eliminates the N+1
+     * lookup pattern when materializing a question with hundreds of answers.
+     *
+     * @param entries list of (displayText, entityType, hint) triples to register
+     * @return number of entities actually inserted (already-present entries skipped)
+     */
+    @Transactional
+    public int batchUpsertEntities(List<EntityEntry> entries) {
+        if (entries.isEmpty()) {
+            return 0;
+        }
+
+        String entityType = entries.get(0).entityType;
+        Set<String> normalizedNames = entries.stream()
+            .map(e -> stripAccents(e.displayText.toLowerCase().trim()))
+            .collect(Collectors.toSet());
+
+        Set<String> existing = namedEntityRepository
+            .findByEntityTypeAndNormalizedNameIn(entityType, normalizedNames)
+            .stream()
+            .map(NamedEntity::getNormalizedName)
+            .collect(Collectors.toSet());
+
+        List<NamedEntity> toInsert = entries.stream()
+            .filter(e -> !existing.contains(stripAccents(e.displayText.toLowerCase().trim())))
+            .collect(Collectors.groupingBy(
+                e -> stripAccents(e.displayText.toLowerCase().trim()),
+                Collectors.collectingAndThen(Collectors.toList(), list -> list.get(0))))
+            .values().stream()
+            .map(e -> NamedEntity.builder()
+                .entityType(e.entityType)
+                .displayName(e.displayText.trim())
+                .normalizedName(stripAccents(e.displayText.toLowerCase().trim()))
+                .hint(e.hint)
+                .build())
+            .collect(Collectors.toList());
+
+        if (!toInsert.isEmpty()) {
+            namedEntityRepository.saveAll(toInsert);
+        }
+
+        return toInsert.size();
+    }
+
+    /**
+     * Lightweight record for batch entity registration.
+     */
+    public record EntityEntry(String displayText, String entityType, String hint) {}
 
     /**
      * Returns entity counts grouped by entity type, ordered by count descending.

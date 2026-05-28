@@ -54,6 +54,9 @@ public interface NamedEntityRepository extends JpaRepository<NamedEntity, UUID> 
     /** Exact lookup by type + normalized key — used for upsert deduplication. */
     Optional<NamedEntity> findByEntityTypeAndNormalizedName(String entityType, String normalizedName);
 
+    /** Batch variant of the above — avoids N queries in a materialization loop. */
+    List<NamedEntity> findByEntityTypeAndNormalizedNameIn(String entityType, java.util.Set<String> normalizedNames);
+
     /**
      * Bulk-upserts all rows from the {@code players} source table into the
      * {@code entities} autocomplete table as {@code "footballer"} entities.

@@ -26,6 +26,8 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
      */
     Optional<Answer> findByQuestionIdAndAnswerKey(UUID questionId, String answerKey);
 
+    List<Answer> findByQuestionIdAndAnswerKeyIn(UUID questionId, java.util.Set<String> answerKeys);
+
     // Split into two native queries to avoid PostgreSQL type-inference failure
     // when :usedAnswerIds is NULL/empty (Hibernate 7 + pg can't type a null list param).
 
