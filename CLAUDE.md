@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Backlog Discipline
+
+Before starting any task, check **`docs/BACKLOG.md`**. After completing or deferring work:
+- **Tick off** any backlog item your change addresses (move it to the Completed table).
+- **Add a new entry** if you are consciously deferring something that came up during the task — capture what it is, why it's deferred, and which files are relevant.
+- **Do not add** Flyway migrations, new abstractions, or hardening work that isn't needed right now just because it feels tidy. Defer it and document it instead.
+
 ## Project Overview
 
 Football 501 is a competitive football trivia game that combines football knowledge with darts 501 scoring mechanics. Players compete to reduce their score from 501 to exactly 0 by naming football players whose statistics match a given question.
@@ -376,6 +383,7 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 
 - Product Requirements: `docs/PRD.md`
 - Game Rules: `docs/GAME_RULES.md`
+- **Backlog & Future Work: `docs/BACKLOG.md`** ← check this before starting any task; update it when you defer something or complete a backlog item
 - Technical Design: `docs/design/TECHNICAL_DESIGN.md`
 - API Integration: `docs/api/API_INTEGRATION.md`
 - Autocomplete & Entity Architecture: `docs/design/AUTOCOMPLETE_ENTITY_DESIGN.md`

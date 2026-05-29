@@ -23,6 +23,7 @@ Welcome to the Football 501 documentation. This index is the canonical entry poi
 
 - **[PRD.md](PRD.md)** — Product Requirements Document. Full product vision, feature specifications, user stories, and success metrics.
 - **[GAME_RULES.md](GAME_RULES.md)** — Authoritative game mechanics: 501 scoring, bust rules, checkout range, close-finish rule, turn timers, question types.
+- **[BACKLOG.md](BACKLOG.md)** — Living backlog: all deferred work, stretch goals, hardening items, and architectural guardrails, with priority and rationale. **Update this when deferring anything.**
 - **[AUDIT_SUMMARY.md](AUDIT_SUMMARY.md)** — Comprehensive security, architectural, and code-quality audit (2026-05-26). All findings implemented across Phases 1–5. Retained as a historical record.
 
 ---

@@ -251,6 +251,11 @@ public class GameStateMachine {
     }
 
     private UUID opponentOf(Match match, UUID playerId) {
+        if (match.getPlayer2Id() == null) {
+            throw new IllegalStateException(
+                    "opponentOf called on a solo match (no player2). " +
+                    "Callers must check isSolo before invoking this method.");
+        }
         return playerId.equals(match.getPlayer1Id()) ? match.getPlayer2Id() : match.getPlayer1Id();
     }
 }
