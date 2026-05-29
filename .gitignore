@@ -57,6 +57,10 @@ build/
 dist/
 .output/
 
+# Database backups
+*.dump
+*.sql
+
 # Local Settings
 .claude/settings.local.json
 .claude/tsc-cache/
