@@ -141,6 +141,45 @@ public class GameService {
     }
 
     /**
+     * Abandon an in-progress game and its parent match.
+     *
+     * <p>Safe to call when the game is already completed or abandoned — it
+     * becomes a no-op in that case so the frontend can fire-and-forget.
+     *
+     * @param gameId   the game UUID
+     * @param playerId the player requesting abandonment (must be part of the match)
+     * @throws IllegalArgumentException if the game or match does not exist
+     * @throws IllegalStateException    if the player is not part of the match
+     */
+    @Transactional
+    public void abandonGame(UUID gameId, UUID playerId) {
+        log.debug("Abandoning game {} for player {}", gameId, playerId);
+
+        Game game   = getGameOrThrow(gameId);
+        Match match = getMatchOrThrow(game.getMatchId());
+
+        boolean isPlayer1 = playerId.equals(match.getPlayer1Id());
+        boolean isPlayer2 = match.getPlayer2Id() != null && playerId.equals(match.getPlayer2Id());
+        if (!isPlayer1 && !isPlayer2) {
+            throw new IllegalStateException("Player " + playerId + " is not part of match " + match.getId());
+        }
+
+        if (game.getStatus() == Game.GameStatus.IN_PROGRESS) {
+            game.setStatus(Game.GameStatus.ABANDONED);
+            game.setCompletedAt(java.time.LocalDateTime.now());
+            gameRepository.save(game);
+        }
+
+        if (match.getStatus() == Match.MatchStatus.IN_PROGRESS) {
+            match.setStatus(Match.MatchStatus.ABANDONED);
+            match.setCompletedAt(java.time.LocalDateTime.now());
+            matchRepository.save(match);
+        }
+
+        log.info("Game abandoned: gameId={}, matchId={}", gameId, match.getId());
+    }
+
+    /**
      * Create a new game within an existing match.
      *
      * @param matchId    the match UUID

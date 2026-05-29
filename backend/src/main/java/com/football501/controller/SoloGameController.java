@@ -151,6 +151,27 @@ public class SoloGameController {
     }
 
     /**
+     * Abandon an in-progress game.
+     *
+     * <p>Idempotent: calling this on an already-completed or already-abandoned
+     * game is safe — the service treats it as a no-op.
+     *
+     * @param gameId    the game UUID
+     * @param principal injected by Spring Security
+     * @return 204 No Content on success
+     */
+    @PostMapping("/games/{gameId}/abandon")
+    public ResponseEntity<Void> abandonGame(
+        @PathVariable UUID gameId,
+        Principal principal
+    ) {
+        UUID playerId = playerIdFrom(principal);
+        log.debug("Abandoning game {} for player {}", gameId, playerId);
+        gameService.abandonGame(gameId, playerId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
      * Get current game state.
      *
      * <p>Player identity comes from the authenticated principal.

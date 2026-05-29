@@ -76,7 +76,14 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
+  async function abandonCurrentGame() {
+    if (!gameId) return;
+    // Fire-and-forget: server is idempotent; don't block the UI on network errors
+    fetch(`/api/solo/games/${gameId}/abandon`, { method: "POST" }).catch(() => {});
+  }
+
   async function startNewGame(categorySlug: string) {
+    await abandonCurrentGame();
     try {
       const res = await fetch("/api/solo/start", {
         method: "POST",
@@ -147,6 +154,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
   }
 
   function exitGame() {
+    abandonCurrentGame();
     setGameStatus("NOT_STARTED");
     setGameId(null);
     document.body.classList.remove("theme-teletext");
