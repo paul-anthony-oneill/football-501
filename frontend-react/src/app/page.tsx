@@ -1,26 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useMemo } from "react";
 import LobbyView from "@/components/game/lobby/LobbyView";
 import MatchView from "@/components/game/match/MatchView";
 import { useGameLoop } from "@/hooks/useGameLoop";
-import { useToast } from "@/context/ToastContext";
+import { CATEGORIES } from "@/lib/questionHierarchy";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Category {
+interface LobbyCategory {
   id: string;
   name: string;
   slug: string;
   description: string;
-  leader?: { name: string; score: number };
+  theme?: string;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Extract the top-level category slug from a hierarchical path like "football:premier-league:goals:man-city" */
+function rootSlug(pathSlug: string): string {
+  return pathSlug.split(":")[0] ?? pathSlug;
+}
+
+/** Derive a display category name from the selection label (e.g. "Football > Premier League > Goals > Random") */
+function categoryLabel(label: string): { name: string; sub: string } {
+  const parts = label.split(" > ");
+  const name = parts[0] ?? "Trivia";
+  const sub = parts.slice(1).join(" > ") || "Darts Edition";
+  return { name, sub };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function GamePage() {
-  const { addToast: showToast } = useToast();
-
   // Game loop — owns all game-session state and API calls
   const {
     score,
@@ -35,39 +48,48 @@ export default function GamePage() {
     exitGame,
   } = useGameLoop();
 
-  // Lobby state — owned here because it's unrelated to the game loop itself
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategorySlug, setSelectedCategorySlug] = useState("football");
+  // Flatten the static hierarchy for the lobby card grid
+  const lobbyCategories: LobbyCategory[] = useMemo(
+    () =>
+      CATEGORIES.map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.id,
+        description: c.description,
+        theme: c.theme,
+      })),
+    [],
+  );
+
+  // Lobby state
   const [playerName, setPlayerName] = useState("GUEST_PLAYER");
   const [gameMode, setGameMode] = useState<"solo" | "ranked">("solo");
+  // Track the last selection so we can replay and display in MatchView
+  const [lastSlug, setLastSlug] = useState("football");
+  const [lastLabel, setLastLabel] = useState("Football");
 
-  // ── Init ───────────────────────────────────────────────────────────────────
+  // ── Handlers ─────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    fetch("/api/categories")
-      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((data: Category[]) => {
-        // Augment with mock leader data until the backend exposes it
-        const enriched = data.map((cat) => ({
-          ...cat,
-          leader: { name: "PLAYER_ONE", score: 12 },
-        }));
-        setCategories(enriched);
-        const def = data.find((c) => c.slug === "football");
-        setSelectedCategorySlug(def ? def.slug : (data[0]?.slug ?? "football"));
-      })
-      .catch(() => showToast("Failed to load categories", "error"));
-  }, [showToast]);
+  const handleStartGame = async (slug: string, label: string) => {
+    setLastSlug(slug);
+    setLastLabel(label);
+    // For now we pass the root category slug to the backend, which matches
+    // the flat /api/categories structure. The full hierarchical path is
+    // preserved in lastSlug/lastLabel for when the backend supports it.
+    await startNewGame(rootSlug(slug));
+  };
+
+  const handlePlayAgain = async () => {
+    await startNewGame(rootSlug(lastSlug));
+  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (gameStatus === "NOT_STARTED") {
     return (
       <LobbyView
-        categories={categories}
-        selectedCategorySlug={selectedCategorySlug}
-        onSelectCategory={setSelectedCategorySlug}
-        onStartGame={() => startNewGame(selectedCategorySlug)}
+        categories={lobbyCategories}
+        onStartGame={handleStartGame}
         playerName={playerName}
         onPlayerNameChange={setPlayerName}
         gameMode={gameMode}
@@ -76,9 +98,7 @@ export default function GamePage() {
     );
   }
 
-  const selectedCategory = categories.find(
-    (c) => c.slug === selectedCategorySlug,
-  );
+  const { name: catName, sub: catSub } = categoryLabel(lastLabel);
 
   return (
     <MatchView
@@ -88,9 +108,9 @@ export default function GamePage() {
       moves={moves}
       onExit={exitGame}
       onSubmitAnswer={submitAnswer}
-      onPlayAgain={() => startNewGame(selectedCategorySlug)}
-      categoryName={selectedCategory?.name || "Football"}
-      categorySub={selectedCategory?.description || "Darts Edition"}
+      onPlayAgain={handlePlayAgain}
+      categoryName={catName}
+      categorySub={catSub}
       entityType={entityType}
       isWin={gameStatus === "COMPLETED"}
       hints={hints}
