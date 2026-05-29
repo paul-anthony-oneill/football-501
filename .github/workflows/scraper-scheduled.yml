@@ -1,0 +1,39 @@
+name: Scraper — Weekly Data Refresh
+
+on:
+  schedule:
+    # Every Monday at 03:17 UTC (off-peak, avoids :00/:30 stampede)
+    - cron: "17 3 * * 1"
+  workflow_dispatch: # manual trigger for ad-hoc runs
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+        working-directory: football-501-scraper
+
+      - name: Scrape current season data
+        run: python scrape_current_season.py
+        working-directory: football-501-scraper
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Populate questions
+        run: python init_questions_v2.py
+        working-directory: football-501-scraper
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Populate answers
+        run: python populate_answers_v2.py
+        working-directory: football-501-scraper
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}

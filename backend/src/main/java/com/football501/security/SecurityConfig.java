@@ -2,6 +2,7 @@ package com.football501.security;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -9,40 +10,35 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Spring Security configuration for Football 501.
  *
  * <h3>Design intent</h3>
  * <ul>
- *   <li>This config wires the plumbing without blocking local development.
- *       A {@link DevModeAuthFilter} (active on every profile except {@code prod})
- *       injects a fixed authenticated principal so all endpoints remain reachable
- *       without real OAuth tokens.</li>
- *   <li>{@code @EnableMethodSecurity} activates {@code @PreAuthorize} on admin
- *       controllers.  The annotations are already in place; this config makes
- *       them effective.</li>
- *   <li>CSRF is disabled — this is a stateless REST API consumed by a SPA.
- *       When JWT cookies are introduced, re-evaluate (SameSite=Strict cookies
- *       plus a double-submit token provide equivalent protection).</li>
- *   <li>Session policy is STATELESS — the server holds no HTTP session state.</li>
+ *   <li>On dev/test profiles: {@link DevModeAuthFilter} injects a fixed authenticated
+ *       principal so all endpoints work without real OAuth tokens.</li>
+ *   <li>On prod profile: OAuth2 Resource Server validates Supabase-issued JWTs.
+ *       Configure via {@code spring.security.oauth2.resourceserver.jwt.issuer-uri}
+ *       and {@code SUPABASE_JWT_SECRET} (for HMAC-SHA256 verification).</li>
  * </ul>
  *
  * <h3>Endpoint access policy</h3>
  * <pre>
- *   /api/admin/**           → ROLE_ADMIN   (enforced by @PreAuthorize at method level)
- *   /api/solo/**        → ROLE_USER    (enforced at URL level here)
- *   /api/entities/search    → permitAll    (public autocomplete)
- *   /api/categories         → permitAll    (public category listing)
+ *   /api/admin/**           → ROLE_ADMIN   (also @PreAuthorize at method level)
+ *   /api/practice/**        → ROLE_USER / ROLE_ADMIN
+ *   /api/entities/**        → permitAll    (public autocomplete)
+ *   /api/categories/**      → permitAll    (public category listing)
  *   /actuator/health        → permitAll    (liveness probe)
- *   everything else         → authenticated (safe default)
+ *   everything else         → authenticated
  * </pre>
- *
- * <h3>Production path</h3>
- * Add a JWT validation filter (e.g. {@code JwtAuthFilter}) before
- * {@link UsernamePasswordAuthenticationFilter} and activate it on the
- * {@code prod} profile.  Remove or disable {@link DevModeAuthFilter}.
  */
 @Configuration
 @EnableWebSecurity
@@ -52,55 +48,106 @@ public class SecurityConfig {
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     private final DevModeAuthFilter devModeAuthFilter;
+    private final String jwtIssuerUri;
 
-    /**
-     * {@code devModeAuthFilter} is absent on the {@code prod} profile because its
-     * bean is annotated {@code @Profile("!prod")}.  Using {@code ObjectProvider}
-     * avoids the ambiguous resolution that can occur with nullable constructor
-     * injection in Spring Framework 7.x.
-     */
-    public SecurityConfig(org.springframework.beans.factory.ObjectProvider<DevModeAuthFilter> provider) {
+    public SecurityConfig(
+            org.springframework.beans.factory.ObjectProvider<DevModeAuthFilter> provider,
+            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}") String jwtIssuerUri) {
         this.devModeAuthFilter = provider.getIfAvailable();
-        log.info("SecurityConfig: devModeAuthFilter = {}", devModeAuthFilter != null ? "PRESENT" : "NULL");
+        this.jwtIssuerUri = jwtIssuerUri;
+        log.info("SecurityConfig: devModeAuthFilter = {}, jwtIssuerUri = {}",
+                devModeAuthFilter != null ? "PRESENT" : "NULL",
+                jwtIssuerUri.isEmpty() ? "NOT SET" : jwtIssuerUri);
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // CORS — delegates to the CorsConfigurationSource bean in CorsConfig
             .cors(Customizer.withDefaults())
 
-            // CSRF — disabled for stateless REST API
             .csrf(csrf -> csrf.disable())
 
-            // No HTTP session — every request must carry its own credentials
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-            // URL-level access rules
             .authorizeHttpRequests(auth -> auth
-                // Public — autocomplete and category listing need no auth
                 .requestMatchers("/api/entities/**").permitAll()
                 .requestMatchers("/api/categories/**").permitAll()
-                // Health / liveness probes
                 .requestMatchers("/actuator/health").permitAll()
-                // Solo game — requires an authenticated user
-                .requestMatchers("/api/solo/**").hasAnyRole("USER", "ADMIN")
-                // Admin — also enforced at method level via @PreAuthorize
+                .requestMatchers("/api/practice/**").hasAnyRole("USER", "ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                // Deny everything else by default (safe)
                 .anyRequest().authenticated()
             );
 
-        // Inject the dev-mode filter when not running in production
+        // Prod: validate Supabase JWTs via OAuth2 Resource Server
+        if (!jwtIssuerUri.isEmpty()) {
+            log.info("Configuring OAuth2 Resource Server for JWT validation");
+            http.oauth2ResourceServer(oauth2 ->
+                oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+        }
+
+        // Rate limiting — before auth filters
+        http.addFilterBefore(new RateLimitFilter(),
+            org.springframework.security.web.access.intercept.AuthorizationFilter.class);
+
+        // Dev/test: inject a fixed authenticated principal
         if (devModeAuthFilter != null) {
-            log.info("Adding DevModeAuthFilter before AuthorizationFilter");
+            log.info("Adding DevModeAuthFilter");
             http.addFilterBefore(devModeAuthFilter,
                 org.springframework.security.web.access.intercept.AuthorizationFilter.class);
-        } else {
-            log.warn("DevModeAuthFilter is NULL — auth endpoints will require real credentials");
         }
 
         return http.build();
+    }
+
+    /**
+     * Maps Supabase JWTs to Spring Security authorities.
+     * Supabase JWTs have {@code role: "authenticated"} — we grant ROLE_USER to all
+     * authenticated tokens. Admin elevation is done via the {@code app_metadata.role}
+     * custom claim if present.
+     */
+    private JwtAuthenticationConverter jwtAuthenticationConverter() {
+        var grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
+        grantedAuthoritiesConverter.setAuthorityPrefix("");
+        grantedAuthoritiesConverter.setAuthoritiesClaimName("role");
+
+        var converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            var authorities = new java.util.ArrayList<>(
+                grantedAuthoritiesConverter.convert(jwt));
+            // Grant ROLE_USER to all authenticated tokens
+            if (authorities.stream().anyMatch(a -> a.getAuthority().equals("authenticated"))) {
+                authorities.clear();
+                authorities.add(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER"));
+                // Check for admin claim in app_metadata
+                var appMetadata = jwt.getClaimAsMap("app_metadata");
+                if (appMetadata != null && "admin".equals(appMetadata.get("role"))) {
+                    authorities.add(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"));
+                }
+            }
+            return authorities;
+        });
+        return converter;
+    }
+
+    /**
+     * JWT decoder for Supabase-issued tokens (HMAC-SHA256).
+     * Only effective when SUPABASE_JWT_SECRET is set (required on prod).
+     */
+    @Bean
+    public JwtDecoder jwtDecoder(@Value("${SUPABASE_JWT_SECRET:#{null}}") String jwtSecret) {
+        if (jwtSecret == null || jwtSecret.isEmpty()) {
+            log.info("SUPABASE_JWT_SECRET not set — returning no-op JwtDecoder (dev mode)");
+            // Return a decoder that never succeeds — harmless because on dev
+            // we never hit the oauth2ResourceServer path.
+            return token -> {
+                throw new org.springframework.security.oauth2.jwt.JwtException(
+                    "No SUPABASE_JWT_SECRET configured");
+            };
+        }
+        log.info("JwtDecoder configured with SUPABASE_JWT_SECRET (HMAC-SHA256)");
+        var key = new SecretKeySpec(
+            jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256");
+        return NimbusJwtDecoder.withSecretKey(key).build();
     }
 }

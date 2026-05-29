@@ -1,5 +1,8 @@
 package com.football501.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -20,13 +23,23 @@ import java.util.List;
 @Configuration
 public class CorsConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(CorsConfig.class);
+
+    @Value("${FOOTBALL501_FRONTEND_ORIGIN:}")
+    private String frontendOrigin;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        // Allow all localhost ports for development; tighten to specific origins in prod
+        // Always allow localhost for development
         config.addAllowedOriginPattern("http://localhost:*");
         config.addAllowedOriginPattern("http://127.0.0.1:*");
+        // Add production frontend origin when set
+        if (frontendOrigin != null && !frontendOrigin.isEmpty()) {
+            config.addAllowedOrigin(frontendOrigin);
+            log.info("CORS: allowing frontend origin {}", frontendOrigin);
+        }
         config.setAllowedHeaders(List.of(
             "Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"
         ));
