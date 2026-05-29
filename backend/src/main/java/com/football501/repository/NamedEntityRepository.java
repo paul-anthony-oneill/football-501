@@ -2,9 +2,11 @@ package com.football501.repository;
 
 import com.football501.model.NamedEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +53,34 @@ public interface NamedEntityRepository extends JpaRepository<NamedEntity, UUID> 
 
     /** Exact lookup by type + normalized key — used for upsert deduplication. */
     Optional<NamedEntity> findByEntityTypeAndNormalizedName(String entityType, String normalizedName);
+
+    /** Batch variant of the above — avoids N queries in a materialization loop. */
+    List<NamedEntity> findByEntityTypeAndNormalizedNameIn(String entityType, java.util.Set<String> normalizedNames);
+
+    /**
+     * Bulk-upserts all rows from the {@code players} source table into the
+     * {@code entities} autocomplete table as {@code "footballer"} entities.
+     *
+     * <p>Uses a single {@code INSERT … ON CONFLICT DO NOTHING} so the operation
+     * is atomic, race-condition-free, and scales to tens of thousands of players
+     * without issuing one query per row.  The {@code players.normalized_name}
+     * column is used directly — it is pre-computed with the same Java
+     * {@code Normalizer.NFD} logic as {@link
+     * com.football501.service.EntitySearchService#stripAccents(String)}, keeping
+     * the two normalizations in sync.
+     *
+     * @return number of rows actually inserted; skipped rows (already in table)
+     *         are NOT counted
+     */
+    @Modifying
+    @Transactional
+    @Query(value = """
+            INSERT INTO entities (entity_type, display_name, normalized_name, hint)
+            SELECT 'footballer', p.name, p.normalized_name, p.nationality
+            FROM   players p
+            ON CONFLICT (entity_type, normalized_name) DO NOTHING
+            """, nativeQuery = true)
+    int bulkUpsertFootballersFromPlayers();
 
     /**
      * Count entities grouped by entity_type.

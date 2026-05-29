@@ -18,8 +18,8 @@ interface LobbyViewProps {
   onStartGame: () => void;
   playerName: string;
   onPlayerNameChange: (name: string) => void;
-  gameMode: 'practice' | 'ranked';
-  onGameModeChange: (mode: 'practice' | 'ranked') => void;
+  gameMode: 'solo' | 'ranked';
+  onGameModeChange: (mode: 'solo' | 'ranked') => void;
 }
 
 export default function LobbyView({
@@ -121,13 +121,13 @@ export default function LobbyView({
             <div 
               className="h-mode-pill-thumb absolute top-1 bottom-1 bg-h-fg rounded-full transition-all duration-300 ease-out"
               style={{ 
-                left: gameMode === 'practice' ? '4px' : 'calc(50% + 2px)',
+                left: gameMode === 'solo' ? '4px' : 'calc(50% + 2px)',
                 width: 'calc(50% - 6px)'
               }}
             />
             <button 
-              onClick={() => onGameModeChange('practice')}
-              className={`relative z-10 font-plex text-[12px] tracking-wider px-5.5 py-2.5 uppercase transition-colors duration-200 ${gameMode === 'practice' ? 'text-h-bg' : 'text-h-dim'}`}
+              onClick={() => onGameModeChange('solo')}
+              className={`relative z-10 font-plex text-[12px] tracking-wider px-5.5 py-2.5 uppercase transition-colors duration-200 ${gameMode === 'solo' ? 'text-h-bg' : 'text-h-dim'}`}
             >
               Practice
             </button>

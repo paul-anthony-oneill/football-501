@@ -74,7 +74,7 @@ public class MatchService {
             .type(type)
             .format(format)
             .difficulty(difficulty != null ? difficulty : 2)
-            // Practice (CASUAL with no opponent) starts immediately; ranked matchmaking waits for p2
+            // Solo (CASUAL with no opponent) starts immediately; ranked matchmaking waits for p2
             .status(player2Id != null || type == Match.MatchType.CASUAL
                 ? Match.MatchStatus.IN_PROGRESS
                 : Match.MatchStatus.WAITING)
@@ -144,10 +144,13 @@ public class MatchService {
 
         Match match = getMatchOrThrow(completedGame.getMatchId());
 
-        // Increment win count for winner
-        if (completedGame.getWinnerId().equals(match.getPlayer1Id())) {
+        // Increment win count for winner (winnerId is null for solo forfeits)
+        if (completedGame.getWinnerId() == null) {
+            log.info("Game completed with no winner (solo forfeit): gameId={}", completedGame.getId());
+        } else if (completedGame.getWinnerId().equals(match.getPlayer1Id())) {
             match.setPlayer1GamesWon(match.getPlayer1GamesWon() + 1);
-        } else if (completedGame.getWinnerId().equals(match.getPlayer2Id())) {
+        } else if (match.getPlayer2Id() != null
+                && completedGame.getWinnerId().equals(match.getPlayer2Id())) {
             match.setPlayer2GamesWon(match.getPlayer2GamesWon() + 1);
         }
 

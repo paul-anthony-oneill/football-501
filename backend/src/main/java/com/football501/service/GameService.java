@@ -2,6 +2,8 @@ package com.football501.service;
 
 import com.football501.engine.AnswerEvaluator;
 import com.football501.engine.AnswerResult;
+import com.football501.engine.GameStateMachine;
+import com.football501.engine.GameTransition;
 import com.football501.model.Game;
 import com.football501.model.GameMove;
 import com.football501.model.Match;
@@ -17,14 +19,17 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Service for managing game state and gameplay flow.
+ * Orchestrates game-play operations: loading, validating, calling the engine, and persisting.
  *
- * Responsibilities:
- * - Process player moves (validate answers, update scores)
- * - Turn management (switch turns, track current player)
- * - Timeout handling (consecutive tracking, timer reduction, forfeit)
- * - Win detection (checkout achieved)
- * - Close finish rule (Player 2 gets final turn if Player 1 wins first)
+ * <h3>Responsibility boundary</h3>
+ * <ul>
+ *   <li>This service owns the <em>database lifecycle</em>: load → validate → save.</li>
+ *   <li>All game-state <em>transition rules</em> live in {@link GameStateMachine}.
+ *       This service never encodes rule logic inline — it only calls the machine and
+ *       applies the returned {@link GameTransition}.</li>
+ *   <li>Controllers and WebSocket handlers are thin dispatchers that call this service
+ *       and return the resulting DTOs to the client.</li>
+ * </ul>
  */
 @Service
 @Slf4j
@@ -34,138 +39,153 @@ public class GameService {
     private final GameMoveRepository gameMoveRepository;
     private final MatchRepository matchRepository;
     private final AnswerEvaluator answerEvaluator;
-
-    // Timer constants
-    private static final int DEFAULT_TIMER = 45;
-    private static final int REDUCED_TIMER_1 = 30;
-    private static final int REDUCED_TIMER_2 = 15;
-    private static final int FORFEIT_TIMEOUT_THRESHOLD = 3;
+    private final GameStateMachine gameStateMachine;
 
     public GameService(
-        GameRepository gameRepository,
-        GameMoveRepository gameMoveRepository,
-        MatchRepository matchRepository,
-        AnswerEvaluator answerEvaluator
+            GameRepository gameRepository,
+            GameMoveRepository gameMoveRepository,
+            MatchRepository matchRepository,
+            AnswerEvaluator answerEvaluator,
+            GameStateMachine gameStateMachine
     ) {
-        this.gameRepository = gameRepository;
+        this.gameRepository    = gameRepository;
         this.gameMoveRepository = gameMoveRepository;
-        this.matchRepository = matchRepository;
-        this.answerEvaluator = answerEvaluator;
+        this.matchRepository   = matchRepository;
+        this.answerEvaluator   = answerEvaluator;
+        this.gameStateMachine  = gameStateMachine;
     }
 
+    // ── Public API ────────────────────────────────────────────────────────────
+
     /**
-     * Process a player's move (answer submission).
+     * Process a player's answer submission.
      *
-     * @param gameId the game UUID
-     * @param playerId the player UUID
-     * @param answer the player's answer
-     * @return the created GameMove
-     * @throws IllegalStateException if not player's turn or game not in progress
+     * <ol>
+     *   <li>Load and validate the game/match state.</li>
+     *   <li>Evaluate the answer via {@link AnswerEvaluator}.</li>
+     *   <li>Delegate transition logic to {@link GameStateMachine}.</li>
+     *   <li>Persist the resulting move and updated game state.</li>
+     * </ol>
+     *
+     * @param gameId   the game UUID
+     * @param playerId the player making the move
+     * @param answer   the submitted answer text
+     * @return the persisted {@link GameMove}
+     * @throws IllegalStateException    if the game is not in progress or it is not this player's turn
+     * @throws IllegalArgumentException if the game or match does not exist
      */
     @Transactional
     public GameMove processPlayerMove(UUID gameId, UUID playerId, String answer) {
         log.debug("Processing move for game {} by player {}: {}", gameId, playerId, answer);
 
-        // Load game and validate
-        Game game = getGameOrThrow(gameId);
+        Game game   = getGameOrThrow(gameId);
         Match match = getMatchOrThrow(game.getMatchId());
 
         validateGameInProgress(game);
         validatePlayerTurn(game, playerId);
 
-        // Get used answers to prevent duplicates
         List<UUID> usedAnswerIds = gameMoveRepository.findUsedAnswerIdsByGameId(gameId);
-
-        // Get current score
         int currentScore = getPlayerScore(game, match, playerId);
 
-        // Evaluate answer
         AnswerResult answerResult = answerEvaluator.evaluateAnswer(
-            game.getQuestionId(),
-            answer,
-            currentScore,
-            usedAnswerIds
-        );
+                game.getQuestionId(), answer, currentScore, usedAnswerIds);
 
-        // Determine move result type
-        GameMove.MoveResult moveResult = determineMoveResult(answerResult);
+        GameTransition transition = gameStateMachine.onMoveSubmitted(game, match, playerId, answerResult);
 
-        // Create and save move
-        GameMove move = createGameMove(game, playerId, answer, answerResult, moveResult, currentScore);
+        GameMove move = buildMove(gameId, playerId, game.getTurnCount() + 1,
+                answer, answerResult, transition, currentScore);
         gameMoveRepository.save(move);
 
-        // Update game state based on result
-        updateGameState(game, match, playerId, answerResult, moveResult);
-
-        // Save updated game
+        applyTransition(game, match, playerId, transition);
         gameRepository.save(game);
 
-        log.debug("Move processed: result={}, score before={}, score after={}",
-            moveResult, move.getScoreBefore(), move.getScoreAfter());
+        log.debug("Move processed: result={}, score {}→{}",
+                transition.moveResult(), currentScore, transition.scoreAfter());
 
         return move;
     }
 
     /**
-     * Handle player timeout.
+     * Handle a player timeout.
      *
-     * @param gameId the game UUID
-     * @param playerId the player UUID
+     * @param gameId   the game UUID
+     * @param playerId the player who timed out
+     * @throws IllegalStateException if the game is not in progress
      */
     @Transactional
     public void handleTimeout(UUID gameId, UUID playerId) {
         log.debug("Handling timeout for game {} by player {}", gameId, playerId);
 
-        Game game = getGameOrThrow(gameId);
+        Game game   = getGameOrThrow(gameId);
         Match match = getMatchOrThrow(game.getMatchId());
 
         validateGameInProgress(game);
 
-        // Increment consecutive timeouts
-        incrementConsecutiveTimeouts(game, match, playerId);
-
-        // Check for forfeit (3+ consecutive timeouts)
-        if (getConsecutiveTimeouts(game, match, playerId) >= FORFEIT_TIMEOUT_THRESHOLD) {
-            log.warn("Player {} forfeited due to {} consecutive timeouts", playerId, FORFEIT_TIMEOUT_THRESHOLD);
-            game.setStatus(Game.GameStatus.COMPLETED);
-            game.setWinnerId(getOpponentId(match, playerId));
-        } else {
-            // Reduce timer based on consecutive timeouts
-            updateTimerForTimeouts(game, match, playerId);
-        }
-
-        // Create timeout move
         int currentScore = getPlayerScore(game, match, playerId);
-        GameMove timeoutMove = GameMove.builder()
-            .gameId(gameId)
-            .playerId(playerId)
-            .moveNumber(game.getTurnCount() + 1)
-            .submittedAnswer("")
-            .result(GameMove.MoveResult.TIMEOUT)
-            .scoreBefore(currentScore)
-            .scoreAfter(currentScore)
-            .isTimeout(true)
-            .build();
+        GameTransition transition = gameStateMachine.onTimeout(game, match, playerId);
 
+        GameMove timeoutMove = GameMove.builder()
+                .gameId(gameId)
+                .playerId(playerId)
+                .moveNumber(game.getTurnCount() + 1)
+                .submittedAnswer("")
+                .result(GameMove.MoveResult.TIMEOUT)
+                .scoreBefore(currentScore)
+                .scoreAfter(currentScore)
+                .isTimeout(true)
+                .build();
         gameMoveRepository.save(timeoutMove);
 
-        // Switch turn (timeout wastes turn)
-        // In practice mode (player2 = null), don't switch turns
-        if (match.getPlayer2Id() != null) {
-            game.setCurrentTurnPlayerId(getOpponentId(match, playerId));
-        }
-        game.setTurnCount(game.getTurnCount() + 1);
-
+        applyTransition(game, match, playerId, transition);
         gameRepository.save(game);
     }
 
     /**
-     * Create a new game within a match.
+     * Abandon an in-progress game and its parent match.
      *
-     * @param matchId the match UUID
+     * <p>Safe to call when the game is already completed or abandoned — it
+     * becomes a no-op in that case so the frontend can fire-and-forget.
+     *
+     * @param gameId   the game UUID
+     * @param playerId the player requesting abandonment (must be part of the match)
+     * @throws IllegalArgumentException if the game or match does not exist
+     * @throws IllegalStateException    if the player is not part of the match
+     */
+    @Transactional
+    public void abandonGame(UUID gameId, UUID playerId) {
+        log.debug("Abandoning game {} for player {}", gameId, playerId);
+
+        Game game   = getGameOrThrow(gameId);
+        Match match = getMatchOrThrow(game.getMatchId());
+
+        boolean isPlayer1 = playerId.equals(match.getPlayer1Id());
+        boolean isPlayer2 = match.getPlayer2Id() != null && playerId.equals(match.getPlayer2Id());
+        if (!isPlayer1 && !isPlayer2) {
+            throw new IllegalStateException("Player " + playerId + " is not part of match " + match.getId());
+        }
+
+        if (game.getStatus() == Game.GameStatus.IN_PROGRESS) {
+            game.setStatus(Game.GameStatus.ABANDONED);
+            game.setCompletedAt(java.time.LocalDateTime.now());
+            gameRepository.save(game);
+        }
+
+        if (match.getStatus() == Match.MatchStatus.IN_PROGRESS) {
+            match.setStatus(Match.MatchStatus.ABANDONED);
+            match.setCompletedAt(java.time.LocalDateTime.now());
+            matchRepository.save(match);
+        }
+
+        log.info("Game abandoned: gameId={}, matchId={}", gameId, match.getId());
+    }
+
+    /**
+     * Create a new game within an existing match.
+     *
+     * @param matchId    the match UUID
      * @param questionId the question UUID
-     * @param gameNumber the game number (1, 2, 3, etc.)
-     * @return the created game
+     * @param gameNumber the ordinal position within the match (1-based)
+     * @return the persisted {@link Game}
      */
     @Transactional
     public Game createGame(UUID matchId, UUID questionId, int gameNumber) {
@@ -174,24 +194,24 @@ public class GameService {
         Match match = getMatchOrThrow(matchId);
 
         Game game = Game.builder()
-            .matchId(matchId)
-            .gameNumber(gameNumber)
-            .questionId(questionId)
-            .status(Game.GameStatus.IN_PROGRESS)
-            .currentTurnPlayerId(match.getPlayer1Id()) // Player 1 always starts
-            .player1Score(501)
-            .player2Score(501)
-            .player1ConsecutiveTimeouts(0)
-            .player2ConsecutiveTimeouts(0)
-            .turnCount(0)
-            .turnTimerSeconds(DEFAULT_TIMER)
-            .build();
+                .matchId(matchId)
+                .gameNumber(gameNumber)
+                .questionId(questionId)
+                .status(Game.GameStatus.IN_PROGRESS)
+                .currentTurnPlayerId(match.getPlayer1Id()) // Player 1 always goes first
+                .player1Score(501)
+                .player2Score(501)
+                .player1ConsecutiveTimeouts(0)
+                .player2ConsecutiveTimeouts(0)
+                .turnCount(0)
+                .turnTimerSeconds(GameStateMachine.DEFAULT_TIMER)
+                .build();
 
         return gameRepository.save(game);
     }
 
     /**
-     * Get used answer IDs for a game (to prevent duplicate answers).
+     * Return the set of answer UUIDs already used in a game (prevents duplicate submissions).
      *
      * @param gameId the game UUID
      * @return list of used answer UUIDs
@@ -202,28 +222,88 @@ public class GameService {
     }
 
     /**
-     * Get game by ID.
+     * Look up a game by ID.
      *
      * @param gameId the game UUID
-     * @return optional game
+     * @return an optional containing the game if it exists
      */
     @Transactional(readOnly = true)
     public Optional<Game> getGameById(UUID gameId) {
         return gameRepository.findById(gameId);
     }
 
-    // ========================================
-    // Private Helper Methods
-    // ========================================
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /**
+     * Apply a {@link GameTransition} to the mutable {@link Game} entity.
+     *
+     * <p>This is the single place in the service layer that writes game state.
+     * All business rules about <em>what</em> should change have already been decided
+     * by {@link GameStateMachine}; this method only applies the decision.
+     */
+    private void applyTransition(Game game, Match match, UUID activePlayerId, GameTransition t) {
+        // Update the active player's score
+        if (activePlayerId.equals(match.getPlayer1Id())) {
+            game.setPlayer1Score(t.scoreAfter());
+        } else if (match.getPlayer2Id() != null && activePlayerId.equals(match.getPlayer2Id())) {
+            game.setPlayer2Score(t.scoreAfter());
+        }
+
+        // Update game status and winner
+        game.setStatus(t.nextGameStatus());
+        if (t.winnerId() != null) {
+            game.setWinnerId(t.winnerId());
+        }
+
+        // Update whose turn it is
+        if (t.nextTurnPlayerId() != null) {
+            game.setCurrentTurnPlayerId(t.nextTurnPlayerId());
+        }
+
+        // Advance turn counter if the move consumed a turn
+        if (t.turnAdvanced()) {
+            game.setTurnCount(game.getTurnCount() + 1);
+        }
+
+        // Update timer and consecutive-timeout counters
+        game.setTurnTimerSeconds(t.nextTimerSeconds());
+        game.setPlayer1ConsecutiveTimeouts(t.player1ConsecutiveTimeouts());
+        game.setPlayer2ConsecutiveTimeouts(t.player2ConsecutiveTimeouts());
+    }
+
+    /** Build a {@link GameMove} from a transition result. */
+    private GameMove buildMove(
+            UUID gameId,
+            UUID playerId,
+            int moveNumber,
+            String submittedAnswer,
+            AnswerResult answerResult,
+            GameTransition transition,
+            int scoreBefore
+    ) {
+        return GameMove.builder()
+                .gameId(gameId)
+                .playerId(playerId)
+                .moveNumber(moveNumber)
+                .submittedAnswer(submittedAnswer)
+                .matchedAnswerId(answerResult.getAnswerId())
+                .matchedDisplayText(answerResult.getDisplayText())
+                .result(transition.moveResult())
+                .scoreValue(answerResult.getScore())
+                .scoreBefore(scoreBefore)
+                .scoreAfter(transition.scoreAfter())
+                .isTimeout(false)
+                .build();
+    }
 
     private Game getGameOrThrow(UUID gameId) {
         return gameRepository.findById(gameId)
-            .orElseThrow(() -> new IllegalArgumentException("Game not found: " + gameId));
+                .orElseThrow(() -> new IllegalArgumentException("Game not found: " + gameId));
     }
 
     private Match getMatchOrThrow(UUID matchId) {
         return matchRepository.findById(matchId)
-            .orElseThrow(() -> new IllegalArgumentException("Match not found: " + matchId));
+                .orElseThrow(() -> new IllegalArgumentException("Match not found: " + matchId));
     }
 
     private void validateGameInProgress(Game game) {
@@ -239,178 +319,8 @@ public class GameService {
     }
 
     private int getPlayerScore(Game game, Match match, UUID playerId) {
-        if (playerId.equals(match.getPlayer1Id())) {
-            return game.getPlayer1Score();
-        } else if (playerId.equals(match.getPlayer2Id())) {
-            return game.getPlayer2Score();
-        }
-        throw new IllegalArgumentException("Player not in this match");
-    }
-
-    private void setPlayerScore(Game game, Match match, UUID playerId, int newScore) {
-        if (playerId.equals(match.getPlayer1Id())) {
-            game.setPlayer1Score(newScore);
-        } else if (playerId.equals(match.getPlayer2Id())) {
-            game.setPlayer2Score(newScore);
-        }
-    }
-
-    private UUID getOpponentId(Match match, UUID playerId) {
-        if (playerId.equals(match.getPlayer1Id())) {
-            return match.getPlayer2Id();
-        } else {
-            return match.getPlayer1Id();
-        }
-    }
-
-    private GameMove.MoveResult determineMoveResult(AnswerResult answerResult) {
-        if (!answerResult.isValid()) {
-            return GameMove.MoveResult.INVALID;
-        }
-        if (answerResult.isWin()) {
-            return GameMove.MoveResult.CHECKOUT;
-        }
-        if (answerResult.isBust()) {
-            return GameMove.MoveResult.BUST;
-        }
-        return GameMove.MoveResult.VALID;
-    }
-
-    private GameMove createGameMove(
-        Game game,
-        UUID playerId,
-        String answer,
-        AnswerResult answerResult,
-        GameMove.MoveResult moveResult,
-        int scoreBefore
-    ) {
-        // For invalid answers, scoreAfter should equal scoreBefore (no change)
-        int scoreAfter = answerResult.isValid() ? answerResult.getNewTotal() : scoreBefore;
-
-        return GameMove.builder()
-            .gameId(game.getId())
-            .playerId(playerId)
-            .moveNumber(game.getTurnCount() + 1)
-            .submittedAnswer(answer)
-            .matchedAnswerId(answerResult.getAnswerId())
-            .matchedDisplayText(answerResult.getDisplayText())
-            .result(moveResult)
-            .scoreValue(answerResult.getScore())
-            .scoreBefore(scoreBefore)
-            .scoreAfter(scoreAfter)
-            .isTimeout(false)
-            .build();
-    }
-
-    private void updateGameState(
-        Game game,
-        Match match,
-        UUID playerId,
-        AnswerResult answerResult,
-        GameMove.MoveResult moveResult
-    ) {
-        // Update score if valid or checkout
-        if (moveResult == GameMove.MoveResult.VALID || moveResult == GameMove.MoveResult.CHECKOUT) {
-            setPlayerScore(game, match, playerId, answerResult.getNewTotal());
-            resetConsecutiveTimeouts(game, match, playerId);
-        }
-
-        // Handle checkout (win)
-        if (moveResult == GameMove.MoveResult.CHECKOUT) {
-            handleCheckout(game, match, playerId);
-            return; // Don't switch turn on checkout
-        }
-
-        // Switch turn for valid, bust (but NOT for invalid - allow retry)
-        // In practice mode (player2 = null), don't switch turns - keep with player1
-        if (moveResult == GameMove.MoveResult.VALID || moveResult == GameMove.MoveResult.BUST) {
-            if (match.getPlayer2Id() != null) {
-                // Multiplayer mode - switch turns normally
-                game.setCurrentTurnPlayerId(getOpponentId(match, playerId));
-            }
-            // In practice mode, currentTurnPlayerId stays as player1
-            game.setTurnCount(game.getTurnCount() + 1);
-        }
-    }
-
-    private void handleCheckout(Game game, Match match, UUID playerId) {
-        log.info("Player {} checked out in game {}", playerId, game.getId());
-
-        // Practice mode (single player) - just complete immediately
-        if (match.getPlayer2Id() == null) {
-            game.setStatus(Game.GameStatus.COMPLETED);
-            game.setWinnerId(playerId);
-            log.info("Practice mode: Player {} wins!", playerId);
-            return;
-        }
-
-        // Multiplayer mode - check if this is P2 responding to P1's checkout
-        if (game.getWinnerId() != null && !game.getWinnerId().equals(playerId)) {
-            // P1 already checked out, P2 is responding with their final turn
-            int player1Score = game.getPlayer1Score();
-            int player2Score = game.getPlayer2Score();
-
-            // Determine winner based on distance to 0 (Standard 501 Rules).
-            // Since P1 checked out, their score is 0.
-            // P2 can only win if they also reach 0 (draws might favor P2 or result in draw depending on rules, 
-            // but here logic implies P2 wins ties/close finishes).
-            if (Math.abs(player2Score) < Math.abs(player1Score)) {
-                log.info("Player 2 beat Player 1's checkout ({} vs {})", player2Score, player1Score);
-                game.setWinnerId(match.getPlayer2Id());
-            } else {
-                log.info("Player 1 wins close finish ({} vs {})", player1Score, player2Score);
-            }
-            game.setStatus(Game.GameStatus.COMPLETED);
-            return;
-        }
-
-        // Apply close finish rule: if Player 1 wins, Player 2 gets one final turn
-        if (playerId.equals(match.getPlayer1Id())) {
-            log.debug("Applying close finish rule - Player 2 gets final turn");
-            game.setCurrentTurnPlayerId(match.getPlayer2Id());
-            // Don't set status to COMPLETED yet - allow P2 final turn
-            game.setWinnerId(playerId); // Tentative winner
-        } else {
-            // Player 2 won first (no close finish needed)
-            game.setStatus(Game.GameStatus.COMPLETED);
-            game.setWinnerId(playerId);
-        }
-    }
-
-    private int getConsecutiveTimeouts(Game game, Match match, UUID playerId) {
-        if (playerId.equals(match.getPlayer1Id())) {
-            return game.getPlayer1ConsecutiveTimeouts();
-        } else {
-            return game.getPlayer2ConsecutiveTimeouts();
-        }
-    }
-
-    private void incrementConsecutiveTimeouts(Game game, Match match, UUID playerId) {
-        if (playerId.equals(match.getPlayer1Id())) {
-            game.setPlayer1ConsecutiveTimeouts(game.getPlayer1ConsecutiveTimeouts() + 1);
-        } else {
-            game.setPlayer2ConsecutiveTimeouts(game.getPlayer2ConsecutiveTimeouts() + 1);
-        }
-    }
-
-    private void resetConsecutiveTimeouts(Game game, Match match, UUID playerId) {
-        if (playerId.equals(match.getPlayer1Id())) {
-            game.setPlayer1ConsecutiveTimeouts(0);
-        } else {
-            game.setPlayer2ConsecutiveTimeouts(0);
-        }
-        // Reset timer to default on successful move
-        game.setTurnTimerSeconds(DEFAULT_TIMER);
-    }
-
-    private void updateTimerForTimeouts(Game game, Match match, UUID playerId) {
-        int consecutiveTimeouts = getConsecutiveTimeouts(game, match, playerId);
-
-        // Timer reduction: 45s → 30s (after 1st timeout) → 15s (after 2nd timeout) → forfeit (3rd)
-        if (consecutiveTimeouts == 1) {
-            game.setTurnTimerSeconds(REDUCED_TIMER_1); // 30s
-        } else if (consecutiveTimeouts == 2) {
-            game.setTurnTimerSeconds(REDUCED_TIMER_2); // 15s
-        }
+        if (playerId.equals(match.getPlayer1Id())) return game.getPlayer1Score();
+        if (match.getPlayer2Id() != null && playerId.equals(match.getPlayer2Id())) return game.getPlayer2Score();
+        throw new IllegalArgumentException("Player " + playerId + " is not part of this match");
     }
 }

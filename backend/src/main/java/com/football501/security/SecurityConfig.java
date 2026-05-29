@@ -1,0 +1,106 @@
+package com.football501.security;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+
+/**
+ * Spring Security configuration for Football 501.
+ *
+ * <h3>Design intent</h3>
+ * <ul>
+ *   <li>This config wires the plumbing without blocking local development.
+ *       A {@link DevModeAuthFilter} (active on every profile except {@code prod})
+ *       injects a fixed authenticated principal so all endpoints remain reachable
+ *       without real OAuth tokens.</li>
+ *   <li>{@code @EnableMethodSecurity} activates {@code @PreAuthorize} on admin
+ *       controllers.  The annotations are already in place; this config makes
+ *       them effective.</li>
+ *   <li>CSRF is disabled — this is a stateless REST API consumed by a SPA.
+ *       When JWT cookies are introduced, re-evaluate (SameSite=Strict cookies
+ *       plus a double-submit token provide equivalent protection).</li>
+ *   <li>Session policy is STATELESS — the server holds no HTTP session state.</li>
+ * </ul>
+ *
+ * <h3>Endpoint access policy</h3>
+ * <pre>
+ *   /api/admin/**           → ROLE_ADMIN   (enforced by @PreAuthorize at method level)
+ *   /api/solo/**        → ROLE_USER    (enforced at URL level here)
+ *   /api/entities/search    → permitAll    (public autocomplete)
+ *   /api/categories         → permitAll    (public category listing)
+ *   /actuator/health        → permitAll    (liveness probe)
+ *   everything else         → authenticated (safe default)
+ * </pre>
+ *
+ * <h3>Production path</h3>
+ * Add a JWT validation filter (e.g. {@code JwtAuthFilter}) before
+ * {@link UsernamePasswordAuthenticationFilter} and activate it on the
+ * {@code prod} profile.  Remove or disable {@link DevModeAuthFilter}.
+ */
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+public class SecurityConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
+
+    private final DevModeAuthFilter devModeAuthFilter;
+
+    /**
+     * {@code devModeAuthFilter} is absent on the {@code prod} profile because its
+     * bean is annotated {@code @Profile("!prod")}.  Using {@code ObjectProvider}
+     * avoids the ambiguous resolution that can occur with nullable constructor
+     * injection in Spring Framework 7.x.
+     */
+    public SecurityConfig(org.springframework.beans.factory.ObjectProvider<DevModeAuthFilter> provider) {
+        this.devModeAuthFilter = provider.getIfAvailable();
+        log.info("SecurityConfig: devModeAuthFilter = {}", devModeAuthFilter != null ? "PRESENT" : "NULL");
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            // CORS — delegates to the CorsConfigurationSource bean in CorsConfig
+            .cors(Customizer.withDefaults())
+
+            // CSRF — disabled for stateless REST API
+            .csrf(csrf -> csrf.disable())
+
+            // No HTTP session — every request must carry its own credentials
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+            // URL-level access rules
+            .authorizeHttpRequests(auth -> auth
+                // Public — autocomplete and category listing need no auth
+                .requestMatchers("/api/entities/**").permitAll()
+                .requestMatchers("/api/categories/**").permitAll()
+                // Health / liveness probes
+                .requestMatchers("/actuator/health").permitAll()
+                // Solo game — requires an authenticated user
+                .requestMatchers("/api/solo/**").hasAnyRole("USER", "ADMIN")
+                // Admin — also enforced at method level via @PreAuthorize
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                // Deny everything else by default (safe)
+                .anyRequest().authenticated()
+            );
+
+        // Inject the dev-mode filter when not running in production
+        if (devModeAuthFilter != null) {
+            log.info("Adding DevModeAuthFilter before AuthorizationFilter");
+            http.addFilterBefore(devModeAuthFilter,
+                org.springframework.security.web.access.intercept.AuthorizationFilter.class);
+        } else {
+            log.warn("DevModeAuthFilter is NULL — auth endpoints will require real credentials");
+        }
+
+        return http.build();
+    }
+}

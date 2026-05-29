@@ -1,8 +1,8 @@
 # Question Difficulty Scoring System
 
-**Status**: Designed, pending implementation  
-**Branch**: `feature/ingame-hints`  
-**Last updated**: 2026-05-26
+**Status**: Implemented (Phase 4 — commit 932d9d9)  
+**Branch**: `feature/audit-fixes` (merged)  
+**Last updated**: 2026-05-27
 
 ---
 
@@ -318,21 +318,24 @@ The `difficulty INTEGER` column (1/2/3 scale, added in V4) is superseded by `dif
 
 ---
 
-## Implementation Plan
+## Implementation Status
 
-### Execution order
+All steps below are complete as of Phase 4 (commit 932d9d9). This section is retained as a reference for understanding the design intent behind each file.
+
+### Execution order (completed)
 
 ```
-1.  V13 migration                          ← schema first, no code changes yet
-2.  DifficultyConstants.java               ← no dependencies
-3.  DifficultyCalculator.java              ← depends on Constants
-4.  Question.java — add new fields         ← depends on migration
-5.  QuestionMaterializerService — update   ← depends on Calculator + Question
-6.  DifficultyRecalibrationService.java    ← depends on Calculator + Repository
-7.  QuestionRepository — add new methods   ← depends on Question fields
-8.  AdminQuestionController — add endpoints ← depends on RecalibrationService
-9.  Run backfill SQL                       ← depends on migration + live data
-10. DifficultyCalculatorTest.java          ← can be written alongside step 3
+1.  V13 migration                          ← DONE: V13__question_difficulty_metrics.sql
+2.  DifficultyConstants.java               ← DONE: engine/DifficultyConstants.java
+3.  DifficultyCalculator.java              ← DONE: engine/DifficultyCalculator.java
+4.  Question.java — add new fields         ← DONE: 9 new @Builder.Default fields
+5.  QuestionMaterializerService — update   ← DONE: zone accumulation + auto-exclusion
+6.  DifficultyRecalibrationService.java    ← DONE: service/DifficultyRecalibrationService.java
+7.  QuestionRepository — add new methods   ← DONE: findByDifficultyLockedFalse, findViableByDifficultyRange
+8.  AdminQuestionController — add endpoints ← DONE: POST /recalculate-difficulty, PATCH /{id}/difficulty-lock
+9.  Run backfill SQL                       ← PENDING: run backfill_difficulty_scores.sql after data population
+10. DifficultyCalculatorTest.java          ← DONE: 20 tests in engine/DifficultyCalculatorTest.java
+    QuestionMaterializerServiceTest.java   ← DONE: 8 tests in service/QuestionMaterializerServiceTest.java
 ```
 
 ---
@@ -742,10 +745,20 @@ Zone boundary changes are the expensive operation. Formula constant changes and 
 
 ---
 
-## Out of Scope (Future Work)
+## Completed Items (Phase 4)
 
-- **Remove old `difficulty INTEGER` field** — once all callers of `findByCategoryIdAndDifficultyAndStatus` are migrated, drop the column in a dedicated cleanup migration
-- **Expose `difficulty_score` and `viabilityExclusionReason` in admin UI** — add to `QuestionResponse` DTO and the question list view; show exclusion reason inline on excluded rows
-- **Difficulty range presets** — named bands (e.g. Accessible 0–4, Competitive 4–7, Expert 7–10) defined as UI constants at render time, never stored
+- `V13__question_difficulty_metrics.sql` — all 9 columns, indexes, constraint live
+- `DifficultyCalculator.java` + `DifficultyConstants.java` — formula implemented
+- `DifficultyRecalibrationService.java` — bulk recalibration from stored counts
+- `AdminQuestionController` — `POST /api/admin/questions/recalculate-difficulty`, `PATCH /{id}/difficulty-lock`
+- `QuestionResponse` DTO — all 9 new difficulty/viability fields exposed (with `@Deprecated` note on legacy `difficulty` field)
+
+---
+
+## Remaining / Future Work
+
+- **Run `backfill_difficulty_scores.sql`** — this is a manual one-time SQL run against the live database after initial data population. Step 3 (setting `status = 'excluded'`) must be reviewed before execution — do not run blindly
+- **Remove old `difficulty INTEGER` field** — once all callers of `findByCategoryIdAndDifficultyAndStatus` are migrated to the new range-based query, drop the column in a dedicated cleanup migration
+- **Difficulty range presets in admin UI** — named bands (e.g. Accessible 0–4, Competitive 4–7, Expert 7–10) defined as UI constants at render time, never stored
 - **Expert Challenge mode** — questions with `difficulty_score > 8.5` that are excluded from standard play could be surfaced here; requires a new game mode flag on `matches`
 - **Template suitability flags** — a `suitable_for_game_modes JSONB` column on `question_templates` to declare which modes a template can support; prevents future scope creep where unsuitable templates are re-enabled for the wrong modes

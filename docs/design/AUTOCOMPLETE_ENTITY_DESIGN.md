@@ -1,7 +1,7 @@
 # Autocomplete and Named Entity Architecture
 
-**Last updated**: 2026-05-25
-**Status**: Implemented (Flyway V5)
+**Last updated**: 2026-05-27  
+**Status**: Implemented (Flyway V5) — bulk upsert and EntityType constants added in audit Phases 2 and 5
 
 ## Table of Contents
 
@@ -88,9 +88,17 @@ The `entities` table is populated from two sources:
 
 ### Path 1: Admin answer import (automatic)
 
-When an admin creates or bulk-imports answers through the admin UI, `AdminAnswerService` calls `EntitySearchService.upsertEntity(displayText, entityType, hint)` for each player name. The upsert is idempotent: it normalizes the name, checks for an existing row with the same `(entity_type, normalized_name)`, and skips insertion if one exists.
+When an admin creates or bulk-imports answers through the admin UI, `AdminAnswerService` calls `EntitySearchService.upsertEntity(displayText, entityType, hint)` for each player name. The upsert uses a native `INSERT … ON CONFLICT (entity_type, normalized_name) DO NOTHING` — it is idempotent and race-condition-safe.
 
 No manual step is needed when answers are added through the normal admin workflow.
+
+**EntityType constants**: callers pass the entity type as a `String`. Always use the constants in `com.football501.model.EntityType` rather than bare string literals:
+
+```java
+entitySearchService.upsertEntity(displayText, EntityType.FOOTBALLER, hint);
+```
+
+Available constants: `EntityType.FOOTBALLER`, `EntityType.CITY`, `EntityType.COUNTRY`, `EntityType.COACH`.
 
 ### Path 2: Python scraper
 
@@ -201,6 +209,19 @@ The `normalized_name` column stores a lowercase, accent-stripped form of every n
 
 Because both sides use the same algorithm, a name registered in Java and then searched in SQL (or vice versa) always produces the same key.
 
+### Normalization Contract Test
+
+The divergence between Java's `stripAccents()` and PostgreSQL's `unaccent()` would be silent — a search would simply return no results. To prevent this, an integration test pins the contract against a real PostgreSQL 17 container:
+
+**File**: `backend/src/test/java/com/football501/EntitySearchNormalizationContainerTest.java`
+
+The test:
+1. Inserts an accented name (e.g. `"Agüero"`) via `EntitySearchService.upsertEntity()`
+2. Searches for it using the unaccented query `"aguero"` via `EntitySearchService.searchEntities()`
+3. Asserts the result contains the expected display name
+
+The test covers: acute diacritics (ü), umlauts (ö), accented query input, the bulk-upsert code path, and direct `stripAccents()` unit assertions. It is marked `@DisabledWithoutDocker` so it skips in environments without Docker.
+
 ### Examples
 
 | Player types | normalized_name stored | Display name returned |
@@ -271,7 +292,9 @@ The `EntitySearch` component is the single place in the codebase that knows abou
 |---------|------|
 | Flyway migration (table + indexes) | `backend/src/main/resources/db/migration/V5__add_player_names_autocomplete.sql` |
 | JPA model | `backend/src/main/java/com/football501/model/NamedEntity.java` |
-| Repository (search query) | `backend/src/main/java/com/football501/repository/NamedEntityRepository.java` |
-| Service (search + upsert) | `backend/src/main/java/com/football501/service/EntitySearchService.java` |
+| Repository (search + bulk upsert) | `backend/src/main/java/com/football501/repository/NamedEntityRepository.java` |
+| Service (search + upsert + backfill) | `backend/src/main/java/com/football501/service/EntitySearchService.java` |
+| EntityType constants | `backend/src/main/java/com/football501/model/EntityType.java` |
 | REST controller | `backend/src/main/java/com/football501/controller/EntityController.java` |
 | Frontend component | `frontend-react/src/components/game/EntitySearch.tsx` |
+| Normalization contract test | `backend/src/test/java/com/football501/EntitySearchNormalizationContainerTest.java` |

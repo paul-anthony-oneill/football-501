@@ -2,6 +2,8 @@ package com.football501.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -22,6 +24,7 @@ import java.util.UUID;
         @Index(name = "idx_teams_normalized_name", columnList = "normalized_name")
     }
 )
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -56,11 +59,7 @@ public class Team {
     @Builder.Default
     private Integer popularityRank = 10;
 
+    @CreatedDate
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
-
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-    }
 }

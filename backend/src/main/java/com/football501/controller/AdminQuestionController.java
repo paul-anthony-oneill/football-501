@@ -1,10 +1,12 @@
 package com.football501.controller;
 
 import com.football501.dto.admin.CreateQuestionRequest;
+import com.football501.dto.admin.DifficultyLockRequest;
 import com.football501.dto.admin.QuestionListResponse;
 import com.football501.dto.admin.QuestionResponse;
 import com.football501.dto.admin.UpdateQuestionRequest;
 import com.football501.dto.admin.UpdateStatusRequest;
+import com.football501.service.DifficultyRecalibrationService;
 import com.football501.service.AdminQuestionService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -13,15 +15,15 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 import java.util.Map;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/admin/questions")
+@PreAuthorize("hasRole('ADMIN')")
 @Slf4j
 public class AdminQuestionController {
 
@@ -141,5 +143,51 @@ public class AdminQuestionController {
     public void deleteQuestion(@PathVariable UUID id) {
         log.info("Delete question: {}", id);
         adminQuestionService.deleteQuestion(id);
+    }
+
+    /**
+     * Bulk-recalculates difficulty scores and viability for all unlocked questions
+     * using their stored zone counts. Does not touch the answers table.
+     *
+     * <p>Use this after adjusting any constant in {@code DifficultyConstants.java}.
+     * For zone-boundary changes (e.g. checkout range 1–19 → 1–25) re-materialisation
+     * is required first — this endpoint only re-derives scores from stored counts.
+     *
+     * <p>Returns:
+     * <pre>
+     * { "total": 142, "updated": 38, "reExcluded": 12 }
+     * </pre>
+     */
+    @PostMapping("/recalculate-difficulty")
+    public ResponseEntity<Map<String, Object>> recalculateDifficulty() {
+        log.info("Admin triggered bulk difficulty recalibration");
+        DifficultyRecalibrationService.RecalibrationResult result =
+            adminQuestionService.recalculateDifficulty();
+        return ResponseEntity.ok(Map.of(
+            "total",      result.total(),
+            "updated",    result.updated(),
+            "reExcluded", result.reExcluded()
+        ));
+    }
+
+    /**
+     * Locks or unlocks a question's difficulty score so the recalibration job
+     * skips it.
+     *
+     * <p>Body: {@code { "locked": true, "difficultyScore": 6.5 }}.
+     * {@code difficultyScore} is optional — if omitted the stored score is unchanged.
+     * {@code difficultyScore} is only applied when {@code locked = true}.
+     *
+     * <p>Useful when the formula computes an incorrect score for a specific question
+     * (e.g. an unusual stat distribution) and you want to pin a manual value.
+     */
+    @PatchMapping("/{id}/difficulty-lock")
+    public ResponseEntity<QuestionResponse> lockDifficulty(
+            @PathVariable UUID id,
+            @Valid @RequestBody DifficultyLockRequest request) {
+        log.info("Admin {} difficulty lock for question {} (score override: {})",
+            Boolean.TRUE.equals(request.getLocked()) ? "enabling" : "disabling",
+            id, request.getDifficultyScore());
+        return ResponseEntity.ok(adminQuestionService.lockDifficulty(id, request));
     }
 }

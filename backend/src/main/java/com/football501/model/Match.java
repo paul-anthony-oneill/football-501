@@ -2,6 +2,9 @@ package com.football501.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -16,6 +19,7 @@ import java.util.UUID;
     @Index(name = "idx_matches_player1", columnList = "player1_id"),
     @Index(name = "idx_matches_player2", columnList = "player2_id")
 })
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -72,24 +76,21 @@ public class Match {
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
 
+    @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        // createdAt / updatedAt are set by @CreatedDate / @LastModifiedDate.
+        // startedAt is a business timestamp — default to now on first persist.
         if (startedAt == null) {
             startedAt = LocalDateTime.now();
         }
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
     }
 
     public enum MatchType {

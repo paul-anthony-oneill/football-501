@@ -1,7 +1,7 @@
 package com.football501.engine;
 
 import tools.jackson.databind.ObjectMapper;
-import com.football501.dto.StartPracticeRequest;
+import com.football501.dto.StartSoloGameRequest;
 import com.football501.dto.SubmitAnswerRequest;
 import com.football501.model.Answer;
 import com.football501.model.Category;
@@ -71,8 +71,6 @@ class FuzzyMatchingContainerTest {
     @Autowired private GameRepository gameRepository;
     @Autowired private MatchRepository matchRepository;
 
-    private UUID playerId;
-
     @BeforeEach
     void setUp() {
         gameMoveRepository.deleteAll();
@@ -81,8 +79,6 @@ class FuzzyMatchingContainerTest {
         answerRepository.deleteAll();
         questionRepository.deleteAll();
         categoryRepository.deleteAll();
-
-        playerId = UUID.randomUUID();
 
         Category category = categoryRepository.save(Category.builder()
             .name("Football")
@@ -120,9 +116,8 @@ class FuzzyMatchingContainerTest {
     void exactMatch_returnsValid() throws Exception {
         UUID gameId = startGame();
 
-        mockMvc.perform(post("/api/practice/games/{id}/submit", gameId)
-                .param("playerId", playerId.toString())
-                .contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
+                                .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("Erling Haaland")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.result").value("VALID"))
@@ -135,9 +130,8 @@ class FuzzyMatchingContainerTest {
         UUID gameId = startGame();
 
         // "Erling Haland" (missing one 'a') should fuzzy-match "Erling Haaland"
-        mockMvc.perform(post("/api/practice/games/{id}/submit", gameId)
-                .param("playerId", playerId.toString())
-                .contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
+                                .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("Erling Haland")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.result").value("VALID"))
@@ -149,9 +143,8 @@ class FuzzyMatchingContainerTest {
     void unknownName_returnsInvalid() throws Exception {
         UUID gameId = startGame();
 
-        mockMvc.perform(post("/api/practice/games/{id}/submit", gameId)
-                .param("playerId", playerId.toString())
-                .contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
+                                .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("Zxqwerty Fakename9999")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.result").value("INVALID"))
@@ -162,12 +155,11 @@ class FuzzyMatchingContainerTest {
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private UUID startGame() throws Exception {
-        StartPracticeRequest req = StartPracticeRequest.builder()
-            .playerId(playerId)
+        StartSoloGameRequest req = StartSoloGameRequest.builder()
             .categorySlug("football")
             .build();
 
-        String body = mockMvc.perform(post("/api/practice/start")
+        String body = mockMvc.perform(post("/api/solo/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
             .andExpect(status().isOk())

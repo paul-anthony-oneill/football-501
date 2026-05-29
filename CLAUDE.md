@@ -2,15 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Backlog Discipline
+
+Before starting any task, check **`docs/BACKLOG.md`**. After completing or deferring work:
+- **Tick off** any backlog item your change addresses (move it to the Completed table).
+- **Add a new entry** if you are consciously deferring something that came up during the task — capture what it is, why it's deferred, and which files are relevant.
+- **Do not add** Flyway migrations, new abstractions, or hardening work that isn't needed right now just because it feels tidy. Defer it and document it instead.
+
 ## Project Overview
 
 Football 501 is a competitive football trivia game that combines football knowledge with darts 501 scoring mechanics. Players compete to reduce their score from 501 to exactly 0 by naming football players whose statistics match a given question.
 
-**Current Status**: Game Engine & Admin UI Implemented (Phase 3 Complete).
+**Current Status**: Audit Fixes Complete (Phase 5 of 5).
 
 **Tech Stack**:
 - Frontend: Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS 4 — `frontend-react/`
-- Frontend (legacy reference): SvelteKit — `frontend/` (kept intact, not actively developed)
 - Backend: Spring Boot 4.0.6 + Java 25 + PostgreSQL 15+
 - Data Source: ScraperFC (Python Microservice)
 - Real-time: WebSocket (STOMP protocol) - *In Progress*
@@ -194,11 +200,26 @@ ScraperFC data maps to the `answers` table:
 
 ## Security
 
-### Authentication
-- OAuth 2.0 social login (Google, Apple, Facebook)
-- JWT tokens (24-hour expiration)
-- Guest accounts (ephemeral, 24-hour inactivity timeout)
-- HTTPOnly cookies for token storage
+### Current Security Architecture (Dev-Mode Permissive)
+
+Spring Security is fully wired (`SecurityConfig.java`, `DevModeAuthFilter.java`) but operates in a permissive dev-mode posture. See `docs/SECURITY_ARCHITECTURE.md` for the complete model.
+
+**How identity works today**:
+- `DevModeAuthFilter` (`@Profile("!prod")`) runs on every non-production profile and injects a fixed authenticated principal (`DEV_PLAYER_ID = "00000000-0000-0000-0000-000000000001"`) with `ROLE_USER` and `ROLE_ADMIN`.
+- `PracticeGameController` reads player identity from `Principal.getName()` — never from a request parameter. Identity spoofing via `@RequestParam playerId` has been removed.
+- All five admin controllers carry `@PreAuthorize("hasRole('ADMIN')")` at class level; `@EnableMethodSecurity` activates these annotations.
+
+**URL-level access policy** (enforced by `SecurityConfig`):
+- `/api/entities/**` and `/api/categories/**` — `permitAll` (public autocomplete and listing)
+- `/actuator/health` — `permitAll` (liveness probe)
+- `/api/practice/**` — `ROLE_USER` or `ROLE_ADMIN`
+- `/api/admin/**` — `ROLE_ADMIN`
+- everything else — `authenticated`
+
+**What is deferred to production**:
+- Real OAuth 2.0 / JWT validation filter (replaces `DevModeAuthFilter`)
+- CSRF protection (currently disabled for stateless REST; re-evaluate when JWT cookies are introduced)
+- Content Security Policy (add in Next.js `middleware.ts`)
 
 ### Anti-Cheat Measures
 - All game logic validated server-side
@@ -234,13 +255,6 @@ cd frontend-react
 npm install
 npm run dev  # Dev server on http://localhost:3000
 # API calls proxied to http://localhost:8080 via next.config.ts
-```
-
-**Frontend (SvelteKit — legacy reference only)**:
-```bash
-cd frontend
-npm install
-npm run dev  # Dev server on http://localhost:5173
 ```
 
 **Backend**:
@@ -334,6 +348,10 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 8. **Never use `answers` as the autocomplete source** - It would reveal valid answers for the current question. Autocomplete must query the `entities` table only.
 9. **Always populate `entities` when adding answers** - `AdminAnswerService` does this automatically via `EntitySearchService.upsertEntity()`. If running a manual SQL backfill, see `docs/design/AUTOCOMPLETE_ENTITY_DESIGN.md`.
 10. **Match `entity_type` slug in question config to the `entities` pool** - If `config` says `"entity_type": "city"` but no city rows exist in `entities`, the autocomplete will silently return nothing. Seed the pool before activating the question type.
+11. **Use `EntityType` constants, never bare strings** - Use `EntityType.FOOTBALLER`, `EntityType.CITY`, etc. (in `com.football501.model.EntityType`). Bare `"footballer"` literals were a Phase 5 audit finding; compile-time constants prevent silent slug drift.
+12. **Do not add local `@ExceptionHandler` to controllers** - `GlobalExceptionHandler` (`com.football501.exception`) owns all error formatting. Local handlers produce inconsistent JSON shapes and were eliminated in Phase 5.
+13. **Do not read `playerId` from request parameters in game controllers** - Identity comes from `Principal.getName()` parsed as a UUID. Adding a `@RequestParam UUID playerId` re-opens the identity spoofing vulnerability fixed in Phase 1.
+14. **New model classes must use `@EntityListeners(AuditingEntityListener.class)`** - `@CreatedDate` and `@LastModifiedDate` only populate when this listener is registered. Manual `LocalDateTime.now()` in `@PrePersist` is the old pattern; do not reintroduce it.
 
 ## Key Design Decisions
 
@@ -365,6 +383,7 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 
 - Product Requirements: `docs/PRD.md`
 - Game Rules: `docs/GAME_RULES.md`
+- **Backlog & Future Work: `docs/BACKLOG.md`** ← check this before starting any task; update it when you defer something or complete a backlog item
 - Technical Design: `docs/design/TECHNICAL_DESIGN.md`
 - API Integration: `docs/api/API_INTEGRATION.md`
 - Autocomplete & Entity Architecture: `docs/design/AUTOCOMPLETE_ENTITY_DESIGN.md`
@@ -399,12 +418,20 @@ Multiple game modes (Daily Challenge, Rapid Fire, Draft, Category Lock) are **de
 
 ## Current Development Phase
 
-**Phase**: Planning & Design (Complete) → Beginning MVP Development
+**Phase**: Audit Fixes Complete (Phase 5 of 5) — Moving to MVP Features
 
-**Next Steps**:
-1. Frontend project setup (SvelteKit + TypeScript)
-2. Backend project setup (Spring Boot + PostgreSQL)
-3. Database schema implementation
-4. User authentication (OAuth + guest accounts)
-5. Basic REST API
-6. Game engine implementation (scoring rules, darts validation)
+The five-phase audit campaign is complete. All critical security, data integrity, architecture, scoring, and cleanup findings have been addressed. The codebase is now in a clean state for building the remaining MVP features.
+
+**What was completed in the audit campaign**:
+- Phase 1: Spring Security plumbing, identity spoofing fix, `@PreAuthorize` on admin controllers
+- Phase 2: Backfill upsert (single SQL `INSERT … ON CONFLICT`), JPA auditing, normalization contract test
+- Phase 3: `GameStateMachine` coordinator, `useGameLoop` hook, admin page decomposition
+- Phase 4: `DifficultyCalculator`, viability gate, V13 migration, recalibration endpoint
+- Phase 5: MapStruct mappers, `GlobalExceptionHandler`, `EntityType` constants, SvelteKit frontend deleted
+
+**Next Steps** (remaining MVP work):
+1. Real authentication — replace `DevModeAuthFilter` with a JWT validation filter; wire OAuth 2.0 (Google social login first)
+2. WebSocket multiplayer — STOMP handler for real-time 1v1 matches; `GameStateMachine` is already ready to receive WebSocket events
+3. Player profiles and matchmaking queue
+4. Data population — run the Python scraper service against the live database to seed `questions` and `answers`
+5. Run `backfill_difficulty_scores.sql` after data population to compute initial difficulty scores

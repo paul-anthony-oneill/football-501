@@ -1,6 +1,7 @@
 package com.football501.service;
 
 import com.football501.dto.admin.CreateQuestionRequest;
+import com.football501.dto.admin.DifficultyLockRequest;
 import com.football501.dto.admin.QuestionListResponse;
 import com.football501.dto.admin.QuestionResponse;
 import com.football501.dto.admin.UpdateQuestionRequest;
@@ -28,28 +29,31 @@ import java.util.stream.Collectors;
 public class AdminQuestionService {
 
     private static final Set<String> VALID_STATUSES = Set.of(
-        Question.STATUS_DRAFT, Question.STATUS_ACTIVE, Question.STATUS_RETIRED
+        Question.STATUS_DRAFT, Question.STATUS_ACTIVE, Question.STATUS_RETIRED, Question.STATUS_EXCLUDED
     );
 
-    private final QuestionRepository         questionRepository;
-    private final CategoryRepository         categoryRepository;
-    private final AnswerRepository           answerRepository;
-    private final QuestionMaterializerService materializerService;
+    private final QuestionRepository              questionRepository;
+    private final CategoryRepository              categoryRepository;
+    private final AnswerRepository                answerRepository;
+    private final QuestionMaterializerService     materializerService;
+    private final DifficultyRecalibrationService  recalibrationService;
 
     /**
      * {@code @Lazy} on the materializer service breaks the circular dependency
      * that would occur if any materializer depends on question/answer services.
      */
     public AdminQuestionService(
-            QuestionRepository          questionRepository,
-            CategoryRepository          categoryRepository,
-            AnswerRepository            answerRepository,
-            @Lazy QuestionMaterializerService materializerService
+            QuestionRepository                   questionRepository,
+            CategoryRepository                   categoryRepository,
+            AnswerRepository                     answerRepository,
+            @Lazy QuestionMaterializerService    materializerService,
+            DifficultyRecalibrationService       recalibrationService
     ) {
         this.questionRepository  = questionRepository;
         this.categoryRepository  = categoryRepository;
         this.answerRepository    = answerRepository;
         this.materializerService = materializerService;
+        this.recalibrationService = recalibrationService;
     }
 
     /**
@@ -293,6 +297,49 @@ public class AdminQuestionService {
         );
     }
 
+    // ── Difficulty endpoints ──────────────────────────────────────────────────
+
+    /**
+     * Bulk-recalculates difficulty scores and viability for all unlocked questions
+     * using stored zone counts. Does not touch the answers table.
+     *
+     * @return summary of how many questions were processed, updated, and re-excluded
+     */
+    @Transactional
+    public DifficultyRecalibrationService.RecalibrationResult recalculateDifficulty() {
+        return recalibrationService.recalculateAll();
+    }
+
+    /**
+     * Locks or unlocks a question's difficulty score.
+     *
+     * <p>When locked, the recalibration job skips this question. If a
+     * {@code difficultyScore} override is provided alongside {@code locked = true},
+     * that score is applied immediately.
+     *
+     * @param id      question UUID
+     * @param request lock/unlock request body
+     * @return updated question response
+     */
+    @Transactional
+    public QuestionResponse lockDifficulty(UUID id, DifficultyLockRequest request) {
+        Question question = questionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Question not found with id: " + id));
+
+        question.setDifficultyLocked(request.getLocked());
+
+        if (Boolean.TRUE.equals(request.getLocked()) && request.getDifficultyScore() != null) {
+            question.setDifficultyScore(request.getDifficultyScore());
+            log.info("Question {} difficulty locked with override score: {}",
+                id, request.getDifficultyScore());
+        } else {
+            log.info("Question {} difficulty lock set to: {}", id, request.getLocked());
+        }
+
+        Question saved = questionRepository.save(question);
+        return mapToResponse(saved);
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private QuestionResponse mapToResponse(Question question) {
@@ -317,6 +364,17 @@ public class AdminQuestionService {
         response.setValidDartsCount(answerRepository.countByQuestionIdAndIsValidDartsTrue(question.getId()));
         response.setTotalPointsPool(answerRepository.sumValidDartsScores(question.getId()));
         response.setHighValueAnswerCount(answerRepository.countHighValueAnswers(question.getId()));
+
+        // Difficulty metrics (stored on the question row — no extra queries)
+        response.setHighValueCount(question.getHighValueCount());
+        response.setMidRangeCount(question.getMidRangeCount());
+        response.setCheckoutCount(question.getCheckoutCount());
+        response.setTotalValidCount(question.getTotalValidCount());
+        response.setTotalScorePool(question.getTotalScorePool());
+        response.setSingleQuestionViable(question.isSingleQuestionViable());
+        response.setViabilityExclusionReason(question.getViabilityExclusionReason());
+        response.setDifficultyScore(question.getDifficultyScore());
+        response.setDifficultyLocked(question.isDifficultyLocked());
 
         return response;
     }

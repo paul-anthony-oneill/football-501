@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import LobbyView from "@/components/game/lobby/LobbyView";
 import MatchView from "@/components/game/match/MatchView";
+import { useGameLoop } from "@/hooks/useGameLoop";
 import { useToast } from "@/context/ToastContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -15,150 +16,48 @@ interface Category {
   leader?: { name: string; score: number };
 }
 
-type GameStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
-
-interface Move {
-  answer: string;
-  result: string;
-  scoreBefore: number;
-  scoreAfter: number;
-  matchedAnswer?: string;
-  scoreValue?: number;
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function GamePage() {
   const { addToast: showToast } = useToast();
 
-  // Core state
-  const [gameId, setGameId] = useState<string | null>(null);
-  // Guest player ID — stable for the session, sent with every request
-  const [playerId] = useState<string>(() => crypto.randomUUID());
-  const [score, setScore] = useState(501);
-  const [question, setQuestion] = useState("");
-  const [turnCount, setTurnCount] = useState(0);
-  const [gameStatus, setGameStatus] = useState<GameStatus>("NOT_STARTED");
-  const [moves, setMoves] = useState<Move[]>([]);
-  // Entity type for autocomplete — read from the question config on game start
-  const [entityType, setEntityType] = useState("footballer");
-  // In-game hints from the server (null until the first game state response)
-  const [hints, setHints] = useState<{ maxScoresLeft: number; checkoutsLeft: number } | null>(null);
+  // Game loop — owns all game-session state and API calls
+  const {
+    score,
+    question,
+    turnCount,
+    gameStatus,
+    moves,
+    entityType,
+    hints,
+    startNewGame,
+    submitAnswer,
+    exitGame,
+  } = useGameLoop();
 
-  // Lobby state
+  // Lobby state — owned here because it's unrelated to the game loop itself
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategorySlug, setSelectedCategorySlug] = useState("football");
   const [playerName, setPlayerName] = useState("GUEST_PLAYER");
-  const [gameMode, setGameMode] = useState<'practice' | 'ranked'>('practice');
+  const [gameMode, setGameMode] = useState<"solo" | "ranked">("solo");
 
   // ── Init ───────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    // Load categories from backend
     fetch("/api/categories")
-      .then((r) => r.ok ? r.json() : Promise.reject(r))
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
       .then((data: Category[]) => {
-        // Mocking leader data for the new UI until backend supports it
-        const enhancedData = data.map(cat => ({
+        // Augment with mock leader data until the backend exposes it
+        const enriched = data.map((cat) => ({
           ...cat,
-          leader: { name: "PLAYER_ONE", score: 12 }
+          leader: { name: "PLAYER_ONE", score: 12 },
         }));
-        setCategories(enhancedData);
-        if (data.length > 0) {
-          const def = data.find((c) => c.slug === "football");
-          setSelectedCategorySlug(def ? def.slug : data[0].slug);
-        }
+        setCategories(enriched);
+        const def = data.find((c) => c.slug === "football");
+        setSelectedCategorySlug(def ? def.slug : (data[0]?.slug ?? "football"));
       })
-      .catch(() => {
-        showToast("Failed to load categories", "error");
-      });
+      .catch(() => showToast("Failed to load categories", "error"));
   }, [showToast]);
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
-
-  async function startNewGame() {
-    try {
-      const res = await fetch("/api/practice/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId, categorySlug: selectedCategorySlug }),
-      });
-
-      if (!res.ok) {
-        const msg = await res.text().catch(() => "Failed to start game");
-        throw new Error(msg);
-      }
-
-      const game = await res.json();
-      setGameId(game.gameId);
-      setScore(game.currentScore);
-      setQuestion(game.questionText);
-      setTurnCount(0);
-      setMoves([]);
-      setEntityType(game.entityType ?? "footballer");
-      setHints(game.hints ?? null);
-      setGameStatus("IN_PROGRESS");
-
-      // Switch body theme
-      document.body.classList.remove('theme-home');
-      document.body.classList.add('theme-teletext');
-
-      showToast("Game started!", "success");
-    } catch (err) {
-      showToast((err as Error).message || "Error starting game", "error");
-    }
-  }
-
-  async function submitAnswer(answer: string) {
-    if (!gameId || !answer.trim()) return;
-
-    try {
-      const res = await fetch(`/api/practice/games/${gameId}/submit?playerId=${playerId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answer: answer.trim() }),
-      });
-
-      if (!res.ok) throw new Error("Validation failed");
-
-      const result = await res.json();
-
-      const newMove: Move = {
-        answer: answer.trim(),
-        result: result.result,
-        scoreBefore: score,
-        scoreAfter: result.scoreAfter,
-        matchedAnswer: result.matchedAnswer,
-        scoreValue: result.scoreValue,
-      };
-
-      setMoves([newMove, ...moves]);
-      setScore(result.scoreAfter);
-      setTurnCount(prev => prev + 1);
-      setHints(result.gameState?.hints ?? null);
-
-      if (result.result === 'VALID') {
-        showToast(`Correct! -${result.scoreValue}`, "success");
-      } else if (result.result === 'BUST') {
-        showToast("BUST!", "error");
-      } else if (result.result === 'INVALID') {
-        showToast("Not a valid answer — try again", "error");
-      }
-
-      if (result.isWin) {
-        setGameStatus("COMPLETED");
-      }
-    } catch (err) {
-      showToast("Error validating answer", "error");
-    }
-  }
-
-  function exitGame() {
-    setGameStatus("NOT_STARTED");
-    setGameId(null);
-    document.body.classList.remove('theme-teletext');
-    document.body.classList.add('theme-home');
-  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -168,7 +67,7 @@ export default function GamePage() {
         categories={categories}
         selectedCategorySlug={selectedCategorySlug}
         onSelectCategory={setSelectedCategorySlug}
-        onStartGame={startNewGame}
+        onStartGame={() => startNewGame(selectedCategorySlug)}
         playerName={playerName}
         onPlayerNameChange={setPlayerName}
         gameMode={gameMode}
@@ -177,7 +76,9 @@ export default function GamePage() {
     );
   }
 
-  const selectedCategory = categories.find(c => c.slug === selectedCategorySlug);
+  const selectedCategory = categories.find(
+    (c) => c.slug === selectedCategorySlug,
+  );
 
   return (
     <MatchView
@@ -187,7 +88,7 @@ export default function GamePage() {
       moves={moves}
       onExit={exitGame}
       onSubmitAnswer={submitAnswer}
-      onPlayAgain={startNewGame}
+      onPlayAgain={() => startNewGame(selectedCategorySlug)}
       categoryName={selectedCategory?.name || "Football"}
       categorySub={selectedCategory?.description || "Darts Edition"}
       entityType={entityType}

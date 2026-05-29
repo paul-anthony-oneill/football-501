@@ -104,6 +104,53 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
         @Param("status")      String status
     );
 
+    // ── Difficulty & viability queries ───────────────────────────────────────
+
+    /**
+     * Returns all questions where {@code difficulty_locked = false}.
+     * Used by {@code DifficultyRecalibrationService} to find questions whose
+     * scores should be recomputed.
+     */
+    List<Question> findByDifficultyLockedFalse();
+
+    /**
+     * Standard game selection query for a category and difficulty range.
+     *
+     * <p>Only returns questions that are {@code status = 'active'},
+     * {@code single_question_viable = true}, and whose {@code difficulty_score}
+     * falls within [{@code minScore}, {@code maxScore}].
+     *
+     * <p>For standard ranked play, pass {@code maxScore = 8.5} to exclude
+     * questions that are playable but produce frustratingly constrained games.
+     * See {@code DifficultyConstants} for the rationale.
+     *
+     * <p>Results are ordered randomly so each draw produces a fresh question.
+     *
+     * @param categoryId category UUID
+     * @param minScore   minimum difficulty score (inclusive)
+     * @param maxScore   maximum difficulty score (inclusive); use 8.5 for standard ranked play
+     * @return matching questions in random order
+     */
+    @Query(value = """
+        SELECT * FROM questions
+        WHERE category_id             = :categoryId
+          AND status                  = 'active'
+          AND single_question_viable  = true
+          AND difficulty_score        BETWEEN :minScore AND :maxScore
+        ORDER BY RANDOM()
+        """, nativeQuery = true)
+    List<Question> findViableByDifficultyRange(
+        @Param("categoryId") UUID   categoryId,
+        @Param("minScore")   double minScore,
+        @Param("maxScore")   double maxScore
+    );
+
+    /**
+     * Returns all questions with {@code checkout_count = 0} and the given status.
+     * Used in admin diagnostics to identify questions with no precision answers.
+     */
+    List<Question> findByCheckoutCountAndStatus(int checkoutCount, String status);
+
     // ── Counts ────────────────────────────────────────────────────────────────
 
     long countByCategoryId(UUID categoryId);

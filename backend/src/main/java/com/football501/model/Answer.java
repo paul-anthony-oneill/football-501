@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -30,6 +32,7 @@ import java.util.UUID;
         @Index(name = "idx_answers_question_score", columnList = "question_id, score DESC")
     }
 )
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -78,12 +81,14 @@ public class Answer {
     @Builder.Default
     private LocalDateTime materializedAt = null; // set in onCreate/onUpdate
 
+    @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        // createdAt is set by @CreatedDate / AuditingEntityListener.
+        // materializedAt is a business timestamp (last scraper run), not a generic audit field.
         if (materializedAt == null) {
             materializedAt = LocalDateTime.now();
         }
