@@ -345,6 +345,28 @@ class SoloGameControllerTest {
             .andExpect(status().isBadRequest());
     }
 
+    // ── Abandonment tests ──────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("Should abandon game and return 204 No Content")
+    void shouldAbandonGame() throws Exception {
+        mockMvc.perform(post("/api/solo/games/{gameId}/abandon", gameId)
+                .principal(PRINCIPAL))
+            .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("Should return 204 when abandoning twice (idempotent)")
+    void shouldAbandonGameTwice() throws Exception {
+        mockMvc.perform(post("/api/solo/games/{gameId}/abandon", gameId)
+                .principal(PRINCIPAL))
+            .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/solo/games/{gameId}/abandon", gameId)
+                .principal(PRINCIPAL))
+            .andExpect(status().isNoContent());
+    }
+
     @Test
     @DisplayName("Should use default category when not specified")
     void shouldUseDefaultCategory() throws Exception {

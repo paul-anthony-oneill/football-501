@@ -549,4 +549,96 @@ class GameServiceTest {
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("Game is not in progress");
     }
+
+    // ── Abandonment tests ─────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("Should abandon in-progress game and match")
+    void shouldAbandonInProgressGameAndMatch() {
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        gameService.abandonGame(gameId, player1Id);
+
+        ArgumentCaptor<Game> gameCaptor = ArgumentCaptor.forClass(Game.class);
+        verify(gameRepository).save(gameCaptor.capture());
+        Game savedGame = gameCaptor.getValue();
+        assertThat(savedGame.getStatus()).isEqualTo(Game.GameStatus.ABANDONED);
+        assertThat(savedGame.getCompletedAt()).isNotNull();
+
+        ArgumentCaptor<Match> matchCaptor = ArgumentCaptor.forClass(Match.class);
+        verify(matchRepository).save(matchCaptor.capture());
+        Match savedMatch = matchCaptor.getValue();
+        assertThat(savedMatch.getStatus()).isEqualTo(Match.MatchStatus.ABANDONED);
+        assertThat(savedMatch.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Should be idempotent when game and match are already completed")
+    void shouldBeIdempotentWhenAlreadyCompleted() {
+        game.setStatus(Game.GameStatus.COMPLETED);
+        match.setStatus(Match.MatchStatus.COMPLETED);
+
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        gameService.abandonGame(gameId, player1Id);
+
+        verify(gameRepository, never()).save(any(Game.class));
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @Test
+    @DisplayName("Should be idempotent when game is already abandoned")
+    void shouldBeIdempotentWhenAlreadyAbandoned() {
+        game.setStatus(Game.GameStatus.ABANDONED);
+        match.setStatus(Match.MatchStatus.ABANDONED);
+
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        gameService.abandonGame(gameId, player1Id);
+
+        verify(gameRepository, never()).save(any(Game.class));
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @Test
+    @DisplayName("Should reject abandonment by player not in the match")
+    void shouldRejectAbandonmentByNonParticipant() {
+        UUID strangerId = UUID.randomUUID();
+
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        assertThatThrownBy(() ->
+            gameService.abandonGame(gameId, strangerId)
+        )
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("not part of match");
+    }
+
+    @Test
+    @DisplayName("Should allow abandonment by player 2")
+    void shouldAllowAbandonmentByPlayer2() {
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+
+        gameService.abandonGame(gameId, player2Id);
+
+        ArgumentCaptor<Game> gameCaptor = ArgumentCaptor.forClass(Game.class);
+        verify(gameRepository).save(gameCaptor.capture());
+        assertThat(gameCaptor.getValue().getStatus()).isEqualTo(Game.GameStatus.ABANDONED);
+    }
+
+    @Test
+    @DisplayName("Should throw when abandoning non-existent game")
+    void shouldThrowWhenAbandoningNonExistentGame() {
+        when(gameRepository.findById(gameId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() ->
+            gameService.abandonGame(gameId, player1Id)
+        )
+            .isInstanceOf(IllegalArgumentException.class);
+    }
 }
