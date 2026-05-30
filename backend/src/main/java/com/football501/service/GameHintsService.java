@@ -8,43 +8,106 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Computes in-game hint statistics about the remaining answer pool.
  *
- * <p>Hints are re-computed after every move by running filtered {@code COUNT}
- * queries against the already-indexed {@code answers} table.  Each query is
- * sub-millisecond on typical answer-set sizes (hundreds of rows) and runs on
- * the same PostgreSQL connection as the rest of the game flow — no extra
- * round-trips or caching infrastructure is needed.
+ * <p>Answer scores are loaded once at game start into an in-memory cache
+ * ({@code answerId → score}) so that subsequent hint computations are pure
+ * in-memory operations — zero database queries during gameplay.
  *
  * <p>Two hint types are produced:
  * <ul>
  *   <li>{@code maxScoresLeft} — answers worth exactly 180 points (the maximum
- *       darts score).  Shown while the player's score is above 180 so they can
- *       see how many "max dart" moves are still available.</li>
- *   <li>{@code checkoutsLeft} — answers that would bring the player to exactly 0
- *       or within the winning range (−10 to 0).  Shown once the score is 180 or
- *       below so the player knows how many one-move wins remain.</li>
+ *       darts score).</li>
+ *   <li>{@code checkoutsLeft} — answers whose score would bring the player within
+ *       the winning range (score ∈ [current, current + 10]).</li>
  * </ul>
  */
 @Service
 @Slf4j
 public class GameHintsService {
 
-    /**
-     * The winning range extends {@value} points below zero.
-     * An answer that brings the score to −10 through 0 is a valid checkout.
-     */
     private static final int CHECKOUT_WINDOW = 10;
+    private static final int MAX_SCORE = 180;
 
     private final AnswerRepository answerRepository;
     private final GameMoveRepository gameMoveRepository;
 
+    /** Per-question cache of answerId → score for valid non-bust answers. */
+    private final Map<UUID, Map<UUID, Integer>> scoreCaches = new ConcurrentHashMap<>();
+
     public GameHintsService(AnswerRepository answerRepository, GameMoveRepository gameMoveRepository) {
         this.answerRepository = answerRepository;
         this.gameMoveRepository = gameMoveRepository;
+    }
+
+    /**
+     * Pre-load the score cache for a question. Call once at game start.
+     * Subsequent calls for the same question return immediately (cache hit).
+     */
+    @Transactional(readOnly = true)
+    public void loadScoreCache(UUID questionId) {
+        scoreCaches.computeIfAbsent(questionId, qid -> {
+            List<Object[]> rows = answerRepository.findValidNonBustAnswerScores(qid);
+            Map<UUID, Integer> cache = rows.stream()
+                .collect(Collectors.toMap(
+                    row -> (UUID) row[0],
+                    row -> ((Number) row[1]).intValue()
+                ));
+            log.debug("Score cache loaded: questionId={}, entries={}", qid, cache.size());
+            return cache;
+        });
+    }
+
+    /**
+     * Compute hints from the in-memory score cache — zero database queries.
+     *
+     * @param questionId    the question UUID (cache key)
+     * @param usedAnswerIds answer IDs already used (excluded from counts)
+     * @param currentScore  the player's current score
+     */
+    public GameHints computeHintsFromCache(UUID questionId, List<UUID> usedAnswerIds, int currentScore) {
+        Map<UUID, Integer> cache = scoreCaches.get(questionId);
+        if (cache == null) {
+            log.warn("Score cache miss for question {} — falling back to DB query", questionId);
+            return computeHints(questionId, questionId, currentScore, usedAnswerIds);
+        }
+
+        int maxScoresLeft = 0;
+        int checkoutsMin = currentScore;
+        int checkoutsMax = currentScore + CHECKOUT_WINDOW;
+        int checkoutsLeft = 0;
+
+        for (Map.Entry<UUID, Integer> entry : cache.entrySet()) {
+            if (usedAnswerIds != null && usedAnswerIds.contains(entry.getKey())) {
+                continue;
+            }
+            int score = entry.getValue();
+            if (score == MAX_SCORE) {
+                maxScoresLeft++;
+            }
+            if (currentScore > 0 && score >= checkoutsMin && score <= checkoutsMax) {
+                checkoutsLeft++;
+            }
+        }
+
+        log.debug("Hints [cache]: maxScoresLeft={}, checkoutsLeft={} (score={})",
+            maxScoresLeft, checkoutsLeft, currentScore);
+
+        return GameHints.builder()
+            .maxScoresLeft(maxScoresLeft)
+            .checkoutsLeft(checkoutsLeft)
+            .build();
+    }
+
+    /** Remove the score cache for a question (call when game ends). */
+    public void evictScoreCache(UUID questionId) {
+        scoreCaches.remove(questionId);
     }
 
     /**

@@ -93,13 +93,15 @@ public class SoloGameController {
             request.getDifficulty()
         );
 
-        MatchService.GameStartRecord startRecord = matchService.startNextGame(match.getId());
+        MatchService.GameStartRecord startRecord = matchService.startNextGame(match);
         Game game = startRecord.game();
         Question question = startRecord.question();
 
+        gameHintsService.loadScoreCache(question.getId());
+
         log.info("Solo game started: gameId={}, playerId={}", game.getId(), playerId);
 
-        return ResponseEntity.ok(buildGameStateResponse(game, question, match));
+        return ResponseEntity.ok(buildGameStateResponse(game, question, match, List.of()));
     }
 
     /**
@@ -233,7 +235,7 @@ public class SoloGameController {
         }
 
         GameHints hints = usedAnswerIds != null
-            ? gameHintsService.computeHints(game.getId(), game.getQuestionId(), currentScore, usedAnswerIds)
+            ? gameHintsService.computeHintsFromCache(game.getQuestionId(), usedAnswerIds, currentScore)
             : gameHintsService.computeHints(game.getId(), game.getQuestionId(), currentScore);
 
         return GameStateResponse.builder()

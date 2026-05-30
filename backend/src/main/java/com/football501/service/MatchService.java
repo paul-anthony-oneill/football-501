@@ -99,15 +99,13 @@ public class MatchService {
     /**
      * Start the next game in a match.
      *
-     * @param matchId the match UUID
+     * @param match the match entity (must already be persisted)
      * @return a {@link GameStartRecord} with the created game and selected question
      * @throws IllegalStateException if match is not in progress or no question available
      */
     @Transactional
-    public GameStartRecord startNextGame(UUID matchId) {
-        log.debug("Starting next game for match {}", matchId);
-
-        Match match = getMatchOrThrow(matchId);
+    public GameStartRecord startNextGame(Match match) {
+        log.debug("Starting next game for match {}", match.getId());
 
         // Validate match is in progress
         if (match.getStatus() != Match.MatchStatus.IN_PROGRESS) {
@@ -127,14 +125,14 @@ public class MatchService {
         Question question = questionOpt.get();
 
         // Determine game number (number of completed games + 1)
-        long completedGames = gameRepository.countByMatchIdAndStatus(matchId, Game.GameStatus.COMPLETED);
+        long completedGames = gameRepository.countByMatchIdAndStatus(match.getId(), Game.GameStatus.COMPLETED);
         int gameNumber = (int) completedGames + 1;
 
         // Create game
-        Game game = gameService.createGame(matchId, question.getId(), gameNumber);
+        Game game = gameService.createGame(match.getId(), question.getId(), gameNumber);
 
         log.info("Game started: matchId={}, gameNumber={}, questionId={}",
-            matchId, gameNumber, question.getId());
+            match.getId(), gameNumber, question.getId());
 
         return new GameStartRecord(game, question);
     }

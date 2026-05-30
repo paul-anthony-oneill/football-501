@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -72,6 +73,34 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
           AND (SELECT COUNT(a) FROM Answer a WHERE a.questionId = q.id) >= :minAnswers
         """)
     List<Question> findActiveWithMinAnswersByDifficulty(
+        @Param("categoryId") UUID categoryId,
+        @Param("difficulty") Integer difficulty,
+        @Param("minAnswers") int minAnswers
+    );
+
+    /**
+     * Returns a single random active question for a category with at least
+     * {@code minAnswers} valid-darts answers, optionally filtered by difficulty.
+     *
+     * <p>Uses the denormalized {@code total_valid_count} column (V13) instead of a
+     * correlated subquery against {@code answers} — a simple column comparison that
+     * does not touch the answers table at all.
+     *
+     * @param categoryId  category UUID
+     * @param difficulty  optional difficulty tier filter (pass {@code null} for all)
+     * @param minAnswers  minimum number of valid-darts answers required
+     * @return a random matching question, or empty if none qualify
+     */
+    @Query(value = """
+        SELECT * FROM questions
+        WHERE category_id      = :categoryId
+          AND status           = 'active'
+          AND total_valid_count >= :minAnswers
+          AND (:difficulty IS NULL OR difficulty = :difficulty)
+        ORDER BY RANDOM()
+        LIMIT 1
+        """, nativeQuery = true)
+    Optional<Question> findRandomActiveQuestion(
         @Param("categoryId") UUID categoryId,
         @Param("difficulty") Integer difficulty,
         @Param("minAnswers") int minAnswers

@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Service for managing questions and question selection.
@@ -65,28 +64,26 @@ public class QuestionService {
 
     /**
      * Select a random active question for a category with difficulty and minimum answer requirement.
-     * Uses a single query to filter by answer count, avoiding N+1.
+     *
+     * <p>Uses {@link QuestionRepository#findRandomActiveQuestion} which filters on the
+     * denormalized {@code total_valid_count} column (no correlated subquery) and returns a
+     * single row via {@code ORDER BY RANDOM() LIMIT 1}.
      */
     @Transactional(readOnly = true)
     public Optional<Question> selectRandomQuestion(UUID categoryId, Integer difficulty, int minAnswers) {
         log.debug("Selecting random question for category {} with difficulty {} and minAnswers {}",
             categoryId, difficulty, minAnswers);
 
-        List<Question> eligibleQuestions = difficulty != null
-            ? questionRepository.findActiveWithMinAnswersByDifficulty(categoryId, difficulty, minAnswers)
-            : questionRepository.findActiveWithMinAnswers(categoryId, minAnswers);
-        // Note: both repository methods filter on status = 'active' internally.
+        Optional<Question> selected = questionRepository.findRandomActiveQuestion(categoryId, difficulty, minAnswers);
 
-        if (eligibleQuestions.isEmpty()) {
+        if (selected.isEmpty()) {
             log.warn("No eligible questions for category {} (difficulty: {}, minAnswers: {})",
                 categoryId, difficulty, minAnswers);
-            return Optional.empty();
+        } else {
+            log.debug("Selected question: {} (ID: {})", selected.get().getQuestionText(), selected.get().getId());
         }
 
-        Question selected = eligibleQuestions.get(ThreadLocalRandom.current().nextInt(eligibleQuestions.size()));
-        log.debug("Selected question: {} (ID: {})", selected.getQuestionText(), selected.getId());
-
-        return Optional.of(selected);
+        return selected;
     }
 
     /**

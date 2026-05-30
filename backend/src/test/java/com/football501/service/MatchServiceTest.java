@@ -127,8 +127,6 @@ class MatchServiceTest {
     @DisplayName("Should start first game in match")
     void shouldStartFirstGame() {
         // Given
-        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
-        // match.getDifficulty() is null (not set in builder); service calls selectRandomQuestion(id, null, 10)
         when(questionService.selectRandomQuestion(eq(categoryId), eq(2), eq(10)))
             .thenReturn(Optional.of(question));
         when(gameRepository.countByMatchIdAndStatus(matchId, Game.GameStatus.COMPLETED))
@@ -145,7 +143,7 @@ class MatchServiceTest {
         when(gameService.createGame(matchId, questionId, 1)).thenReturn(createdGame);
 
         // When
-        MatchService.GameStartRecord startRecord = matchService.startNextGame(matchId);
+        MatchService.GameStartRecord startRecord = matchService.startNextGame(match);
 
         // Then
         assertThat(startRecord.game()).isNotNull();
@@ -161,7 +159,6 @@ class MatchServiceTest {
     @DisplayName("Should start next game after previous completes")
     void shouldStartNextGameAfterPreviousCompletes() {
         // Given - 1 game already completed
-        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
         when(questionService.selectRandomQuestion(eq(categoryId), eq(2), eq(10)))
             .thenReturn(Optional.of(question));
         when(gameRepository.countByMatchIdAndStatus(matchId, Game.GameStatus.COMPLETED))
@@ -178,7 +175,7 @@ class MatchServiceTest {
         when(gameService.createGame(matchId, questionId, 2)).thenReturn(createdGame);
 
         // When
-        MatchService.GameStartRecord startRecord = matchService.startNextGame(matchId);
+        MatchService.GameStartRecord startRecord = matchService.startNextGame(match);
 
         // Then
         assertThat(startRecord.game().getGameNumber()).isEqualTo(2);
@@ -349,11 +346,10 @@ class MatchServiceTest {
     void shouldThrowExceptionWhenStartingGameOnCompletedMatch() {
         // Given
         match.setStatus(Match.MatchStatus.COMPLETED);
-        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
 
         // When/Then
         assertThatThrownBy(() ->
-            matchService.startNextGame(matchId)
+            matchService.startNextGame(match)
         )
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("Match is not in progress");
@@ -363,14 +359,12 @@ class MatchServiceTest {
     @DisplayName("Should throw exception when no question available")
     void shouldThrowExceptionWhenNoQuestionAvailable() {
         // Given
-        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
         when(questionService.selectRandomQuestion(eq(categoryId), eq(2), eq(10)))
             .thenReturn(Optional.empty());
-        // Note: gameRepository stub not needed - exception thrown before it's accessed
 
         // When/Then
         assertThatThrownBy(() ->
-            matchService.startNextGame(matchId)
+            matchService.startNextGame(match)
         )
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("No question available");

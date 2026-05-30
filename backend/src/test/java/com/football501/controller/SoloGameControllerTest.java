@@ -157,9 +157,9 @@ class SoloGameControllerTest {
         when(matchService.createMatch(eq(playerId), isNull(), eq(categoryId),
             eq(Match.MatchType.CASUAL), eq(Match.MatchFormat.BEST_OF_1), isNull()))
             .thenReturn(match);
-        when(matchService.startNextGame(matchId))
+        when(matchService.startNextGame(match))
             .thenReturn(new MatchService.GameStartRecord(game, question));
-        when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
+        when(gameHintsService.computeHintsFromCache(eq(questionId), eq(List.of()), eq(501))).thenReturn(STUB_HINTS);
 
         mockMvc.perform(post("/api/solo/start")
                 .principal(PRINCIPAL)
@@ -210,7 +210,7 @@ class SoloGameControllerTest {
         when(gameService.processPlayerMove(gameId, playerId, "Erling Haaland"))
             .thenReturn(new GameService.MoveRecord(move, updatedGame, match, usedAnswerIds));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
-        when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(465), eq(usedAnswerIds)))
+        when(gameHintsService.computeHintsFromCache(eq(questionId), eq(usedAnswerIds), eq(465)))
             .thenReturn(STUB_HINTS);
 
         mockMvc.perform(post("/api/solo/games/{gameId}/submit", gameId)
@@ -247,7 +247,7 @@ class SoloGameControllerTest {
         when(gameService.processPlayerMove(gameId, playerId, "Unknown Player"))
             .thenReturn(new GameService.MoveRecord(move, game, match, usedAnswerIds));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
-        when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501), eq(usedAnswerIds)))
+        when(gameHintsService.computeHintsFromCache(eq(questionId), eq(usedAnswerIds), eq(501)))
             .thenReturn(STUB_HINTS);
 
         mockMvc.perform(post("/api/solo/games/{gameId}/submit", gameId)
@@ -286,7 +286,7 @@ class SoloGameControllerTest {
         when(gameService.processPlayerMove(gameId, playerId, "Player with 35"))
             .thenReturn(new GameService.MoveRecord(move, completedGame, match, usedAnswerIds));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
-        when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(0), eq(usedAnswerIds)))
+        when(gameHintsService.computeHintsFromCache(eq(questionId), eq(usedAnswerIds), eq(0)))
             .thenReturn(GameHints.builder().maxScoresLeft(0).checkoutsLeft(0).build());
 
         mockMvc.perform(post("/api/solo/games/{gameId}/submit", gameId)
@@ -379,9 +379,9 @@ class SoloGameControllerTest {
         when(matchService.createMatch(eq(playerId), isNull(), eq(categoryId),
             eq(Match.MatchType.CASUAL), eq(Match.MatchFormat.BEST_OF_1), isNull()))
             .thenReturn(match);
-        when(matchService.startNextGame(matchId))
+        when(matchService.startNextGame(match))
             .thenReturn(new MatchService.GameStartRecord(game, question));
-        when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
+        when(gameHintsService.computeHintsFromCache(eq(questionId), eq(List.of()), eq(501))).thenReturn(STUB_HINTS);
 
         mockMvc.perform(post("/api/solo/start")
                 .principal(PRINCIPAL)

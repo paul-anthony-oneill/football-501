@@ -236,4 +236,17 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
         }
         return countCheckoutAnswersExcluding(questionId, minScore, maxScore, usedIds);
     }
+
+    /**
+     * Returns all valid non-bust answer (id, score) pairs for a question.
+     * Loaded once at game start to power in-memory hint computation — zero
+     * database queries during gameplay.
+     */
+    @Query(value = """
+        SELECT id, score FROM answers
+        WHERE question_id    = :questionId
+          AND is_valid_darts = true
+          AND is_bust        = false
+        """, nativeQuery = true)
+    List<Object[]> findValidNonBustAnswerScores(@Param("questionId") UUID questionId);
 }
