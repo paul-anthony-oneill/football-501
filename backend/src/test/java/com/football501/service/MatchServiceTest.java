@@ -145,12 +145,13 @@ class MatchServiceTest {
         when(gameService.createGame(matchId, questionId, 1)).thenReturn(createdGame);
 
         // When
-        Game result = matchService.startNextGame(matchId);
+        MatchService.GameStartRecord startRecord = matchService.startNextGame(matchId);
 
         // Then
-        assertThat(result).isNotNull();
-        assertThat(result.getGameNumber()).isEqualTo(1);
-        assertThat(result.getQuestionId()).isEqualTo(questionId);
+        assertThat(startRecord.game()).isNotNull();
+        assertThat(startRecord.game().getGameNumber()).isEqualTo(1);
+        assertThat(startRecord.game().getQuestionId()).isEqualTo(questionId);
+        assertThat(startRecord.question()).isEqualTo(question);
 
         verify(questionService).selectRandomQuestion(eq(categoryId), eq(2), eq(10));
         verify(gameService).createGame(matchId, questionId, 1);
@@ -177,10 +178,10 @@ class MatchServiceTest {
         when(gameService.createGame(matchId, questionId, 2)).thenReturn(createdGame);
 
         // When
-        Game result = matchService.startNextGame(matchId);
+        MatchService.GameStartRecord startRecord = matchService.startNextGame(matchId);
 
         // Then
-        assertThat(result.getGameNumber()).isEqualTo(2);
+        assertThat(startRecord.game().getGameNumber()).isEqualTo(2);
         verify(gameService).createGame(matchId, questionId, 2);
     }
 

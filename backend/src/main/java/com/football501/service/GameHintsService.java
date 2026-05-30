@@ -61,6 +61,21 @@ public class GameHintsService {
     @Transactional(readOnly = true)
     public GameHints computeHints(UUID gameId, UUID questionId, int currentScore) {
         List<UUID> usedAnswerIds = gameMoveRepository.findUsedAnswerIdsByGameId(gameId);
+        return computeHints(gameId, questionId, currentScore, usedAnswerIds);
+    }
+
+    /**
+     * Compute hint statistics for a player in an active game, using
+     * caller-supplied used-answer IDs to avoid a redundant database query.
+     *
+     * @param gameId        the game UUID (for logging only)
+     * @param questionId    the question UUID — used to scope the answer queries
+     * @param currentScore  the player's current score
+     * @param usedAnswerIds already-fetched used answer IDs (must not be null)
+     * @return hint statistics for the remaining answer pool
+     */
+    @Transactional(readOnly = true)
+    public GameHints computeHints(UUID gameId, UUID questionId, int currentScore, List<UUID> usedAnswerIds) {
 
         int maxScoresLeft = (int) answerRepository.countRemainingMaxScores(questionId, usedAnswerIds);
 

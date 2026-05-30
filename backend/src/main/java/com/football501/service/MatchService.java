@@ -28,6 +28,13 @@ import java.util.UUID;
 @Slf4j
 public class MatchService {
 
+    /**
+     * Result bundle returned by {@link #startNextGame}.
+     * Carries the created game and the question it was drawn for,
+     * so callers don't need to re-fetch the question.
+     */
+    public record GameStartRecord(Game game, Question question) {}
+
     private final MatchRepository matchRepository;
     private final GameRepository gameRepository;
     private final GameService gameService;
@@ -93,11 +100,11 @@ public class MatchService {
      * Start the next game in a match.
      *
      * @param matchId the match UUID
-     * @return the created game
+     * @return a {@link GameStartRecord} with the created game and selected question
      * @throws IllegalStateException if match is not in progress or no question available
      */
     @Transactional
-    public Game startNextGame(UUID matchId) {
+    public GameStartRecord startNextGame(UUID matchId) {
         log.debug("Starting next game for match {}", matchId);
 
         Match match = getMatchOrThrow(matchId);
@@ -129,7 +136,7 @@ public class MatchService {
         log.info("Game started: matchId={}, gameNumber={}, questionId={}",
             matchId, gameNumber, question.getId());
 
-        return game;
+        return new GameStartRecord(game, question);
     }
 
     /**

@@ -138,7 +138,8 @@ class GameServiceTest {
             .thenReturn(answerResult);
 
         // When
-        GameMove result = gameService.processPlayerMove(gameId, player1Id, playerAnswer);
+        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player1Id, playerAnswer);
+        GameMove result = record.move();
 
         // Then
         assertThat(result).isNotNull();
@@ -176,12 +177,12 @@ class GameServiceTest {
             .thenReturn(answerResult);
 
         // When
-        GameMove result = gameService.processPlayerMove(gameId, player1Id, playerAnswer);
+        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player1Id, playerAnswer);
 
         // Then
-        assertThat(result.getResult()).isEqualTo(GameMove.MoveResult.INVALID);
-        assertThat(result.getScoreBefore()).isEqualTo(501);
-        assertThat(result.getScoreAfter()).isEqualTo(501); // No change
+        assertThat(record.move().getResult()).isEqualTo(GameMove.MoveResult.INVALID);
+        assertThat(record.move().getScoreBefore()).isEqualTo(501);
+        assertThat(record.move().getScoreAfter()).isEqualTo(501); // No change
 
         // Verify turn did NOT switch
         ArgumentCaptor<Game> gameCaptor = ArgumentCaptor.forClass(Game.class);
@@ -218,12 +219,12 @@ class GameServiceTest {
             .thenReturn(answerResult);
 
         // When
-        GameMove result = gameService.processPlayerMove(gameId, player1Id, playerAnswer);
+        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player1Id, playerAnswer);
 
         // Then
-        assertThat(result.getResult()).isEqualTo(GameMove.MoveResult.BUST);
-        assertThat(result.getScoreBefore()).isEqualTo(501);
-        assertThat(result.getScoreAfter()).isEqualTo(501); // No change
+        assertThat(record.move().getResult()).isEqualTo(GameMove.MoveResult.BUST);
+        assertThat(record.move().getScoreBefore()).isEqualTo(501);
+        assertThat(record.move().getScoreAfter()).isEqualTo(501); // No change
 
         // Verify turn SWITCHED (bust wastes turn)
         ArgumentCaptor<Game> gameCaptor = ArgumentCaptor.forClass(Game.class);
@@ -261,11 +262,11 @@ class GameServiceTest {
             .thenReturn(answerResult);
 
         // When
-        GameMove result = gameService.processPlayerMove(gameId, player1Id, playerAnswer);
+        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player1Id, playerAnswer);
 
         // Then
-        assertThat(result.getResult()).isEqualTo(GameMove.MoveResult.CHECKOUT);
-        assertThat(result.getScoreAfter()).isEqualTo(0);
+        assertThat(record.move().getResult()).isEqualTo(GameMove.MoveResult.CHECKOUT);
+        assertThat(record.move().getScoreAfter()).isEqualTo(0);
 
         // Verify game state updated with winner (but not completed yet - close finish rule)
         ArgumentCaptor<Game> gameCaptor = ArgumentCaptor.forClass(Game.class);
@@ -447,10 +448,10 @@ class GameServiceTest {
             .thenReturn(answerResult);
 
         // When
-        GameMove result = gameService.processPlayerMove(gameId, player2Id, playerAnswer);
+        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player2Id, playerAnswer);
 
         // Then
-        assertThat(result.getResult()).isEqualTo(GameMove.MoveResult.CHECKOUT);
+        assertThat(record.move().getResult()).isEqualTo(GameMove.MoveResult.CHECKOUT);
 
         // Verify Player 2 is now the winner (closer to 0: -2 vs -3) and game is completed
         ArgumentCaptor<Game> gameCaptor = ArgumentCaptor.forClass(Game.class);

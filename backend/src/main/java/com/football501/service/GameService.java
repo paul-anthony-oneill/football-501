@@ -35,6 +35,12 @@ import java.util.UUID;
 @Slf4j
 public class GameService {
 
+    /**
+     * Result bundle returned by {@link #processPlayerMove}.
+     * Carries the already-loaded entities so callers don't need to re-fetch them.
+     */
+    public record MoveRecord(GameMove move, Game game, Match match, List<UUID> usedAnswerIds) {}
+
     private final GameRepository gameRepository;
     private final GameMoveRepository gameMoveRepository;
     private final MatchRepository matchRepository;
@@ -70,12 +76,12 @@ public class GameService {
      * @param gameId   the game UUID
      * @param playerId the player making the move
      * @param answer   the submitted answer text
-     * @return the persisted {@link GameMove}
+     * @return a {@link MoveRecord} with the persisted move, updated game, match, and used answer IDs
      * @throws IllegalStateException    if the game is not in progress or it is not this player's turn
      * @throws IllegalArgumentException if the game or match does not exist
      */
     @Transactional
-    public GameMove processPlayerMove(UUID gameId, UUID playerId, String answer) {
+    public MoveRecord processPlayerMove(UUID gameId, UUID playerId, String answer) {
         log.debug("Processing move for game {} by player {}: {}", gameId, playerId, answer);
 
         Game game   = getGameOrThrow(gameId);
@@ -102,7 +108,7 @@ public class GameService {
         log.debug("Move processed: result={}, score {}→{}",
                 transition.moveResult(), currentScore, transition.scoreAfter());
 
-        return move;
+        return new MoveRecord(move, game, match, usedAnswerIds);
     }
 
     /**

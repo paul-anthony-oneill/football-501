@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -92,10 +93,9 @@ public class SoloGameController {
             request.getDifficulty()
         );
 
-        Game game = matchService.startNextGame(match.getId());
-
-        Question question = questionService.getQuestionById(game.getQuestionId())
-            .orElseThrow(() -> new IllegalStateException("Question not found"));
+        MatchService.GameStartRecord startRecord = matchService.startNextGame(match.getId());
+        Game game = startRecord.game();
+        Question question = startRecord.question();
 
         log.info("Solo game started: gameId={}, playerId={}", game.getId(), playerId);
 
@@ -122,16 +122,15 @@ public class SoloGameController {
         UUID playerId = playerIdFrom(principal);
         log.debug("Submitting answer for game {}: '{}'", gameId, request.getAnswer());
 
-        GameMove move = gameService.processPlayerMove(gameId, playerId, request.getAnswer());
+        GameService.MoveRecord result = gameService.processPlayerMove(gameId, playerId, request.getAnswer());
 
-        Game game = gameService.getGameById(gameId)
-            .orElseThrow(() -> new IllegalStateException("Game not found after move"));
-
-        Match match = matchService.getMatchById(game.getMatchId())
-            .orElseThrow(() -> new IllegalStateException("Match not found"));
+        Game game = result.game();
+        Match match = result.match();
 
         Question question = questionService.getQuestionById(game.getQuestionId())
             .orElseThrow(() -> new IllegalStateException("Question not found"));
+
+        GameMove move = result.move();
 
         SubmitAnswerResponse response = SubmitAnswerResponse.builder()
             .result(move.getResult().name())
@@ -141,7 +140,7 @@ public class SoloGameController {
             .scoreAfter(move.getScoreAfter())
             .reason(determineReason(move))
             .isWin(move.getResult() == GameMove.MoveResult.CHECKOUT)
-            .gameState(buildGameStateResponse(game, question, match))
+            .gameState(buildGameStateResponse(game, question, match, result.usedAnswerIds()))
             .build();
 
         log.debug("Answer processed: result={}, score={}->{}", move.getResult(),
@@ -215,6 +214,10 @@ public class SoloGameController {
     }
 
     private GameStateResponse buildGameStateResponse(Game game, Question question, Match match) {
+        return buildGameStateResponse(game, question, match, null);
+    }
+
+    private GameStateResponse buildGameStateResponse(Game game, Question question, Match match, List<UUID> usedAnswerIds) {
         int currentScore = game.getPlayer1Score();
 
         boolean isWin = game.getStatus() == Game.GameStatus.COMPLETED
@@ -229,11 +232,9 @@ public class SoloGameController {
             }
         }
 
-        GameHints hints = gameHintsService.computeHints(
-            game.getId(),
-            game.getQuestionId(),
-            currentScore
-        );
+        GameHints hints = usedAnswerIds != null
+            ? gameHintsService.computeHints(game.getId(), game.getQuestionId(), currentScore, usedAnswerIds)
+            : gameHintsService.computeHints(game.getId(), game.getQuestionId(), currentScore);
 
         return GameStateResponse.builder()
             .gameId(game.getId())

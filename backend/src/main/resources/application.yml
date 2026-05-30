@@ -6,10 +6,19 @@ spring:
     # Defaults to Supabase dev project (pooler port 6543).
     # prepareThreshold=0 is required for pgBouncer in transaction mode.
     # Set DB_PASSWORD in your shell profile — everything else has safe defaults.
+    #
+    # Direct connection alternative (bypasses pgBouncer, allows prepared-statement caching):
+    #   DB_URL=jdbc:postgresql://db.nnzwructancxzexbcvdz.supabase.co:5432/postgres?sslmode=require
     url: ${DB_URL:jdbc:postgresql://aws-0-eu-west-1.pooler.supabase.com:6543/postgres?prepareThreshold=0&sslmode=require}
     username: ${DB_USERNAME:postgres.nnzwructancxzexbcvdz}
     password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 10000
+      idle-timeout: 300000
+      max-lifetime: 600000
 
   jpa:
     open-in-view: false
