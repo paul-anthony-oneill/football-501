@@ -1,0 +1,76 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Frontend (Next.js)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}/frontend-react",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "Local:.*http://localhost:([0-9]+)",
+        "uriFormat": "http://localhost:%s",
+        "action": "startDebugging",
+        "name": "Chrome (Football 501)"
+      }
+    },
+    {
+      "name": "Chrome (Football 501)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/frontend-react/src",
+      "runtimeExecutable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      "sourceMaps": true
+    },
+    {
+      "name": "Backend (Spring Boot)",
+      "type": "java",
+      "request": "launch",
+      "mainClass": "com.football501.Football501Application",
+      "projectName": "football-501-backend",
+      "args": [],
+      "env": {
+        "DB_PASSWORD": "${env:DB_PASSWORD}"
+      },
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Backend (Maven)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "mvn",
+      "runtimeArgs": ["-f", "${workspaceFolder}/backend/pom.xml", "spring-boot:run", "-Dmaven.test.skip=true", "--no-transfer-progress"],
+      "cwd": "${workspaceFolder}/backend",
+      "env": {
+        "JAVA_HOME": "/opt/homebrew/Cellar/openjdk/25.0.2/libexec/openjdk.jdk/Contents/Home",
+        "DB_PASSWORD": "${env:DB_PASSWORD}"
+      },
+      "console": "integratedTerminal"
+    },
+  ],
+  "compounds": [
+    {
+      "name": "Football 501 (Full Stack)",
+      "configurations": ["Frontend (Next.js)", "Backend (Spring Boot)"],
+      "stopAll": true,
+      "presentation": {
+        "hidden": false,
+        "group": "",
+        "order": 1
+      }
+    },
+    {
+      "name": "Football 501 (Full Stack - Maven)",
+      "configurations": ["Frontend (Next.js)", "Backend (Maven)"],
+      "stopAll": true,
+      "presentation": {
+        "hidden": false,
+        "group": "",
+        "order": 2
+      }
+    }
+  ]
+}
