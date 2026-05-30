@@ -1,6 +1,6 @@
 # Football 501 — Backlog & Future Work
 
-**Last updated**: 2026-05-28  
+**Last updated**: 2026-05-29  
 **Purpose**: Living document capturing all deferred work, stretch goals, and improvement ideas regardless of size or urgency. Update this whenever a decision is made to defer something, or when a backlog item is completed or abandoned.
 
 ---
@@ -80,6 +80,27 @@ These don't block the first players but should follow quickly.
 - **What**: Drop the old 1/2/3 difficulty column once all callers of `findByCategoryIdAndDifficultyAndStatus` are migrated to the new range-based query (`difficulty_score NUMERIC`).
 - **Why deferred**: Needs a dedicated cleanup migration; low risk to leave in place short-term.
 - **See**: `docs/design/DIFFICULTY_SCORING.md` — Remaining / Future Work.
+
+---
+
+## UI Bugs
+
+Small frontend issues to fix, tracked here as they come up. `EntitySearch.tsx` is the autocomplete component used during gameplay.
+
+### Autocomplete: stale suggestions appear after submit
+- **What**: When you type a name and press Enter, the answer submits, the score updates, and the input clears. But the 300ms-debounced autocomplete fetch may complete *after* submission, popping up suggestions for the previous query in an empty input box.
+- **Where**: `EntitySearch.tsx:88-92` — the debounced `fetchSuggestions` timer is not cancelled on submit.
+- **Fix direction**: Cancel the debounce timer in the Enter/clear path; or set a flag to suppress results that arrive after a submit.
+
+### Autocomplete: focus lost after clicking a suggestion
+- **What**: Clicking a suggestion fills the input but focus stays on the clicked button. You have to click back into the input before pressing Enter to submit.
+- **Where**: `EntitySearch.tsx:122-127` (`selectEntity`) called from `onMouseDown` at line 160.
+- **Fix direction**: Call `inputRef.current?.focus()` at the end of `selectEntity`.
+
+### Autocomplete: arrow-key selection should auto-submit
+- **What**: Arrow keys navigate the dropdown (lines 111-116), but pressing Enter on a highlighted suggestion only fills the input — it doesn't submit. You have to press Enter a second time. Similarly, clicking a suggestion fills but doesn't submit. Selection and submission should be a single action.
+- **Where**: Both the keyboard Enter path (line 104-105) and the mouse path (line 160) call `selectEntity` which only fills the input.
+- **Fix direction**: Have both paths call `onSelect(entity.name)` directly instead of (or after) filling the input, so selecting = submitting.
 
 ---
 
