@@ -21,16 +21,6 @@
 
 These items must be complete before real players can use the game.
 
-### Auth: Replace DevModeAuthFilter with real JWT validation
-- **What**: Write a `JwtAuthFilter` that validates a real JWT (or OAuth 2.0 token) and populates the `SecurityContext` with the player's UUID. Annotate `@Profile("prod")` so `DevModeAuthFilter` disappears automatically on prod.
-- **Why deferred**: Requires OAuth provider integration; not needed during local development.
-- **Implementation notes**: `SECURITY_ARCHITECTURE.md` has the full migration path. No controller code changes needed — controllers already read from `Principal.getName()`.
-
-### Auth: Google OAuth 2.0 social login
-- **What**: Google login as the first social login method. Apple + Facebook can follow.
-- **Why deferred**: Needs OAuth credentials and prod infrastructure.
-- **See**: `docs/SECURITY_ARCHITECTURE.md` — What Is Deferred table.
-
 ### Auth: Guest accounts
 - **What**: Ephemeral UUID for unauthenticated players; 24-hour inactivity timeout.
 - **Why deferred**: Depends on real auth being wired first.
@@ -45,21 +35,11 @@ These items must be complete before real players can use the game.
 - **What**: `player_profiles` table (MMR, league points, win/loss), matchmaking queue, rank display.
 - **Why deferred**: Requires auth and multiplayer to be in place first.
 
-### Data population — seed questions and answers
-- **What**: Run the Python scraper service against the live database to populate `questions` and `answers` tables.
-- **Why deferred**: No live database yet.
-- **After this**: Run `backfill_difficulty_scores.sql` to compute initial difficulty scores. Review Step 3 (setting `status = 'excluded'`) before running — do not run blindly.
-
 ---
 
 ## P1 — Shortly After Launch
 
 These don't block the first players but should follow quickly.
-
-### Security: HTTPOnly cookie token storage
-- **What**: Store JWT in an HTTPOnly cookie rather than `localStorage`.
-- **Why deferred**: Depends on real auth being built first.
-- **See**: `docs/SECURITY_ARCHITECTURE.md`.
 
 ### Security: Re-enable CSRF protection
 - **What**: CSRF is currently disabled for stateless REST. Re-enable with SameSite cookies when JWT cookies are introduced.
@@ -69,11 +49,6 @@ These don't block the first players but should follow quickly.
 ### Security: Content Security Policy
 - **What**: Add a strict CSP in Next.js `middleware.ts`.
 - **Why deferred**: Low risk during development; important before public launch.
-- **See**: `docs/SECURITY_ARCHITECTURE.md`.
-
-### Security: Rate limiting
-- **What**: 100 req/min for authenticated users, 10/min per IP for unauthenticated.
-- **Why deferred**: Not meaningful without real users.
 - **See**: `docs/SECURITY_ARCHITECTURE.md`.
 
 ### Data: Remove legacy `difficulty INTEGER` field
@@ -164,7 +139,6 @@ Small, cheap decisions to make in the core game now that keep future modes open.
 
 | Guardrail | Why it matters |
 |---|---|
-| Game UI reads question from game state, not hardcoded as static | Rapid Fire updates the question mid-game. |
 | Mode label/badge component (even if only `STANDARD` renders today) | Gives the UI a place for mode display in listings, lobbies, and history when new modes ship. |
 
 ---
@@ -215,3 +189,9 @@ Items that only become relevant once the game has real traffic.
 | `DifficultyCalculator`, viability gate, V13 migration | Phase 4 (932d9d9) | Continuous `difficulty_score NUMERIC(4,2)` |
 | MapStruct mappers, `GlobalExceptionHandler`, `EntityType` constants, delete SvelteKit | Phase 5 (93b3fe2) | Audit campaign complete |
 | Fix N+1 queries in question materializer | 41ef10e | 20x speedup |
+| Supabase JWT validation (replaces `DevModeAuthFilter` on prod) | bf2f57a | Spring Security OAuth2 Resource Server + `SUPABASE_JWT_SECRET`; `DevModeAuthFilter` is `@Profile("!prod")` |
+| Google OAuth 2.0 social login via Supabase | bf2f57a | `AuthContext.signInWithGoogle()`, `LoginButton`, callback route — end-to-end |
+| Data population — seed questions/answers | bf2f57a | V10–V12 Flyway seed migrations, `seed_entities_dev.sql`, `test-data.sql`, 190K-row backup restore |
+| HTTPOnly cookie token storage via Supabase SSR | bf2f57a | `@supabase/ssr` manages sessions in HTTPOnly cookies; no localStorage in any auth path |
+| Rate limiting (10/100 req/min per IP) | bf2f57a | `RateLimitFilter.java` registered in `SecurityConfig` |
+| Game UI reads question from game state | bf2f57a | `useGameLoop` sets question from API response; `MatchView` receives it as a prop — not hardcoded |
