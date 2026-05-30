@@ -2,21 +2,21 @@
 
 ## Local Development
 
-### Database — two options
+### One-time setup
 
-**Option A: Supabase dev project (recommended for daily work)**
-
-Zero local setup. Connects to the shared dev database in the cloud. Needs internet.
+Add this to your `~/.zshrc` (or `~/.bashrc`):
 
 ```bash
-export DB_URL="jdbc:postgresql://aws-0-eu-west-1.pooler.supabase.com:6543/postgres?prepareThreshold=0&sslmode=require"
-export DB_USERNAME="postgres.nnzwructancxzexbcvdz"
-export DB_PASSWORD="your-password"
+export DB_PASSWORD="your-supabase-password"  # get from Supabase dashboard → Database → Connection string
 ```
 
-**Option B: Local Docker Postgres (offline / schema experiments)**
+Start a new terminal or run `source ~/.zshrc`.
 
-No internet needed. Spin up once and it runs until you stop it.
+That's it. The URL and username already default to the Supabase dev project in `application.yml`. No other env vars needed for daily work.
+
+### Option B: Local Docker Postgres (offline / schema experiments)
+
+If you need to work offline or test schema changes in isolation:
 
 ```bash
 docker run -d --name f501-pg \
@@ -25,20 +25,19 @@ docker run -d --name f501-pg \
   -e POSTGRES_PASSWORD=dev_password \
   -p 5432:5432 postgres:15
 
-# Enable the extensions the app needs
 docker exec f501-pg psql -U football501 -d football501 \
   -c "CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS unaccent;"
-```
 
-When using Option B, the defaults in `application.yml` (localhost:5432, football501/dev_password) already match — no env vars needed.
+# Override the defaults to point at localhost
+export DB_URL="jdbc:postgresql://localhost:5432/football501"
+export DB_USERNAME="football501"
+export DB_PASSWORD="dev_password"
+```
 
 ### Backend
 
 ```bash
 cd backend
-# With Option A:
-mvn spring-boot:run -Dspring-boot.run.profiles=local
-# With Option B (defaults match the Docker container above):
 mvn spring-boot:run
 # Runs on http://localhost:8080
 ```
@@ -47,7 +46,6 @@ mvn spring-boot:run
 
 ```bash
 cd frontend-react
-# .env.local already has Supabase URL + publishable key for dev
 npm run dev
 # Runs on http://localhost:3000
 # API calls proxy to localhost:8080 automatically
@@ -57,7 +55,7 @@ npm run dev
 
 ```bash
 # Terminal 1
-cd backend && mvn spring-boot:run -Dspring-boot.run.profiles=local
+cd backend && mvn spring-boot:run
 
 # Terminal 2
 cd frontend-react && npm run dev
@@ -112,15 +110,15 @@ fly deploy
 
 ### Backend (set on Fly.io via `fly secrets set`)
 
-| Variable | Example value |
-|---|---|
-| `DB_URL` | `jdbc:postgresql://aws-0-eu-west-1.pooler.supabase.com:6543/postgres?prepareThreshold=0&sslmode=require` |
-| `DB_USERNAME` | `postgres.nnzwructancxzexbcvdz` |
-| `DB_PASSWORD` | (from Supabase dashboard → Database → Connection string) |
-| `SUPABASE_JWT_ISSUER` | `https://nnzwructancxzexbcvdz.supabase.co/auth/v1` |
-| `SUPABASE_JWT_SECRET` | (from Supabase dashboard → Settings → API → JWT Secret) |
-| `FOOTBALL501_FRONTEND_ORIGIN` | `https://football501.vercel.app` |
-| `PORT` | `8080` |
+| Variable | Example value | Has default in dev? |
+|---|---|---|
+| `DB_URL` | `jdbc:postgresql://aws-0-eu-west-1.pooler.supabase.com:6543/postgres?prepareThreshold=0&sslmode=require` | Yes (Supabase dev) |
+| `DB_USERNAME` | `postgres.nnzwructancxzexbcvdz` | Yes (Supabase dev) |
+| `DB_PASSWORD` | (from Supabase dashboard → Database → Connection string) | No — must be set |
+| `SUPABASE_JWT_ISSUER` | `https://nnzwructancxzexbcvdz.supabase.co/auth/v1` | No (JWT auth only active in prod) |
+| `SUPABASE_JWT_SECRET` | (from Supabase dashboard → Settings → API → JWT Secret) | No (JWT auth only active in prod) |
+| `FOOTBALL501_FRONTEND_ORIGIN` | `https://football501.vercel.app` | No (CORS allows localhost by default) |
+| `PORT` | `8080` | Yes (8080) |
 
 ### Frontend (set in Vercel dashboard → Environment)
 
