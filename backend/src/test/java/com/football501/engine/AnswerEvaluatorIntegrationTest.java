@@ -1,5 +1,6 @@
 package com.football501.engine;
 
+import com.football501.config.JpaConfig;
 import com.football501.model.Answer;
 import com.football501.model.Category;
 import com.football501.model.Question;
@@ -7,7 +8,6 @@ import com.football501.repository.AnswerRepository;
 import com.football501.repository.CategoryRepository;
 import com.football501.repository.QuestionRepository;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
-@Import({AnswerEvaluator.class, ScoringService.class})
+@Import({AnswerEvaluator.class, ScoringService.class, JpaConfig.class})
 @DisplayName("Answer Evaluator Integration Tests")
 class AnswerEvaluatorIntegrationTest {
 
@@ -71,39 +71,43 @@ class AnswerEvaluatorIntegrationTest {
     }
 
     @Test
-    @Disabled("Contains fuzzy matching step requiring pg_trgm — covered by FuzzyMatchingContainerTest")
-    @DisplayName("Full game flow: Match -> Score -> Fuzzy Match -> Bust -> Win")
+    @DisplayName("Full game flow: Exact Match -> Invalid -> Bust -> Duplicate")
     void testFullGameFlow() {
         List<UUID> usedAnswers = new ArrayList<>();
         int currentScore = 501;
 
         // 1. Exact Match: "Answer A" (35)
-        AnswerResult turn1 = evaluator.evaluateAnswer(questionId, "Answer A", currentScore, usedAnswers);
+        AnswerResult turn1 = evaluator.evaluateAnswer(questionId, "Answer A", null, currentScore, usedAnswers);
         assertThat(turn1.isValid()).isTrue();
         assertThat(turn1.getNewTotal()).isEqualTo(466); // 501 - 35
         usedAnswers.add(turn1.getAnswerId());
         currentScore = turn1.getNewTotal();
 
-        // 2. Fuzzy Match: "answr b" -> "Answer B" (28)
-        AnswerResult turn2 = evaluator.evaluateAnswer(questionId, "answr b", currentScore, usedAnswers);
-        assertThat(turn2.isValid()).isTrue();
-        assertThat(turn2.getDisplayText()).isEqualTo("Answer B");
-        assertThat(turn2.getNewTotal()).isEqualTo(438); // 466 - 28
-        usedAnswers.add(turn2.getAnswerId());
-        currentScore = turn2.getNewTotal();
+        // 2. Unknown answer: "answr b" returns INVALID (fuzzy matching removed)
+        AnswerResult turn2 = evaluator.evaluateAnswer(questionId, "answr b", null, currentScore, usedAnswers);
+        assertThat(turn2.isValid()).isFalse();
+        assertThat(turn2.getReason()).isEqualTo("Answer not found");
 
-        // 3. Invalid Darts Score: "Answer E" (179) -> Bust
-        AnswerResult turn3 = evaluator.evaluateAnswer(questionId, "Answer E", currentScore, usedAnswers);
+        // 3. Exact Match case-insensitive: "answer b" matches "Answer B" (28)
+        AnswerResult turn3 = evaluator.evaluateAnswer(questionId, "answer b", null, currentScore, usedAnswers);
         assertThat(turn3.isValid()).isTrue();
-        assertThat(turn3.isBust()).isTrue();
-        assertThat(turn3.getReason()).isEqualTo("Invalid darts score");
-        assertThat(turn3.getNewTotal()).isEqualTo(438); // Unchanged
+        assertThat(turn3.getDisplayText()).isEqualTo("Answer B");
+        assertThat(turn3.getNewTotal()).isEqualTo(438); // 466 - 28
         usedAnswers.add(turn3.getAnswerId());
+        currentScore = turn3.getNewTotal();
 
-        // 4. Duplicate Answer: "Answer A" -> Invalid
-        AnswerResult turn4 = evaluator.evaluateAnswer(questionId, "Answer A", currentScore, usedAnswers);
-        assertThat(turn4.isValid()).isFalse();
-        assertThat(turn4.getReason()).isEqualTo("Answer not found or already used");
+        // 4. Invalid Darts Score: "Answer E" (179) -> Bust
+        AnswerResult turn4 = evaluator.evaluateAnswer(questionId, "Answer E", null, currentScore, usedAnswers);
+        assertThat(turn4.isValid()).isTrue();
+        assertThat(turn4.isBust()).isTrue();
+        assertThat(turn4.getReason()).isEqualTo("Invalid darts score");
+        assertThat(turn4.getNewTotal()).isEqualTo(438); // Unchanged
+        usedAnswers.add(turn4.getAnswerId());
+
+        // 5. Duplicate Answer: "Answer A" -> Invalid
+        AnswerResult turn5 = evaluator.evaluateAnswer(questionId, "Answer A", null, currentScore, usedAnswers);
+        assertThat(turn5.isValid()).isFalse();
+        assertThat(turn5.getReason()).isEqualTo("Answer already used");
     }
 
     @Test
@@ -149,6 +153,7 @@ class AnswerEvaluatorIntegrationTest {
         AnswerResult turn1 = evaluator.evaluateAnswer(
             randomQuestion.getId(),
             answer1.getDisplayText(),
+            null,
             currentScore,
             usedAnswers
         );
@@ -167,6 +172,7 @@ class AnswerEvaluatorIntegrationTest {
         AnswerResult turn2 = evaluator.evaluateAnswer(
             randomQuestion.getId(),
             answer2.getDisplayText(),
+            null,
             currentScore,
             usedAnswers
         );
@@ -183,12 +189,13 @@ class AnswerEvaluatorIntegrationTest {
         AnswerResult turn3 = evaluator.evaluateAnswer(
             randomQuestion.getId(),
             answer1.getDisplayText(),
+            null,
             currentScore,
             usedAnswers
         );
 
         assertThat(turn3.isValid()).isFalse();
-        assertThat(turn3.getReason()).isEqualTo("Answer not found or already used");
+        assertThat(turn3.getReason()).isEqualTo("Answer already used");
 
         // Turn 4: Test case-insensitive matching
         Answer answer3 = availableAnswers.get(2);
@@ -196,6 +203,7 @@ class AnswerEvaluatorIntegrationTest {
         AnswerResult turn4 = evaluator.evaluateAnswer(
             randomQuestion.getId(),
             lowercaseName,
+            null,
             currentScore,
             usedAnswers
         );

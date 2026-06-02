@@ -1,6 +1,6 @@
 # Football 501 — Backlog & Future Work
 
-**Last updated**: 2026-05-29  
+**Last updated**: 2026-06-01  
 **Purpose**: Living document capturing all deferred work, stretch goals, and improvement ideas regardless of size or urgency. Update this whenever a decision is made to defer something, or when a backlog item is completed or abandoned.
 
 ---
@@ -58,27 +58,6 @@ These don't block the first players but should follow quickly.
 
 ---
 
-## UI Bugs
-
-Small frontend issues to fix, tracked here as they come up. `EntitySearch.tsx` is the autocomplete component used during gameplay.
-
-### Autocomplete: stale suggestions appear after submit
-- **What**: When you type a name and press Enter, the answer submits, the score updates, and the input clears. But the 300ms-debounced autocomplete fetch may complete *after* submission, popping up suggestions for the previous query in an empty input box.
-- **Where**: `EntitySearch.tsx:88-92` — the debounced `fetchSuggestions` timer is not cancelled on submit.
-- **Fix direction**: Cancel the debounce timer in the Enter/clear path; or set a flag to suppress results that arrive after a submit.
-
-### Autocomplete: focus lost after clicking a suggestion
-- **What**: Clicking a suggestion fills the input but focus stays on the clicked button. You have to click back into the input before pressing Enter to submit.
-- **Where**: `EntitySearch.tsx:122-127` (`selectEntity`) called from `onMouseDown` at line 160.
-- **Fix direction**: Call `inputRef.current?.focus()` at the end of `selectEntity`.
-
-### Autocomplete: arrow-key selection should auto-submit
-- **What**: Arrow keys navigate the dropdown (lines 111-116), but pressing Enter on a highlighted suggestion only fills the input — it doesn't submit. You have to press Enter a second time. Similarly, clicking a suggestion fills but doesn't submit. Selection and submission should be a single action.
-- **Where**: Both the keyboard Enter path (line 104-105) and the mouse path (line 160) call `selectEntity` which only fills the input.
-- **Fix direction**: Have both paths call `onSelect(entity.name)` directly instead of (or after) filling the input, so selecting = submitting.
-
----
-
 ## Backend Hardening
 
 Stability and correctness improvements that are not urgently needed but should be done before the game sees meaningful load.
@@ -123,9 +102,9 @@ Small, cheap decisions to make in the core game now that keep future modes open.
 
 | Guardrail | Why it matters |
 |---|---|
-| Add `game_mode VARCHAR` to `matches`, default `'STANDARD'` | Every non-standard mode needs this column. Adding later requires a migration everywhere matches are created. |
+| ~~Add `game_mode VARCHAR` to `matches`, default `'STANDARD'`~~ ✅ Done (V19) | Every non-standard mode needs this column. Added in V19 with Daily Challenge support. |
 | Store `question_id` on `game_moves` (not just on `games`) | Rapid Fire needs per-move question tracking. Already noted in `CLAUDE.md`. |
-| Add `suitable_for_daily BOOLEAN DEFAULT false` to `questions` | Explicit Daily Challenge pool flag — more reliable than inferring from difficulty alone. |
+| ~~Add `suitable_for_daily BOOLEAN DEFAULT false` to `questions`~~ ✅ Done (V19) | Explicit Daily Challenge pool flag. Added in V19; V20 backfills viable easy/medium questions. |
 | Add `suitable_for_game_modes JSONB` to `question_templates` | Prevents unsuitable templates being re-enabled for wrong modes in future. See `DIFFICULTY_SCORING.md`. |
 
 ### Backend
@@ -149,7 +128,7 @@ Fully designed but not being implemented until the core game is stable and has r
 
 | Mode | Priority | Summary |
 |---|---|---|
-| **Daily Challenge** | Highest | One question/day, global leaderboard, solo, easy/medium only. Likely highest-retention feature. |
+| ~~**Daily Challenge**~~ ✅ Done | Highest | One challenge per category per day, variable starting scores (101–501), Wordle-style emoji-grid sharing, lazy creation + midnight cron. No leaderboards/replay enforcement (trust-based). |
 | **Rapid Fire H2H** | Medium | Question changes every dart; one answer per question. Needs `question_id` on `game_moves` guardrail. |
 | **Draft Mode** | Low | Pick from 3 questions each turn. |
 | **Category Lock** | Low | Pre-agreed category for the whole match. |
@@ -195,3 +174,6 @@ Items that only become relevant once the game has real traffic.
 | HTTPOnly cookie token storage via Supabase SSR | bf2f57a | `@supabase/ssr` manages sessions in HTTPOnly cookies; no localStorage in any auth path |
 | Rate limiting (10/100 req/min per IP) | bf2f57a | `RateLimitFilter.java` registered in `SecurityConfig` |
 | Game UI reads question from game state | bf2f57a | `useGameLoop` sets question from API response; `MatchView` receives it as a prop — not hardcoded |
+| Autocomplete: cancel debounce on submit, auto-submit on selection, fix focus on click | (current) | `selectEntity` clears debounce + calls `onSelect`; Enter path cancels stale timer; `onMouseDown` uses `preventDefault` to keep focus on input |
+| Daily Challenge mode (Wordle-style) | (current) | One challenge per category per day, variable starting scores (101–501), emoji-grid sharing, lazy creation + midnight cron. V19 schema + V20 data backfill. No leaderboards/replay enforcement — trust-based. |
+| Guardrails: `game_mode` on matches, `suitable_for_daily` on questions | (current) | V19 migration. `game_mode` defaults to `'STANDARD'`; `suitable_for_daily` backfilled for viable easy/medium questions. |

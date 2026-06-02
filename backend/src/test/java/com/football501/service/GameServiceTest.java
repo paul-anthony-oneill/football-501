@@ -134,11 +134,11 @@ class GameServiceTest {
             null,
             0.95
         );
-        when(answerEvaluator.evaluateAnswer(eq(questionId), eq(playerAnswer), eq(501), anyList()))
+        when(answerEvaluator.evaluateAnswer(eq(questionId), eq(playerAnswer), isNull(), eq(501), anyList()))
             .thenReturn(answerResult);
 
         // When
-        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player1Id, playerAnswer);
+        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player1Id, playerAnswer, null);
         GameMove result = record.move();
 
         // Then
@@ -173,11 +173,11 @@ class GameServiceTest {
         when(gameMoveRepository.findUsedAnswerIdsByGameId(gameId)).thenReturn(List.of());
 
         AnswerResult answerResult = AnswerResult.invalid("Answer not found or already used", 501);
-        when(answerEvaluator.evaluateAnswer(eq(questionId), eq(playerAnswer), eq(501), anyList()))
+        when(answerEvaluator.evaluateAnswer(eq(questionId), eq(playerAnswer), isNull(), eq(501), anyList()))
             .thenReturn(answerResult);
 
         // When
-        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player1Id, playerAnswer);
+        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player1Id, playerAnswer, null);
 
         // Then
         assertThat(record.move().getResult()).isEqualTo(GameMove.MoveResult.INVALID);
@@ -215,11 +215,11 @@ class GameServiceTest {
             "Invalid darts score",
             0.90
         );
-        when(answerEvaluator.evaluateAnswer(eq(questionId), eq(playerAnswer), eq(501), anyList()))
+        when(answerEvaluator.evaluateAnswer(eq(questionId), eq(playerAnswer), isNull(), eq(501), anyList()))
             .thenReturn(answerResult);
 
         // When
-        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player1Id, playerAnswer);
+        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player1Id, playerAnswer, null);
 
         // Then
         assertThat(record.move().getResult()).isEqualTo(GameMove.MoveResult.BUST);
@@ -258,11 +258,11 @@ class GameServiceTest {
             "Win!",
             0.95
         );
-        when(answerEvaluator.evaluateAnswer(eq(questionId), eq(playerAnswer), eq(35), anyList()))
+        when(answerEvaluator.evaluateAnswer(eq(questionId), eq(playerAnswer), isNull(), eq(35), anyList()))
             .thenReturn(answerResult);
 
         // When
-        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player1Id, playerAnswer);
+        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player1Id, playerAnswer, null);
 
         // Then
         assertThat(record.move().getResult()).isEqualTo(GameMove.MoveResult.CHECKOUT);
@@ -378,11 +378,11 @@ class GameServiceTest {
             null,
             0.95
         );
-        when(answerEvaluator.evaluateAnswer(any(), any(), anyInt(), anyList()))
+        when(answerEvaluator.evaluateAnswer(any(), any(), isNull(), anyInt(), anyList()))
             .thenReturn(answerResult);
 
         // When
-        gameService.processPlayerMove(gameId, player1Id, playerAnswer);
+        gameService.processPlayerMove(gameId, player1Id, playerAnswer, null);
 
         // Then
         ArgumentCaptor<Game> gameCaptor = ArgumentCaptor.forClass(Game.class);
@@ -444,11 +444,11 @@ class GameServiceTest {
             "Win!",
             0.95
         );
-        when(answerEvaluator.evaluateAnswer(eq(questionId), eq(playerAnswer), eq(50), anyList()))
+        when(answerEvaluator.evaluateAnswer(eq(questionId), eq(playerAnswer), isNull(), eq(50), anyList()))
             .thenReturn(answerResult);
 
         // When
-        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player2Id, playerAnswer);
+        GameService.MoveRecord record = gameService.processPlayerMove(gameId, player2Id, playerAnswer, null);
 
         // Then
         assertThat(record.move().getResult()).isEqualTo(GameMove.MoveResult.CHECKOUT);
@@ -472,7 +472,7 @@ class GameServiceTest {
         when(gameRepository.save(any(Game.class))).thenAnswer(i -> i.getArgument(0));
 
         // When
-        Game result = gameService.createGame(matchId, questionId, 1);
+        Game result = gameService.createGame(matchId, questionId, 1, 501);
 
         // Then
         assertThat(result).isNotNull();
@@ -529,7 +529,7 @@ class GameServiceTest {
 
         // When/Then - Player 2 tries to submit
         assertThatThrownBy(() ->
-            gameService.processPlayerMove(gameId, player2Id, "Some answer")
+            gameService.processPlayerMove(gameId, player2Id, "Some answer", null)
         )
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("Not player's turn");
@@ -545,7 +545,7 @@ class GameServiceTest {
 
         // When/Then
         assertThatThrownBy(() ->
-            gameService.processPlayerMove(gameId, player1Id, "Some answer")
+            gameService.processPlayerMove(gameId, player1Id, "Some answer", null)
         )
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("Game is not in progress");

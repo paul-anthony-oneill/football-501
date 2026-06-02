@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/context/ToastContext";
+import { useAnimatedScore } from "@/hooks/useAnimatedScore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,7 +22,51 @@ export interface GameHints {
   checkoutsLeft: number;
 }
 
-export type GameStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+export type GameStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "RESTORING";
+export type GameType = "solo" | "daily-challenge";
+
+// ─── sessionStorage helpers ────────────────────────────────────────────────────
+
+const GAME_STORAGE_KEY = "activeGameState";
+
+interface SavedGameState {
+  gameId: string;
+  label: string;
+  gameType: GameType;
+}
+
+function saveGameState(gameId: string, label: string, gameType: GameType) {
+  try {
+    sessionStorage.setItem(GAME_STORAGE_KEY, JSON.stringify({ gameId, label, gameType }));
+  } catch { /* storage full or unavailable — non-critical */ }
+}
+
+function loadSavedGameState(): SavedGameState | null {
+  try {
+    const raw = sessionStorage.getItem(GAME_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed.gameId && typeof parsed.gameId === "string") {
+      return {
+        gameId: parsed.gameId,
+        label: parsed.label ?? "",
+        gameType: parsed.gameType === "daily-challenge" ? "daily-challenge" : "solo",
+      };
+    }
+  } catch { /* corrupted data */ }
+  return null;
+}
+
+function clearSavedGameState() {
+  try {
+    sessionStorage.removeItem(GAME_STORAGE_KEY);
+  } catch { /* ignore */ }
+}
+
+/** Exposed so the page component can recover the saved label after a restore. */
+export function getSavedLabel(): string | null {
+  return loadSavedGameState()?.label ?? null;
+}
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -40,59 +85,159 @@ export interface GameLoopState {
   entityType: string;
   /** In-game hint stats from the server; null until the first response. */
   hints: GameHints | null;
+  /** True while a popup or scoreboard animation is playing — input should be disabled. */
+  isAnimating: boolean;
+  /** Current popup shown over the game; null when hidden. */
+  popup: PopupState | null;
+  /** The active game type (solo or daily-challenge). */
+  gameType: GameType;
+  /** The active game ID, null when no game is active. */
+  gameId: string | null;
 }
 
 export interface GameLoopActions {
+  /** The current game type (solo or daily-challenge). */
+  gameType: GameType;
   /** Start a new solo game for the given category slug. */
-  startNewGame: (categorySlug: string) => Promise<void>;
+  startNewGame: (categorySlug: string, label: string) => Promise<void>;
+  /** Start a daily challenge game for the given category slug. */
+  startDailyChallenge: (categorySlug: string, label: string) => Promise<void>;
   /** Submit an answer for the current game turn. */
-  submitAnswer: (answer: string) => Promise<void>;
+  submitAnswer: (answer: string, entityId?: string) => Promise<void>;
   /** Exit the current game and return to the lobby. */
   exitGame: () => void;
+  /** Called by the popup component when its animation finishes. */
+  onPopupComplete: () => void;
+}
+
+export interface PopupState {
+  scoreValue: number;
+  result: "VALID" | "BUST" | "INVALID";
 }
 
 /**
  * `useGameLoop` — owns all game session state and the API calls that drive it.
  *
- * Extracted from `GamePage` so the page component can stay focused on layout
- * and lobby-selection concerns. WebSocket support will be added here when
- * the multiplayer feature is implemented.
- *
- * @returns combined game state and action callbacks
+ * Session persistence: the active game ID and category label are saved to
+ * `sessionStorage` so a browser refresh can restore the game in progress.
+ * On mount we attempt to restore; if the server still has the game it resumes,
+ * otherwise the saved state is cleared and the lobby is shown.
  */
 export function useGameLoop(): GameLoopState & GameLoopActions {
   const { addToast } = useToast();
 
   const [score,      setScore]      = useState(501);
+  const { display: displayScore, isAnimating: scoreAnimating } =
+    useAnimatedScore(score);
   const [question,   setQuestion]   = useState("");
   const [turnCount,  setTurnCount]  = useState(0);
   const [gameStatus, setGameStatus] = useState<GameStatus>("NOT_STARTED");
   const [moves,      setMoves]      = useState<Move[]>([]);
   const [entityType, setEntityType] = useState("footballer");
   const [hints,      setHints]      = useState<GameHints | null>(null);
+  const [popup,      setPopup]      = useState<PopupState | null>(null);
+  const [gameType,   setGameType]   = useState<GameType>("solo");
 
   // Internal game ID used to address subsequent move submissions
   const [gameId, setGameId] = useState<string | null>(null);
+
+  /** Returns the API base path for the current game type. */
+  function apiBase(): string {
+    return gameType === "daily-challenge" ? "/api/daily-challenge" : "/api/solo";
+  }
+
+  // Tracks whether we've already attempted a restore on this mount
+  const restoreAttempted = useRef(false);
+
+  // Holds the full server response while the popup is playing
+  const pendingResultRef = useRef<{
+    answer: string;
+    result: Record<string, unknown>;
+  } | null>(null);
+
+  // ── Restore on mount ───────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (restoreAttempted.current) return;
+    restoreAttempted.current = true;
+
+    const saved = loadSavedGameState();
+    if (!saved) return;
+
+    const savedGameType = saved.gameType ?? "solo";
+    setGameType(savedGameType);
+    const restoreBase = savedGameType === "daily-challenge" ? "/api/daily-challenge" : "/api/solo";
+
+    setGameStatus("RESTORING");
+
+    fetch(`${restoreBase}/games/${saved.gameId}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Game not found");
+        return res.json();
+      })
+      .then((game) => {
+        setGameId(game.gameId);
+        setScore(game.currentScore);
+        setQuestion(game.questionText);
+        setTurnCount(game.turnCount ?? 0);
+        setEntityType(game.entityType ?? "footballer");
+        setHints(game.hints ?? null);
+        setGameStatus(game.status === "COMPLETED" ? "COMPLETED" : "IN_PROGRESS");
+
+        // Restore move history (server returns oldest-first; we keep newest-first)
+        if (game.moves && Array.isArray(game.moves)) {
+          const restoredMoves: Move[] = [...game.moves]
+            .reverse()
+            .map((m: Record<string, unknown>) => ({
+              answer:        (m.answer as string) ?? "",
+              result:        (m.result as string) ?? "UNKNOWN",
+              scoreBefore:   (m.scoreBefore as number) ?? 0,
+              scoreAfter:    (m.scoreAfter as number) ?? 0,
+              matchedAnswer: (m.matchedAnswer as string) ?? undefined,
+              scoreValue:    (m.scoreValue as number) ?? undefined,
+            }));
+          setMoves(restoredMoves);
+        }
+
+        document.body.classList.remove("theme-home");
+        document.body.classList.add("theme-teletext");
+        addToast("Game restored!", "success");
+      })
+      .catch(() => {
+        clearSavedGameState();
+        setGameStatus("NOT_STARTED");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
   async function abandonCurrentGame() {
     if (!gameId) return;
     // Fire-and-forget: server is idempotent; don't block the UI on network errors
-    fetch(`/api/solo/games/${gameId}/abandon`, { method: "POST" }).catch(() => {});
+    fetch(`${apiBase()}/games/${gameId}/abandon`, { method: "POST" }).catch(() => {});
   }
 
-  async function startNewGame(categorySlug: string) {
+  async function startNewGame(categorySlug: string, label: string) {
+    setGameType("solo");
     await abandonCurrentGame();
+    clearSavedGameState();
     try {
-      const res = await fetch("/api/solo/start", {
+      const res = await fetch(`${apiBase()}/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ categorySlug }),
       });
 
       if (!res.ok) {
-        const msg = await res.text().catch(() => "Failed to start game");
+        const text = await res.text().catch(() => "");
+        let msg = "Failed to start game";
+        try {
+          const parsed = JSON.parse(text);
+          msg = parsed.error || parsed.message || text;
+        } catch {
+          msg = text || msg;
+        }
         throw new Error(msg);
       }
 
@@ -106,6 +251,8 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
       setHints(game.hints ?? null);
       setGameStatus("IN_PROGRESS");
 
+      saveGameState(game.gameId, label, gameType);
+
       document.body.classList.remove("theme-home");
       document.body.classList.add("theme-teletext");
 
@@ -115,46 +262,121 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
     }
   }
 
-  async function submitAnswer(answer: string) {
-    if (!gameId || !answer.trim()) return;
-
+  async function startDailyChallenge(categorySlug: string, label: string) {
+    setGameType("daily-challenge");
+    await abandonCurrentGame();
+    clearSavedGameState();
     try {
-      const res = await fetch(`/api/solo/games/${gameId}/submit`, {
+      const base = "/api/daily-challenge";
+      const res = await fetch(`${base}/${encodeURIComponent(categorySlug)}/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answer: answer.trim() }),
       });
 
-      if (!res.ok) throw new Error("Validation failed");
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        let msg = "Failed to start daily challenge";
+        try {
+          const parsed = JSON.parse(text);
+          msg = parsed.error || parsed.message || text;
+        } catch {
+          msg = text || msg;
+        }
+        throw new Error(msg);
+      }
+
+      const game = await res.json();
+      setGameId(game.gameId);
+      setScore(game.currentScore);
+      setQuestion(game.questionText);
+      setTurnCount(0);
+      setMoves([]);
+      setEntityType(game.entityType ?? "footballer");
+      setHints(game.hints ?? null);
+      setGameStatus("IN_PROGRESS");
+
+      saveGameState(game.gameId, label, "daily-challenge");
+
+      document.body.classList.remove("theme-home");
+      document.body.classList.add("theme-teletext");
+
+      addToast("Daily Challenge started!", "success");
+    } catch (err) {
+      addToast((err as Error).message || "Error starting daily challenge", "error");
+    }
+  }
+
+  async function submitAnswer(answer: string, entityId?: string) {
+    if (!gameId || !answer.trim() || popup) return;
+
+    try {
+      const res = await fetch(`${apiBase()}/games/${gameId}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer: answer.trim(), entityId: entityId ?? null }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        let msg = "Validation failed";
+        try {
+          const parsed = JSON.parse(text);
+          msg = parsed.error || parsed.message || text;
+        } catch {
+          msg = text || msg;
+        }
+        throw new Error(msg);
+      }
 
       const result = await res.json();
 
-      const newMove: Move = {
-        answer:        answer.trim(),
-        result:        result.result,
-        scoreBefore:   score,
-        scoreAfter:    result.scoreAfter,
-        matchedAnswer: result.matchedAnswer,
-        scoreValue:    result.scoreValue,
-      };
-
-      setMoves((prev) => [newMove, ...prev]);
-      setScore(result.scoreAfter);
-      setTurnCount((prev) => prev + 1);
-      setHints(result.gameState?.hints ?? null);
-
-      if      (result.result === "VALID")   addToast(`Correct! -${result.scoreValue}`, "success");
-      else if (result.result === "BUST")    addToast("BUST!", "error");
-      else if (result.result === "INVALID") addToast("Not a valid answer — try again", "error");
-
-      if (result.isWin) setGameStatus("COMPLETED");
+      // Stash the full response and show the popup — the popup calls
+      // handlePopupComplete when it finishes.
+      pendingResultRef.current = { answer: answer.trim(), result };
+      setPopup({
+        scoreValue: result.scoreValue ?? 0,
+        result: result.result as PopupState["result"],
+      });
     } catch {
       addToast("Error validating answer", "error");
     }
   }
 
+  function handlePopupComplete() {
+    const pending = pendingResultRef.current;
+    if (!pending) return;
+
+    const { answer, result: r } = pending;
+    pendingResultRef.current = null;
+    setPopup(null);
+
+    const newMove: Move = {
+      answer,
+      result:        (r.result as string) ?? "UNKNOWN",
+      scoreBefore:   score,
+      scoreAfter:    (r.scoreAfter as number) ?? score,
+      matchedAnswer: (r.matchedAnswer as string) ?? undefined,
+      scoreValue:    (r.scoreValue as number) ?? undefined,
+    };
+
+    setMoves((prev) => [newMove, ...prev]);
+    setScore((r.scoreAfter as number) ?? score);
+    setTurnCount((prev) => prev + 1);
+    setHints((r.gameState as Record<string, unknown>)?.hints as GameHints | null ?? null);
+
+    if      (r.result === "VALID")   addToast(`Correct! -${r.scoreValue}`, "success");
+    else if (r.result === "BUST")    addToast("BUST!", "error");
+    else if (r.result === "INVALID") addToast("Not a valid answer — try again", "error");
+
+    if (r.isWin) {
+      setGameStatus("COMPLETED");
+      clearSavedGameState();
+    }
+  }
+
   function exitGame() {
     abandonCurrentGame();
+    clearSavedGameState();
     setGameStatus("NOT_STARTED");
     setGameId(null);
     document.body.classList.remove("theme-teletext");
@@ -163,15 +385,23 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
   // ── Return ───────────────────────────────────────────────────────────────────
 
+  const isAnimating = popup !== null || scoreAnimating;
+
   return {
-    score,
+    score: displayScore,
     question,
     turnCount,
     gameStatus,
     moves,
     entityType,
     hints,
+    isAnimating,
+    popup,
+    gameType,
+    gameId,
+    onPopupComplete: handlePopupComplete,
     startNewGame,
+    startDailyChallenge,
     submitAnswer,
     exitGame,
   };

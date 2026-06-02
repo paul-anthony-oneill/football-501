@@ -3,7 +3,10 @@
 import { useState, useMemo } from "react";
 import LobbyView from "@/components/game/lobby/LobbyView";
 import MatchView from "@/components/game/match/MatchView";
-import { useGameLoop } from "@/hooks/useGameLoop";
+import AnimatedScorePopup from "@/components/game/AnimatedScorePopup";
+import { useGameLoop, getSavedLabel } from "@/hooks/useGameLoop";
+import { useDailyChallenge } from "@/hooks/useDailyChallenge";
+import { useToast } from "@/context/ToastContext";
 import { CATEGORIES } from "@/lib/questionHierarchy";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -43,10 +46,24 @@ export default function GamePage() {
     moves,
     entityType,
     hints,
+    isAnimating,
+    popup,
+    gameType,
+    gameId,
+    onPopupComplete,
     startNewGame,
+    startDailyChallenge,
     submitAnswer,
     exitGame,
   } = useGameLoop();
+
+  // Daily challenge status
+  const { challenges: dailyChallenges, loading: dailyLoading } = useDailyChallenge();
+
+  const { addToast } = useToast();
+
+  // Share state
+  const [sharing, setSharing] = useState(false);
 
   // Flatten the static hierarchy for the lobby card grid
   const lobbyCategories: LobbyCategory[] = useMemo(
@@ -64,9 +81,13 @@ export default function GamePage() {
   // Lobby state
   const [playerName, setPlayerName] = useState("GUEST_PLAYER");
   const [gameMode, setGameMode] = useState<"solo" | "ranked">("solo");
-  // Track the last selection so we can replay and display in MatchView
-  const [lastSlug, setLastSlug] = useState("football");
-  const [lastLabel, setLastLabel] = useState("Football");
+  // Track the last selection so we can replay and display in MatchView.
+  // On mount, try to recover the label from a saved game (refresh recovery).
+  const [lastSlug, setLastSlug] = useState(() => getSavedLabel() ?? "football");
+  const [lastLabel, setLastLabel] = useState(() => {
+    const saved = getSavedLabel();
+    return saved ?? "Football";
+  });
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
@@ -76,12 +97,89 @@ export default function GamePage() {
     // For now we pass the root category slug to the backend, which matches
     // the flat /api/categories structure. The full hierarchical path is
     // preserved in lastSlug/lastLabel for when the backend supports it.
-    await startNewGame(rootSlug(slug));
+    await startNewGame(rootSlug(slug), label);
+  };
+
+  const handleStartTestGame = async () => {
+    setLastSlug("test");
+    setLastLabel("Test Mode");
+    await startNewGame("test", "Test Mode");
+  };
+
+  const handleStartDailyChallenge = async (categorySlug: string, label: string) => {
+    setLastSlug(categorySlug);
+    setLastLabel(label);
+    await startDailyChallenge(categorySlug, label);
+  };
+
+  const handleShare = async () => {
+    if (!gameId || sharing) return;
+    setSharing(true);
+    try {
+      const res = await fetch(`/api/daily-challenge/share/${gameId}`);
+      if (!res.ok) throw new Error("Failed to get share data");
+      const data = await res.json();
+
+      // Build Wordle-style share text
+      const emojiMap: Record<string, string> = {
+        VALID: "🟩",    // 🟩
+        BUST: "🟥",     // 🟥
+        INVALID: "⬜",
+        CHECKOUT: "🎯", // 🎯
+      };
+      const emojiLine = (data.moveEmojis as string[])
+        .map((e: string) => emojiMap[e] ?? "⬜")
+        .join("");
+
+      const dateStr = data.challengeDate
+        ? new Date(data.challengeDate).toLocaleDateString("en-GB", {
+            day: "numeric", month: "short", year: "numeric",
+          })
+        : "Today";
+
+      const shareText = [
+        `⚽ FOOTBALL 501 — ${data.categoryName?.toString().toUpperCase() ?? "DAILY"}`,
+        `${dateStr} — Target: ${data.startingScore}`,
+        "",
+        emojiLine,
+        `Score: ${(data.finalScore as number) <= 0 ? "000" : String(data.finalScore).padStart(3, "0")} | ${data.turnCount} turns`,
+        "",
+        `${window.location.origin}/daily/${data.categorySlug ?? "football"}`,
+      ].join("\n");
+
+      // Try native share on mobile, fall back to clipboard
+      if (navigator.share) {
+        await navigator.share({ text: shareText });
+      } else {
+        await navigator.clipboard.writeText(shareText);
+      }
+      addToast("Result copied to clipboard!", "success");
+    } catch (err) {
+      // User cancelled share — not an error
+      if ((err as Error).name !== "AbortError") {
+        addToast("Failed to share result", "error");
+      }
+    } finally {
+      setSharing(false);
+    }
   };
 
   const handlePlayAgain = async () => {
-    await startNewGame(rootSlug(lastSlug));
+    await startNewGame(rootSlug(lastSlug), lastLabel);
   };
+
+  // ── Restoring state ─────────────────────────────────────────────────────────
+
+  if (gameStatus === "RESTORING") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-950">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4" />
+          <p className="text-gray-400 text-lg">Restoring game...</p>
+        </div>
+      </div>
+    );
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -90,10 +188,14 @@ export default function GamePage() {
       <LobbyView
         categories={lobbyCategories}
         onStartGame={handleStartGame}
+        onStartDailyChallenge={handleStartDailyChallenge}
+        onStartTestGame={handleStartTestGame}
         playerName={playerName}
         onPlayerNameChange={setPlayerName}
         gameMode={gameMode}
         onGameModeChange={setGameMode}
+        dailyChallenges={dailyChallenges}
+        dailyLoading={dailyLoading}
       />
     );
   }
@@ -101,19 +203,31 @@ export default function GamePage() {
   const { name: catName, sub: catSub } = categoryLabel(lastLabel);
 
   return (
-    <MatchView
-      score={score}
-      question={question}
-      turnCount={turnCount}
-      moves={moves}
-      onExit={exitGame}
-      onSubmitAnswer={submitAnswer}
-      onPlayAgain={handlePlayAgain}
-      categoryName={catName}
-      categorySub={catSub}
-      entityType={entityType}
-      isWin={gameStatus === "COMPLETED"}
-      hints={hints}
-    />
+    <>
+      <MatchView
+        score={score}
+        question={question}
+        turnCount={turnCount}
+        moves={moves}
+        onExit={exitGame}
+        onSubmitAnswer={submitAnswer}
+        onPlayAgain={handlePlayAgain}
+        categoryName={catName}
+        categorySub={catSub}
+        entityType={entityType}
+        isWin={gameStatus === "COMPLETED"}
+        hints={hints}
+        disabled={isAnimating}
+        onShare={gameType === "daily-challenge" ? handleShare : undefined}
+        sharing={sharing}
+      />
+      {popup && (
+        <AnimatedScorePopup
+          scoreValue={popup.scoreValue}
+          result={popup.result}
+          onComplete={onPopupComplete}
+        />
+      )}
+    </>
   );
 }

@@ -140,7 +140,7 @@ class MatchServiceTest {
             .status(Game.GameStatus.IN_PROGRESS)
             .build();
 
-        when(gameService.createGame(matchId, questionId, 1)).thenReturn(createdGame);
+        when(gameService.createGame(matchId, questionId, 1, 501)).thenReturn(createdGame);
 
         // When
         MatchService.GameStartRecord startRecord = matchService.startNextGame(match);
@@ -152,7 +152,7 @@ class MatchServiceTest {
         assertThat(startRecord.question()).isEqualTo(question);
 
         verify(questionService).selectRandomQuestion(eq(categoryId), eq(2), eq(10));
-        verify(gameService).createGame(matchId, questionId, 1);
+        verify(gameService).createGame(matchId, questionId, 1, 501);
     }
 
     @Test
@@ -172,14 +172,14 @@ class MatchServiceTest {
             .status(Game.GameStatus.IN_PROGRESS)
             .build();
 
-        when(gameService.createGame(matchId, questionId, 2)).thenReturn(createdGame);
+        when(gameService.createGame(matchId, questionId, 2, 501)).thenReturn(createdGame);
 
         // When
         MatchService.GameStartRecord startRecord = matchService.startNextGame(match);
 
         // Then
         assertThat(startRecord.game().getGameNumber()).isEqualTo(2);
-        verify(gameService).createGame(matchId, questionId, 2);
+        verify(gameService).createGame(matchId, questionId, 2, 501);
     }
 
     @Test
@@ -519,6 +519,6 @@ class MatchServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getPlayer1Id()).isEqualTo(player1Id);
         assertThat(result.getPlayer2Id()).isNull();
-        assertThat(result.getStatus()).isEqualTo(Match.MatchStatus.IN_PROGRESS);
+        assertThat(result.getStatus()).isEqualTo(Match.MatchStatus.WAITING);
     }
 }

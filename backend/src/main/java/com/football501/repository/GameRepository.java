@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -71,4 +72,38 @@ public interface GameRepository extends JpaRepository<Game, UUID> {
      * @return list of completed games
      */
     List<Game> findByMatchIdAndStatusOrderByGameNumberAsc(UUID matchId, GameStatus status);
+
+    /**
+     * Find the most recent in-progress game for a player (across all their matches).
+     */
+    @Query("""
+        SELECT g FROM Game g
+        JOIN Match m ON g.matchId = m.id
+        WHERE (m.player1Id = :playerId OR m.player2Id = :playerId)
+          AND g.status = 'IN_PROGRESS'
+        ORDER BY g.updatedAt DESC
+        LIMIT 1
+        """)
+    Optional<Game> findActiveGameByPlayerId(@Param("playerId") UUID playerId);
+
+    /**
+     * Find all in-progress games last updated before the given cutoff.
+     */
+    @Query("""
+        SELECT g FROM Game g
+        WHERE g.status = 'IN_PROGRESS'
+          AND g.updatedAt < :cutoff
+        """)
+    List<Game> findStaleGames(@Param("cutoff") LocalDateTime cutoff);
+
+    /**
+     * Find all in-progress games for a player (across all their matches).
+     */
+    @Query("""
+        SELECT g FROM Game g
+        JOIN Match m ON g.matchId = m.id
+        WHERE (m.player1Id = :playerId OR m.player2Id = :playerId)
+          AND g.status = 'IN_PROGRESS'
+        """)
+    List<Game> findActiveGamesByPlayerId(@Param("playerId") UUID playerId);
 }

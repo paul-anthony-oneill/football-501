@@ -3,6 +3,7 @@
 import { useState } from "react";
 import CategoryPopup from "./CategoryPopup";
 import { CATEGORIES, type CategoryDefinition } from "@/lib/questionHierarchy";
+import type { CategoryChallenge } from "@/hooks/useDailyChallenge";
 
 interface Category {
   id: string;
@@ -16,10 +17,14 @@ interface Category {
 interface LobbyViewProps {
   categories: Category[];
   onStartGame: (slug: string, label: string) => void;
+  onStartDailyChallenge: (slug: string, label: string) => void;
+  onStartTestGame: () => void;
   playerName: string;
   onPlayerNameChange: (name: string) => void;
   gameMode: "solo" | "ranked";
   onGameModeChange: (mode: "solo" | "ranked") => void;
+  dailyChallenges: CategoryChallenge[];
+  dailyLoading: boolean;
 }
 
 /** Look up the full hierarchy definition for a flat category by matching its slug. */
@@ -30,10 +35,14 @@ function findHierarchyDef(slug: string): CategoryDefinition | null {
 export default function LobbyView({
   categories,
   onStartGame,
+  onStartDailyChallenge,
+  onStartTestGame,
   playerName,
   onPlayerNameChange,
   gameMode,
   onGameModeChange,
+  dailyChallenges,
+  dailyLoading,
 }: LobbyViewProps) {
   const [popupCat, setPopupCat] = useState<CategoryDefinition | null>(null);
 
@@ -85,6 +94,52 @@ export default function LobbyView({
           </div>
           <div className="h-hero-num hidden md:block">501</div>
         </section>
+
+        {/* Daily Challenges Row */}
+        {!dailyLoading && dailyChallenges.length > 0 && (
+          <section className="h-section">
+            <div className="h-sec-label flex items-baseline gap-3 mb-3">
+              <span className="h-sec-num w-5.5 h-5.5 rounded-full bg-h-accent text-h-bg text-[10px] flex items-center justify-center font-plex">
+                D
+              </span>
+              <span className="h-kicker">Today&apos;s Challenges</span>
+              <span className="font-plex text-[10px] tracking-widest text-h-dim uppercase ml-auto">
+                One attempt · Share with friends
+              </span>
+            </div>
+
+            <div className="flex gap-3.5 overflow-x-auto pb-2">
+              {dailyChallenges.map((dc) => (
+                <button
+                  key={dc.categorySlug}
+                  onClick={() => onStartDailyChallenge(dc.categorySlug, dc.categoryName)}
+                  className="daily-card group flex-shrink-0 flex flex-col bg-black border-2 border-h-accent rounded-sm p-5 w-64 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-h-accent/20 text-left"
+                >
+                  <div className="flex items-baseline justify-between mb-2">
+                    <span className="font-bricolage font-bold text-lg tracking-tight text-h-fg">
+                      {dc.categoryName}
+                    </span>
+                    <span className="font-plex text-[10px] tracking-widest text-h-dim uppercase">
+                      Daily
+                    </span>
+                  </div>
+                  <div className="font-vt323 text-[32px] text-h-accent tracking-widest mb-2">
+                    TARGET: {dc.startingScore.toString().padStart(3, "0")}
+                  </div>
+                  <div className="font-plex text-[11px] text-h-dim leading-snug line-clamp-2 mb-4">
+                    {dc.questionText || "Loading..."}
+                  </div>
+                  <div className="mt-auto flex items-center justify-between">
+                    <span className="font-plex text-[10px] tracking-widest text-h-accent uppercase">
+                      PLAY NOW
+                    </span>
+                    <span className="font-bricolage font-bold text-lg text-h-accent">→</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Categories Section */}
         <section className="h-section">
@@ -170,6 +225,13 @@ export default function LobbyView({
               placeholder="GUEST_123"
             />
           </div>
+
+          <button
+            onClick={onStartTestGame}
+            className="font-plex text-[11px] tracking-widest uppercase px-4 py-2 border border-h-accent text-h-accent rounded-full hover:bg-h-accent hover:text-h-bg transition-colors duration-200"
+          >
+            Test Mode
+          </button>
         </section>
       </main>
 
@@ -177,9 +239,6 @@ export default function LobbyView({
       <footer className="h-foot mt-7 pb-4 border-t border-h-rule flex gap-7 flex-wrap font-plex text-[11px] tracking-widest text-h-dim uppercase relative z-10">
         <div className="flex gap-1.5">
           LIVE MATCHES: <b>1,242</b>
-        </div>
-        <div className="flex gap-1.5">
-          DAILY CHALLENGE: <b>OPEN</b>
         </div>
         <div className="ml-auto">© 2026 FOOTBALL 501</div>
       </footer>

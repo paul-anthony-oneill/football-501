@@ -71,6 +71,7 @@ class SoloGameIntegrationTest extends BaseTest {
             .questionText("Appearances for Test FC in Test League 2024/25")
             .metricKey("appearances")
             .config(Map.of())
+            .status(Question.STATUS_ACTIVE)
             .build());
 
         // Seed 12 answers — above the DEFAULT_MIN_ANSWERS (10) threshold
@@ -87,6 +88,10 @@ class SoloGameIntegrationTest extends BaseTest {
                 .build());
             if (i == 0) knownAnswer = a;
         }
+
+        // Update denormalized count so findRandomActiveQuestion passes the min-answers gate
+        question.setTotalValidCount(12);
+        questionRepository.save(question);
     }
 
     @Test
@@ -157,17 +162,14 @@ class SoloGameIntegrationTest extends BaseTest {
     }
 
     @Test
-    @DisplayName("Submitting an empty answer returns INVALID with score unchanged")
+    @DisplayName("Submitting a blank answer returns 400 (bean validation)")
     void submitEmptyAnswer_returnsInvalid() throws Exception {
         UUID gameId = startGame();
 
         mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("   ")))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.result").value("INVALID"))
-            .andExpect(jsonPath("$.scoreBefore").value(501))
-            .andExpect(jsonPath("$.scoreAfter").value(501));
+            .andExpect(status().isBadRequest());
     }
 
     @Test

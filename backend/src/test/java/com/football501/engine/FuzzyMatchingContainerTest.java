@@ -90,6 +90,7 @@ class FuzzyMatchingContainerTest {
             .questionText("Goals in Test League 2024/25")
             .metricKey("goals")
             .config(Map.of())
+            .status(Question.STATUS_ACTIVE)
             .build());
 
         // 12 answers — above DEFAULT_MIN_ANSWERS (10)
@@ -109,6 +110,10 @@ class FuzzyMatchingContainerTest {
                 .isBust(false)
                 .build());
         }
+
+        // Update denormalized count so findRandomActiveQuestion passes the min-answers gate
+        question.setTotalValidCount(players.length);
+        questionRepository.save(question);
     }
 
     @Test
@@ -125,11 +130,12 @@ class FuzzyMatchingContainerTest {
     }
 
     @Test
-    @DisplayName("Typo in player name is resolved via trigram fuzzy matching")
-    void typoInName_fuzzyMatchReturnsValid() throws Exception {
+    @DisplayName("Typo in player name is caught by fuzzy fallback after exact miss")
+    void typoInName_fuzzyFallbackReturnsValid() throws Exception {
         UUID gameId = startGame();
 
-        // "Erling Haland" (missing one 'a') should fuzzy-match "Erling Haaland"
+        // "Erling Haland" (missing one 'a') misses exact match, but fuzzy
+        // fallback catches it via pg_trgm similarity against "erling haaland"
         mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
                                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("Erling Haland")))

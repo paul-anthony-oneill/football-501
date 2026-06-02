@@ -5,9 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.UUID;
-
-// GameHints is in the same package — no extra import needed
 
 /**
  * Response DTO for game state.
@@ -82,4 +81,9 @@ public class GameStateResponse {
      * </ul>
      */
     private GameHints hints;
+
+    /**
+     * Move history for this game (newest first). Null when moves are not requested.
+     */
+    private List<MoveDto> moves;
 }

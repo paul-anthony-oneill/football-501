@@ -209,14 +209,52 @@ public class EntitySearchService {
     // Package-visible for unit testing
     // -------------------------------------------------------------------------
 
+    // Characters that NFD does not decompose.  Kept in sync with PostgreSQL's
+    // unaccent() dictionary so Java-computed keys and SQL LIKE targets match.
+    private static final Map<Character, String> NFD_OPAQUE_REPLACEMENTS = Map.ofEntries(
+            Map.entry('ø', "o"),   // ø — Norwegian/Danish o-stroke
+            Map.entry('Ø', "o"),   // Ø — uppercase
+            Map.entry('æ', "ae"),  // æ — Norwegian/Danish ae-ligature
+            Map.entry('Æ', "ae"),  // Æ — uppercase
+            Map.entry('ł', "l"),   // ł — Polish l-stroke
+            Map.entry('Ł', "l"),   // Ł — uppercase
+            Map.entry('đ', "d"),   // đ — Croatian/Sami d-stroke
+            Map.entry('Đ', "d"),   // Đ — uppercase
+            Map.entry('œ', "oe"),  // œ — French oe-ligature
+            Map.entry('Œ', "oe"),  // Œ — uppercase
+            Map.entry('ð', "d"),   // ð — Icelandic eth
+            Map.entry('Ð', "d"),   // Ð — uppercase
+            Map.entry('þ', "th"),  // þ — Icelandic thorn
+            Map.entry('Þ', "th"),  // Þ — uppercase
+            Map.entry('ß', "ss")   // ß — German sharp-s
+    );
+
     /**
      * Strips combining diacritical marks, e.g. {@code "agüero"} → {@code "aguero"}.
      * Mirrors PostgreSQL {@code unaccent()} so Java-computed keys and SQL query
      * targets are always identical.
+     *
+     * <p>NFD normalisation handles most accented characters (ü, ö, é, etc.) by
+     * decomposing them into base letter + combining mark.  Characters whose
+     * diacritic is a stroke or ligature ({@code ø, æ, ł, đ}) do not decompose
+     * under NFD, so a second pass replaces them explicitly.
      */
     static String stripAccents(String input) {
-        return Normalizer
+        String decomposed = Normalizer
                 .normalize(input, Normalizer.Form.NFD)
                 .replaceAll("\\p{InCombiningDiacriticalMarks}", "");
+
+        // Second pass: characters that NFD does not decompose
+        StringBuilder sb = new StringBuilder(decomposed.length());
+        for (int i = 0; i < decomposed.length(); i++) {
+            char c = decomposed.charAt(i);
+            String replacement = NFD_OPAQUE_REPLACEMENTS.get(c);
+            if (replacement != null) {
+                sb.append(replacement);
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 }

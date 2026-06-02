@@ -15,6 +15,9 @@ public final class CategorySlug {
     /** The default football category slug. */
     public static final String FOOTBALL = "football";
 
+    /** Test mode category slug — synthetic answers for frontend flow verification. */
+    public static final String TEST = "test";
+
     private CategorySlug() {
         // constants-only utility class — do not instantiate
     }

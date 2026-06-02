@@ -70,6 +70,10 @@ public class Match {
     @Builder.Default
     private Integer difficulty = 2;
 
+    @Column(name = "game_mode", nullable = false)
+    @Builder.Default
+    private String gameMode = "STANDARD";
+
     @Column(name = "started_at")
     private LocalDateTime startedAt;
 

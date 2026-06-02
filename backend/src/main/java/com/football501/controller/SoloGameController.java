@@ -2,6 +2,7 @@ package com.football501.controller;
 
 import com.football501.dto.GameHints;
 import com.football501.dto.GameStateResponse;
+import com.football501.dto.MoveDto;
 import com.football501.dto.StartSoloGameRequest;
 import com.football501.dto.SubmitAnswerRequest;
 import com.football501.dto.SubmitAnswerResponse;
@@ -30,9 +31,11 @@ import java.util.UUID;
  *
  * Endpoints:
  * <ul>
- *   <li>POST /api/solo/start            — Start a new solo game</li>
- *   <li>POST /api/solo/games/{id}/submit — Submit an answer</li>
- *   <li>GET  /api/solo/games/{id}        — Get current game state</li>
+ *   <li>POST /api/solo/start              — Start a new solo game</li>
+ *   <li>POST /api/solo/games/{id}/submit  — Submit an answer</li>
+ *   <li>POST /api/solo/games/{id}/abandon — Abandon a game</li>
+ *   <li>GET  /api/solo/games/{id}         — Get current game state</li>
+ *   <li>GET  /api/solo/games/active       — Get player's active game</li>
  * </ul>
  */
 @RestController
@@ -65,6 +68,9 @@ public class SoloGameController {
      * <p>Player identity is read from the authenticated principal — the client
      * cannot supply or override the player ID.
      *
+     * <p>Any existing in-progress games for the player are abandoned first to
+     * prevent orphaned rows.
+     *
      * @param request   optional category / difficulty preferences
      * @param principal injected by Spring Security from the current auth token
      * @return initial game state
@@ -76,6 +82,9 @@ public class SoloGameController {
     ) {
         UUID playerId = playerIdFrom(principal);
         log.debug("Starting solo game for player {}", playerId);
+
+        // Prevent orphaned-game accumulation: abandon any in-progress games
+        gameService.abandonActiveGamesForPlayer(playerId);
 
         String categorySlug = request.getCategorySlug() != null
             ? request.getCategorySlug()
@@ -101,7 +110,7 @@ public class SoloGameController {
 
         log.info("Solo game started: gameId={}, playerId={}", game.getId(), playerId);
 
-        return ResponseEntity.ok(buildGameStateResponse(game, question, match, List.of()));
+        return ResponseEntity.ok(buildGameStateResponse(game, question, match, List.of(), List.of()));
     }
 
     /**
@@ -124,7 +133,7 @@ public class SoloGameController {
         UUID playerId = playerIdFrom(principal);
         log.debug("Submitting answer for game {}: '{}'", gameId, request.getAnswer());
 
-        GameService.MoveRecord result = gameService.processPlayerMove(gameId, playerId, request.getAnswer());
+        GameService.MoveRecord result = gameService.processPlayerMove(gameId, playerId, request.getAnswer(), request.getEntityId());
 
         Game game = result.game();
         Match match = result.match();
@@ -142,7 +151,7 @@ public class SoloGameController {
             .scoreAfter(move.getScoreAfter())
             .reason(determineReason(move))
             .isWin(move.getResult() == GameMove.MoveResult.CHECKOUT)
-            .gameState(buildGameStateResponse(game, question, match, result.usedAnswerIds()))
+            .gameState(buildGameStateResponse(game, question, match, result.usedAnswerIds(), List.of()))
             .build();
 
         log.debug("Answer processed: result={}, score={}->{}", move.getResult(),
@@ -173,13 +182,13 @@ public class SoloGameController {
     }
 
     /**
-     * Get current game state.
+     * Get current game state including move history.
      *
      * <p>Player identity comes from the authenticated principal.
      *
      * @param gameId    the game UUID
      * @param principal injected by Spring Security
-     * @return current game state, or 404 if the game does not exist
+     * @return current game state with moves, or 404 if the game does not exist
      */
     @GetMapping("/games/{gameId}")
     public ResponseEntity<GameStateResponse> getGameState(
@@ -201,7 +210,43 @@ public class SoloGameController {
         Question question = questionService.getQuestionById(game.getQuestionId())
             .orElseThrow(() -> new IllegalStateException("Question not found"));
 
-        return ResponseEntity.ok(buildGameStateResponse(game, question, match));
+        List<GameMove> moves = gameService.getMovesForGame(gameId);
+
+        return ResponseEntity.ok(buildGameStateResponse(game, question, match, moves));
+    }
+
+    /**
+     * Get the current player's active in-progress game (if any).
+     *
+     * <p>This is the primary recovery endpoint — the frontend calls it on mount
+     * after a page refresh to discover any game left in progress. If no active
+     * game exists, a 404 is returned and the frontend shows the lobby.
+     *
+     * @param principal injected by Spring Security
+     * @return current game state with moves, or 404 if no active game
+     */
+    @GetMapping("/games/active")
+    public ResponseEntity<GameStateResponse> getActiveGame(Principal principal) {
+        UUID playerId = playerIdFrom(principal);
+        log.debug("Looking up active game for player {}", playerId);
+
+        Game game = gameService.findActiveGameForPlayer(playerId).orElse(null);
+
+        if (game == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Match match = matchService.getMatchById(game.getMatchId())
+            .orElseThrow(() -> new IllegalStateException("Match not found"));
+
+        Question question = questionService.getQuestionById(game.getQuestionId())
+            .orElseThrow(() -> new IllegalStateException("Question not found"));
+
+        List<GameMove> moves = gameService.getMovesForGame(game.getId());
+
+        log.info("Active game found for player {}: gameId={}", playerId, game.getId());
+
+        return ResponseEntity.ok(buildGameStateResponse(game, question, match, moves));
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -215,11 +260,13 @@ public class SoloGameController {
         return UUID.fromString(principal.getName());
     }
 
-    private GameStateResponse buildGameStateResponse(Game game, Question question, Match match) {
-        return buildGameStateResponse(game, question, match, null);
+    private GameStateResponse buildGameStateResponse(Game game, Question question, Match match,
+                                                      List<GameMove> moves) {
+        return buildGameStateResponse(game, question, match, null, moves);
     }
 
-    private GameStateResponse buildGameStateResponse(Game game, Question question, Match match, List<UUID> usedAnswerIds) {
+    private GameStateResponse buildGameStateResponse(Game game, Question question, Match match,
+                                                      List<UUID> usedAnswerIds, List<GameMove> moves) {
         int currentScore = game.getPlayer1Score();
 
         boolean isWin = game.getStatus() == Game.GameStatus.COMPLETED
@@ -238,6 +285,10 @@ public class SoloGameController {
             ? gameHintsService.computeHintsFromCache(game.getQuestionId(), usedAnswerIds, currentScore)
             : gameHintsService.computeHints(game.getId(), game.getQuestionId(), currentScore);
 
+        List<MoveDto> moveDtos = moves != null
+            ? moves.stream().map(this::toMoveDto).toList()
+            : null;
+
         return GameStateResponse.builder()
             .gameId(game.getId())
             .matchId(game.getMatchId())
@@ -250,7 +301,19 @@ public class SoloGameController {
             .turnTimerSeconds(game.getTurnTimerSeconds())
             .entityType(entityType)
             .hints(hints)
+            .moves(moveDtos)
             .build();
+    }
+
+    private MoveDto toMoveDto(GameMove move) {
+        return new MoveDto(
+            move.getSubmittedAnswer(),
+            move.getResult().name(),
+            move.getScoreBefore(),
+            move.getScoreAfter(),
+            move.getMatchedDisplayText(),
+            move.getScoreValue()
+        );
     }
 
     private String determineReason(GameMove move) {

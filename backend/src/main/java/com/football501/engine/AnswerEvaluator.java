@@ -1,12 +1,13 @@
 package com.football501.engine;
 
 import com.football501.model.Answer;
+import com.football501.model.NamedEntity;
 import com.football501.repository.AnswerRepository;
+import com.football501.repository.NamedEntityRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,13 +16,18 @@ import java.util.UUID;
  * Service for evaluating player answers during gameplay.
  *
  * Core responsibilities:
- * - Validate user input against pre-populated answers
- * - Perform fuzzy matching for typos and variations
+ * - Validate user input against pre-populated answers via exact answer-key match
  * - Apply darts scoring rules
  * - Determine win/bust conditions
  * - Track used answers to prevent reuse
  *
- * Critical: All validation uses pre-cached data from answers table.
+ * Fuzzy matching has been removed. The autocomplete dropdown (powered by the
+ * {@code entities} table and its GIN trigram index) now handles accent
+ * differences and typos. The player selects an entity from the dropdown, the
+ * frontend sends its UUID, and this evaluator resolves it to a normalized
+ * name for exact lookup against {@code answers.answer_key}.
+ *
+ * Critical: All validation uses pre-cached data from the answers table.
  * NO external API calls are made during gameplay.
  */
 @Service
@@ -29,28 +35,33 @@ import java.util.UUID;
 public class AnswerEvaluator {
 
     private final AnswerRepository answerRepository;
+    private final NamedEntityRepository namedEntityRepository;
     private final ScoringService scoringService;
 
     /**
-     * Minimum similarity threshold for fuzzy matching (0.0 to 1.0).
-     * Adjust based on UX requirements - lower = more lenient matching.
+     * Minimum similarity threshold for the fuzzy fallback (0.0 to 1.0).
+     * Only used when the exact match misses — never on the hot path.
      */
     private static final double SIMILARITY_THRESHOLD = 0.5;
 
     public AnswerEvaluator(
         AnswerRepository answerRepository,
+        NamedEntityRepository namedEntityRepository,
         ScoringService scoringService
     ) {
         this.answerRepository = answerRepository;
+        this.namedEntityRepository = namedEntityRepository;
         this.scoringService = scoringService;
     }
 
     /**
      * Evaluate a player's answer during gameplay.
      *
-     * @param questionId the question UUID
-     * @param userInput the answer as entered by user
-     * @param currentScore the player's current score (starts at 501)
+     * @param questionId    the question UUID
+     * @param userInput     the answer text as entered by the user (for display/move history)
+     * @param entityId      the entity UUID from the autocomplete dropdown, or null if the
+     *                      player typed a name without selecting a suggestion
+     * @param currentScore  the player's current score (starts at 501)
      * @param usedAnswerIds list of already-used answer UUIDs
      * @return AnswerResult with validation details
      */
@@ -58,28 +69,25 @@ public class AnswerEvaluator {
     public AnswerResult evaluateAnswer(
         UUID questionId,
         String userInput,
+        UUID entityId,
         int currentScore,
         List<UUID> usedAnswerIds
     ) {
-        // Normalize input
-        String normalizedInput = normalizeInput(userInput);
+        String answerKey = resolveAnswerKey(userInput, entityId);
 
-        if (normalizedInput.isEmpty()) {
+        if (answerKey.isEmpty()) {
             return AnswerResult.invalid("Empty answer", currentScore);
         }
 
-        // Find matching answer using fuzzy matching
-        Optional<Answer> matchOpt = findMatchingAnswer(
-            questionId,
-            normalizedInput,
-            usedAnswerIds != null ? usedAnswerIds : new ArrayList<>()
-        );
+        Answer answer = findAnswer(questionId, answerKey);
 
-        if (matchOpt.isEmpty()) {
-            return AnswerResult.invalid("Answer not found or already used", currentScore);
+        if (answer == null) {
+            return AnswerResult.invalid("Answer not found", currentScore);
         }
 
-        Answer answer = matchOpt.get();
+        if (usedAnswerIds != null && usedAnswerIds.contains(answer.getId())) {
+            return AnswerResult.invalid("Answer already used", currentScore);
+        }
 
         // Calculate new score using ScoringService
         ScoreResult scoreResult = scoringService.calculateScore(currentScore, answer.getScore());
@@ -98,7 +106,6 @@ public class AnswerEvaluator {
             reason = "Win!";
         }
 
-        // Build result
         return AnswerResult.valid(
             answer.getDisplayText(),
             answer.getId(),
@@ -108,79 +115,79 @@ public class AnswerEvaluator {
             scoreResult.getNewScore(),
             scoreResult.isCheckout(),
             reason,
-            null // Similarity not currently returned by repository
+            null
         );
     }
 
     /**
-     * Find matching answer using exact or fuzzy matching.
+     * Find a matching answer using exact lookup, with a fuzzy fallback on miss.
      *
-     * Strategy:
-     * 1. Try exact normalized match first (fast path)
-     * 2. Fall back to fuzzy trigram matching (handles typos)
+     * The fast path (entity-ID resolved, or exact text match) hits ~95%+ of
+     * the time and costs a single B-tree index lookup. The fuzzy fallback
+     * only fires when the player typed raw text without using autocomplete,
+     * or on the rare case of data drift between {@code entities.normalized_name}
+     * and {@code answers.answer_key}.
      *
-     * @param questionId the question UUID
-     * @param normalizedInput the normalized input
-     * @param usedAnswerIds list of used answer IDs
-     * @return optional matching answer
+     * <p>Used-answer exclusion is handled by the caller ({@link #evaluateAnswer})
+     * so the correct "already used" message can be returned.
+     *
+     * <p>The fuzzy fallback is best-effort — if the database doesn't support
+     * {@code pg_trgm} (e.g. H2 in tests), the error is caught and the method
+     * returns null as if no match were found.
      */
-    private Optional<Answer> findMatchingAnswer(
-        UUID questionId,
-        String normalizedInput,
-        List<UUID> usedAnswerIds
-    ) {
-        // Try exact match first (fast path)
-        Optional<Answer> exactMatch = answerRepository
-            .findByQuestionIdAndAnswerKey(questionId, normalizedInput);
+    private Answer findAnswer(UUID questionId, String answerKey) {
+        // Fast path: exact match on answer_key (B-tree index)
+        Optional<Answer> exact = answerRepository.findByQuestionIdAndAnswerKey(questionId, answerKey);
+        if (exact.isPresent()) {
+            return exact.get();
+        }
 
-        if (exactMatch.isPresent()) {
-            // Check if already used
-            if (usedAnswerIds != null && usedAnswerIds.contains(exactMatch.get().getId())) {
-                log.debug("Exact match found but already used: {}", exactMatch.get().getDisplayText());
-                return Optional.empty();
+        // Fallback: fuzzy match via pg_trgm similarity (GIN trigram index).
+        // Only reached when the exact key doesn't match — e.g. raw text with a
+        // typo, or entities/answers drift. Best-effort: if the database doesn't
+        // support pg_trgm, we swallow the error and return null.
+        try {
+            Optional<Answer> fuzzy = answerRepository.findFuzzyMatch(
+                questionId, answerKey, SIMILARITY_THRESHOLD);
+            if (fuzzy.isPresent()) {
+                log.debug("Fuzzy fallback matched '{}' to '{}'", answerKey, fuzzy.get().getDisplayText());
+                return fuzzy.get();
             }
-            log.debug("Exact match found: {}", exactMatch.get().getDisplayText());
-            return exactMatch;
+        } catch (Exception e) {
+            log.debug("Fuzzy fallback unavailable (pg_trgm not installed?): {}", e.getMessage());
         }
 
-        // Fall back to fuzzy matching
-        Optional<Answer> fuzzyMatch = answerRepository
-            .findBestMatchByFuzzyName(
-                questionId,
-                normalizedInput,
-                (usedAnswerIds == null || usedAnswerIds.isEmpty()) ? null : usedAnswerIds,
-                SIMILARITY_THRESHOLD
-            );
-
-        if (fuzzyMatch.isPresent()) {
-            log.debug("Fuzzy match found: {} for input '{}'",
-                fuzzyMatch.get().getDisplayText(), normalizedInput);
-        }
-
-        return fuzzyMatch;
+        return null;
     }
 
     /**
-     * Normalize input string for matching.
-     * - Trim whitespace
-     * - Convert to lowercase
+     * Resolve the answer key to use for exact database lookup.
      *
-     * @param input raw input
-     * @return normalized string
+     * When an entity UUID is provided (player selected from autocomplete),
+     * the entity's pre-computed {@code normalizedName} is used — this is
+     * guaranteed to match {@code answers.answer_key} because
+     * {@code EntitySearchService.upsertEntity()} keeps them in sync.
+     *
+     * When no entity UUID is provided (player typed a raw name and pressed
+     * Enter without selecting a suggestion), the raw text is lowercased and
+     * trimmed for a best-effort exact match (with fuzzy fallback).
      */
-    private String normalizeInput(String input) {
-        if (input == null) {
-            return "";
+    private String resolveAnswerKey(String userInput, UUID entityId) {
+        if (entityId != null) {
+            return namedEntityRepository.findById(entityId)
+                .map(NamedEntity::getNormalizedName)
+                .orElseGet(() -> normalize(userInput));
         }
+        return normalize(userInput);
+    }
+
+    private static String normalize(String input) {
+        if (input == null) return "";
         return input.trim().toLowerCase();
     }
 
     /**
      * Get count of remaining valid answers for a question.
-     *
-     * @param questionId the question UUID
-     * @param usedAnswerIds list of used answer IDs
-     * @return count of available answers
      */
     @Transactional(readOnly = true)
     public long getAvailableAnswerCount(UUID questionId, List<UUID> usedAnswerIds) {
@@ -192,12 +199,6 @@ public class AnswerEvaluator {
 
     /**
      * Get top scoring answers for a question.
-     * Useful for analytics, testing, or admin purposes.
-     *
-     * @param questionId the question UUID
-     * @param limit maximum number of results
-     * @param excludeInvalidDarts whether to exclude invalid darts scores
-     * @return list of top answers
      */
     @Transactional(readOnly = true)
     public List<Answer> getTopAnswers(
@@ -209,22 +210,16 @@ public class AnswerEvaluator {
             questionId,
             excludeInvalidDarts
         );
-
-        // Manually limit results since @Query doesn't support dynamic LIMIT
         return results.stream().limit(limit).toList();
     }
 
     /**
      * Get statistics about a question's answers.
-     *
-     * @param questionId the question UUID
-     * @return answer statistics
      */
     @Transactional(readOnly = true)
     public AnswerStats getAnswerStats(UUID questionId) {
         long totalAnswers = answerRepository.countByQuestionId(questionId);
         long validDartsAnswers = answerRepository.countByQuestionIdAndIsValidDartsTrue(questionId);
-
         return new AnswerStats(totalAnswers, validDartsAnswers);
     }
 

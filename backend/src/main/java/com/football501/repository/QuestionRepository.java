@@ -91,15 +91,15 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
      * @param minAnswers  minimum number of valid-darts answers required
      * @return a random matching question, or empty if none qualify
      */
-    @Query(value = """
-        SELECT * FROM questions
-        WHERE category_id      = :categoryId
-          AND status           = 'active'
-          AND total_valid_count >= :minAnswers
-          AND (:difficulty IS NULL OR difficulty = :difficulty)
-        ORDER BY RANDOM()
+    @Query("""
+        SELECT q FROM Question q
+        WHERE q.categoryId = :categoryId
+          AND q.status = 'active'
+          AND q.totalValidCount >= :minAnswers
+          AND (:difficulty IS NULL OR q.difficulty = :difficulty)
+        ORDER BY function('random')
         LIMIT 1
-        """, nativeQuery = true)
+        """)
     Optional<Question> findRandomActiveQuestion(
         @Param("categoryId") UUID categoryId,
         @Param("difficulty") Integer difficulty,
@@ -180,7 +180,47 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
      */
     List<Question> findByCheckoutCountAndStatus(int checkoutCount, String status);
 
+    // ── Daily Challenge selection ──────────────────────────────────────────────
+
+    /**
+     * Select a random question suitable for a Daily Challenge.
+     *
+     * <p>Filters on:
+     * <ul>
+     *   <li>{@code suitable_for_daily = true} — admin-curated pool</li>
+     *   <li>{@code status = 'active'}</li>
+     *   <li>{@code total_score_pool >= :startingScore} — question must have enough
+     *       total answer points to support the chosen starting score</li>
+     *   <li>{@code difficulty_score} in [{@code :minScore}, {@code :maxScore}] —
+     *       easy/medium only for daily challenges</li>
+     * </ul>
+     *
+     * @param categoryId    category UUID
+     * @param startingScore the target score for today's challenge
+     * @param minScore      minimum difficulty score (inclusive, typically 0.0)
+     * @param maxScore      maximum difficulty score (inclusive, typically 5.5 for easy/medium)
+     * @return a random matching question, or empty if none qualify
+     */
+    @Query(value = """
+        SELECT q.* FROM questions q
+        WHERE q.category_id             = :categoryId
+          AND q.status                  = 'active'
+          AND q.suitable_for_daily      = true
+          AND q.total_score_pool       >= :startingScore
+          AND q.difficulty_score        BETWEEN :minScore AND :maxScore
+        ORDER BY RANDOM()
+        LIMIT 1
+        """, nativeQuery = true)
+    Optional<Question> findRandomDailyQuestion(
+        @Param("categoryId")    UUID   categoryId,
+        @Param("startingScore") int    startingScore,
+        @Param("minScore")      double minScore,
+        @Param("maxScore")      double maxScore
+    );
+
     // ── Counts ────────────────────────────────────────────────────────────────
+
+    boolean existsByCategoryIdAndSuitableForDailyTrueAndStatus(UUID categoryId, String status);
 
     long countByCategoryId(UUID categoryId);
 

@@ -5,7 +5,6 @@ import com.football501.model.Answer;
 import com.football501.model.Category;
 import com.football501.model.Question;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +14,6 @@ import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -76,37 +74,6 @@ class AnswerRepositoryTest {
 
         assertThat(result).isPresent();
         assertThat(result.get().getDisplayText()).isEqualTo("Erling Haaland");
-    }
-
-    @Test
-    @Disabled("Requires pg_trgm on PostgreSQL — covered by FuzzyMatchingContainerTest")
-    @DisplayName("Fuzzy match finds answer with typo")
-    void shouldFindBestMatchByFuzzyName() {
-        // "haland" should match "erling haaland" with decent threshold
-        Optional<Answer> result = answerRepository.findBestMatchByFuzzyName(
-            questionId, "haland", null, 0.1
-        );
-
-        assertThat(result).isPresent();
-        assertThat(result.get().getDisplayText()).isEqualTo("Erling Haaland");
-    }
-
-    @Test
-    @Disabled("Requires pg_trgm on PostgreSQL — covered by FuzzyMatchingContainerTest")
-    @DisplayName("Fuzzy match respects used answers")
-    void shouldExcludeUsedAnswersInFuzzyMatch() {
-        Optional<Answer> firstMatch = answerRepository.findBestMatchByFuzzyName(
-            questionId, "haland", null, 0.1
-        );
-        assertThat(firstMatch).isPresent();
-        UUID answerId = firstMatch.get().getId();
-
-        // Search again with used ID
-        Optional<Answer> secondMatch = answerRepository.findBestMatchByFuzzyName(
-            questionId, "haland", List.of(answerId), 0.1
-        );
-
-        assertThat(secondMatch).isEmpty();
     }
 
     @Test

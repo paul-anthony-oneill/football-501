@@ -18,9 +18,10 @@ interface EntitySearchProps {
    * Defaults to "footballer" for backward compatibility.
    */
   entityType?: string;
-  onSelect: (value: string) => void;
+  onSelect: (value: string, entityId?: string) => void;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -29,8 +30,8 @@ interface EntitySearchProps {
  * - Fires after 4 characters to avoid overly broad early results.
  * - Shows "Keep typing…" hint at 1–3 characters so the player knows
  *   suggestions are coming.
- * - Selecting a suggestion fills the input without auto-submitting,
- *   so the player can confirm before pressing Enter / Submit.
+ * - Selecting a suggestion auto-submits the answer (Enter on a
+ *   highlighted suggestion, or clicking one, both submit immediately).
  * - Accent-insensitive: typing "aguero" surfaces "Sergio Agüero".
  *
  * The search hits GET /api/entities/search?type={entityType}&query={query},
@@ -43,6 +44,7 @@ export default function EntitySearch({
   onSelect,
   placeholder = "Enter answer...",
   className = "",
+  disabled = false,
 }: EntitySearchProps) {
   const [value, setValue] = useState("");
   const [suggestions, setSuggestions] = useState<EntitySuggestion[]>([]);
@@ -101,6 +103,7 @@ export default function EntitySearch({
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
       e.preventDefault();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
       if (showSuggestions && activeIndex >= 0) {
         selectEntity(suggestions[activeIndex]);
       } else {
@@ -120,10 +123,12 @@ export default function EntitySearch({
   }
 
   function selectEntity(entity: EntitySuggestion) {
-    setValue(entity.name);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setValue("");
     setSuggestions([]);
     setShowSuggestions(false);
     inputRef.current?.focus();
+    onSelect(entity.name, entity.id);
   }
 
   function handleBlur() {
@@ -142,6 +147,7 @@ export default function EntitySearch({
         onBlur={handleBlur}
         placeholder={placeholder}
         autoComplete="off"
+        disabled={disabled}
         className={className}
       />
 
@@ -157,7 +163,7 @@ export default function EntitySearch({
           {suggestions.map((entity, idx) => (
             <li key={entity.id}>
               <button
-                onMouseDown={() => selectEntity(entity)}
+                onMouseDown={(e) => { e.preventDefault(); selectEntity(entity); }}
                 data-active={activeIndex === idx ? "1" : "0"}
                 className={`ta-opt w-full text-left grid grid-cols-[1fr_auto] gap-4 items-center px-5.5 py-3 bg-transparent border-0 border-b border-white border-dashed last:border-b-0 cursor-pointer transition-colors ${
                   activeIndex === idx ? 'bg-[#00008c]' : 'hover:bg-[#00008c]'

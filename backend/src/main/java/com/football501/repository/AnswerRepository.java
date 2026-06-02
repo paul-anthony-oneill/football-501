@@ -28,9 +28,15 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
 
     List<Answer> findByQuestionIdAndAnswerKeyIn(UUID questionId, java.util.Set<String> answerKeys);
 
-    // Split into two native queries to avoid PostgreSQL type-inference failure
-    // when :usedAnswerIds is NULL/empty (Hibernate 7 + pg can't type a null list param).
-
+    /**
+     * Fuzzy-match fallback — only called when the exact answer-key lookup misses.
+     * Uses PostgreSQL {@code similarity()} with a GIN trigram index to catch
+     * typos, accent differences, and minor formatting drift.
+     *
+     * <p>Exclusion of already-used answers is checked in Java after the result
+     * returns, avoiding the NULL/empty-list type-inference failure in Hibernate 7
+     * + PostgreSQL that the old two-variant native queries worked around.
+     */
     @Query(value = """
         SELECT *,
                similarity(answer_key, :normalizedInput) as sim
@@ -40,37 +46,11 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
         ORDER BY sim DESC
         LIMIT 1
         """, nativeQuery = true)
-    Optional<Answer> findBestMatchByFuzzyNameNoExclusion(
+    Optional<Answer> findFuzzyMatch(
         @Param("questionId") UUID questionId,
         @Param("normalizedInput") String normalizedInput,
         @Param("threshold") double threshold
     );
-
-    @Query(value = """
-        SELECT *,
-               similarity(answer_key, :normalizedInput) as sim
-        FROM answers
-        WHERE question_id = :questionId
-          AND id NOT IN (:usedAnswerIds)
-          AND similarity(answer_key, :normalizedInput) >= :threshold
-        ORDER BY sim DESC
-        LIMIT 1
-        """, nativeQuery = true)
-    Optional<Answer> findBestMatchByFuzzyNameWithExclusion(
-        @Param("questionId") UUID questionId,
-        @Param("normalizedInput") String normalizedInput,
-        @Param("usedAnswerIds") List<UUID> usedAnswerIds,
-        @Param("threshold") double threshold
-    );
-
-    default Optional<Answer> findBestMatchByFuzzyName(
-        UUID questionId, String normalizedInput, List<UUID> usedAnswerIds, double threshold
-    ) {
-        if (usedAnswerIds == null || usedAnswerIds.isEmpty()) {
-            return findBestMatchByFuzzyNameNoExclusion(questionId, normalizedInput, threshold);
-        }
-        return findBestMatchByFuzzyNameWithExclusion(questionId, normalizedInput, usedAnswerIds, threshold);
-    }
 
     /**
      * Count available answers for a question (excluding used answers).
@@ -242,11 +222,11 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
      * Loaded once at game start to power in-memory hint computation — zero
      * database queries during gameplay.
      */
-    @Query(value = """
-        SELECT id, score FROM answers
-        WHERE question_id    = :questionId
-          AND is_valid_darts = true
-          AND is_bust        = false
-        """, nativeQuery = true)
+    @Query("""
+        SELECT a.id, a.score FROM Answer a
+        WHERE a.questionId = :questionId
+          AND a.isValidDarts = true
+          AND a.isBust = false
+        """)
     List<Object[]> findValidNonBustAnswerScores(@Param("questionId") UUID questionId);
 }

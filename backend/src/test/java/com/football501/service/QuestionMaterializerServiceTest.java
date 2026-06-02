@@ -78,12 +78,13 @@ class QuestionMaterializerServiceTest {
             .status(Question.STATUS_DRAFT)
             .build();
 
-        // Default: all answer lookups return empty (new inserts)
-        when(answerRepository.findByQuestionIdAndAnswerKey(any(), anyString()))
+        // Default: all answer lookups return empty (new inserts).
+        // Lenient — not every nested test class uses all three stubs.
+        lenient().when(answerRepository.findByQuestionIdAndAnswerKey(any(), anyString()))
             .thenReturn(Optional.empty());
-        when(answerRepository.save(any(Answer.class)))
+        lenient().when(answerRepository.save(any(Answer.class)))
             .thenAnswer(inv -> inv.getArgument(0));
-        doNothing().when(entitySearchService).upsertEntity(anyString(), anyString(), any());
+        lenient().doNothing().when(entitySearchService).upsertEntity(anyString(), anyString(), any());
     }
 
     // ── Zone count tests ──────────────────────────────────────────────────────

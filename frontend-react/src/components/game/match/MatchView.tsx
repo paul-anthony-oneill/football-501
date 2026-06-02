@@ -25,7 +25,7 @@ interface MatchViewProps {
   turnCount: number;
   moves: Move[];
   onExit: () => void;
-  onSubmitAnswer: (answer: string) => void;
+  onSubmitAnswer: (answer: string, entityId?: string) => void;
   onPlayAgain: () => void;
   categoryName: string;
   categorySub: string;
@@ -35,6 +35,12 @@ interface MatchViewProps {
   isWin?: boolean;
   /** In-game hint stats from the server. Null until the first response arrives. */
   hints?: GameHints | null;
+  /** Disables the answer input while an animation is playing. */
+  disabled?: boolean;
+  /** Called when the player clicks "SHARE RESULT" in the win overlay. Daily-challenge only. */
+  onShare?: () => void;
+  /** True while a share copy operation is in progress. */
+  sharing?: boolean;
 }
 
 export default function MatchView({
@@ -50,6 +56,9 @@ export default function MatchView({
   entityType = "footballer",
   isWin = false,
   hints = null,
+  disabled = false,
+  onShare,
+  sharing = false,
 }: MatchViewProps) {
   return (
     <div className="game theme-teletext min-h-screen flex flex-col font-vt323 text-lg bg-black text-white relative">
@@ -139,6 +148,7 @@ export default function MatchView({
                   onSelect={onSubmitAnswer}
                   placeholder="TYPE PLAYER NAME..."
                   className="teletext-input flex-1 bg-transparent border-0 outline-none text-tele-accent text-[30px] font-vt323 p-0"
+                  disabled={disabled}
                 />
               </div>
             </div>
@@ -203,6 +213,15 @@ export default function MatchView({
             {turnCount.toString().padStart(2, '0')} TURNS
           </div>
           <div className="flex flex-col gap-4 items-center mt-4">
+            {onShare && (
+              <button
+                onClick={onShare}
+                disabled={sharing}
+                className="border-2 border-tele-magenta text-tele-magenta px-10 py-4 text-[24px] tracking-widest hover:bg-tele-magenta hover:text-black transition-colors disabled:opacity-50"
+              >
+                {sharing ? "COPIED!" : "SHARE RESULT"}
+              </button>
+            )}
             <button
               onClick={onPlayAgain}
               className="border-2 border-tele-cyan text-tele-cyan px-10 py-4 text-[28px] tracking-widest hover:bg-tele-cyan hover:text-black transition-colors"

@@ -75,14 +75,15 @@ public class GameService {
      *
      * @param gameId   the game UUID
      * @param playerId the player making the move
-     * @param answer   the submitted answer text
+     * @param answer   the submitted answer text (for display/history)
+     * @param entityId the entity UUID from the autocomplete dropdown, or null
      * @return a {@link MoveRecord} with the persisted move, updated game, match, and used answer IDs
      * @throws IllegalStateException    if the game is not in progress or it is not this player's turn
      * @throws IllegalArgumentException if the game or match does not exist
      */
     @Transactional
-    public MoveRecord processPlayerMove(UUID gameId, UUID playerId, String answer) {
-        log.debug("Processing move for game {} by player {}: {}", gameId, playerId, answer);
+    public MoveRecord processPlayerMove(UUID gameId, UUID playerId, String answer, UUID entityId) {
+        log.debug("Processing move for game {} by player {}: {} (entityId={})", gameId, playerId, answer, entityId);
 
         Game game   = getGameOrThrow(gameId);
         Match match = getMatchOrThrow(game.getMatchId());
@@ -94,7 +95,7 @@ public class GameService {
         int currentScore = getPlayerScore(game, match, playerId);
 
         AnswerResult answerResult = answerEvaluator.evaluateAnswer(
-                game.getQuestionId(), answer, currentScore, usedAnswerIds);
+                game.getQuestionId(), answer, entityId, currentScore, usedAnswerIds);
 
         GameTransition transition = gameStateMachine.onMoveSubmitted(game, match, playerId, answerResult);
 
@@ -188,14 +189,15 @@ public class GameService {
     /**
      * Create a new game within an existing match.
      *
-     * @param matchId    the match UUID
-     * @param questionId the question UUID
-     * @param gameNumber the ordinal position within the match (1-based)
+     * @param matchId       the match UUID
+     * @param questionId    the question UUID
+     * @param gameNumber    the ordinal position within the match (1-based)
+     * @param startingScore the starting score for both players (default 501 for standard play)
      * @return the persisted {@link Game}
      */
     @Transactional
-    public Game createGame(UUID matchId, UUID questionId, int gameNumber) {
-        log.debug("Creating game {} for match {}", gameNumber, matchId);
+    public Game createGame(UUID matchId, UUID questionId, int gameNumber, int startingScore) {
+        log.debug("Creating game {} for match {} (starting score: {})", gameNumber, matchId, startingScore);
 
         Match match = getMatchOrThrow(matchId);
 
@@ -205,8 +207,8 @@ public class GameService {
                 .questionId(questionId)
                 .status(Game.GameStatus.IN_PROGRESS)
                 .currentTurnPlayerId(match.getPlayer1Id()) // Player 1 always goes first
-                .player1Score(501)
-                .player2Score(501)
+                .player1Score(startingScore)
+                .player2Score(startingScore)
                 .player1ConsecutiveTimeouts(0)
                 .player2ConsecutiveTimeouts(0)
                 .turnCount(0)
@@ -236,6 +238,65 @@ public class GameService {
     @Transactional(readOnly = true)
     public Optional<Game> getGameById(UUID gameId) {
         return gameRepository.findById(gameId);
+    }
+
+    /**
+     * Find the most recent in-progress game for a player.
+     */
+    @Transactional(readOnly = true)
+    public Optional<Game> findActiveGameForPlayer(UUID playerId) {
+        return gameRepository.findActiveGameByPlayerId(playerId);
+    }
+
+    /**
+     * Get all moves for a game ordered by move number (ascending).
+     */
+    @Transactional(readOnly = true)
+    public List<GameMove> getMovesForGame(UUID gameId) {
+        return gameMoveRepository.findByGameIdOrderByMoveNumberAsc(gameId);
+    }
+
+    /**
+     * Abandon all in-progress games for a player.
+     * Safety net that prevents orphaned-game accumulation when a player
+     * starts a new game without explicitly abandoning the old one.
+     */
+    @Transactional
+    public void abandonActiveGamesForPlayer(UUID playerId) {
+        List<Game> activeGames = gameRepository.findActiveGamesByPlayerId(playerId);
+        for (Game game : activeGames) {
+            log.info("Abandoning orphaned game {} for player {} before new game", game.getId(), playerId);
+            game.setStatus(Game.GameStatus.ABANDONED);
+            game.setCompletedAt(java.time.LocalDateTime.now());
+            gameRepository.save(game);
+
+            Match match = matchRepository.findById(game.getMatchId()).orElse(null);
+            if (match != null && match.getStatus() == Match.MatchStatus.IN_PROGRESS) {
+                match.setStatus(Match.MatchStatus.ABANDONED);
+                match.setCompletedAt(java.time.LocalDateTime.now());
+                matchRepository.save(match);
+            }
+        }
+    }
+
+    /**
+     * Abandon a batch of stale games (used by the scheduled cleanup task).
+     */
+    @Transactional
+    public void abandonStaleGames(List<Game> staleGames) {
+        for (Game game : staleGames) {
+            log.info("Stale-game cleanup: abandoning game {} (last activity: {})", game.getId(), game.getUpdatedAt());
+            game.setStatus(Game.GameStatus.ABANDONED);
+            game.setCompletedAt(java.time.LocalDateTime.now());
+            gameRepository.save(game);
+
+            Match match = matchRepository.findById(game.getMatchId()).orElse(null);
+            if (match != null && match.getStatus() == Match.MatchStatus.IN_PROGRESS) {
+                match.setStatus(Match.MatchStatus.ABANDONED);
+                match.setCompletedAt(java.time.LocalDateTime.now());
+                matchRepository.save(match);
+            }
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

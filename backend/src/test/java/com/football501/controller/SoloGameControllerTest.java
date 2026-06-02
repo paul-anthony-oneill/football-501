@@ -207,7 +207,7 @@ class SoloGameControllerTest {
             .build();
 
         List<UUID> usedAnswerIds = List.of();
-        when(gameService.processPlayerMove(gameId, playerId, "Erling Haaland"))
+        when(gameService.processPlayerMove(eq(gameId), eq(playerId), eq("Erling Haaland"), isNull()))
             .thenReturn(new GameService.MoveRecord(move, updatedGame, match, usedAnswerIds));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(gameHintsService.computeHintsFromCache(eq(questionId), eq(usedAnswerIds), eq(465)))
@@ -244,7 +244,7 @@ class SoloGameControllerTest {
             .build();
 
         List<UUID> usedAnswerIds = List.of();
-        when(gameService.processPlayerMove(gameId, playerId, "Unknown Player"))
+        when(gameService.processPlayerMove(eq(gameId), eq(playerId), eq("Unknown Player"), isNull()))
             .thenReturn(new GameService.MoveRecord(move, game, match, usedAnswerIds));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(gameHintsService.computeHintsFromCache(eq(questionId), eq(usedAnswerIds), eq(501)))
@@ -283,7 +283,7 @@ class SoloGameControllerTest {
             .build();
 
         List<UUID> usedAnswerIds = List.of();
-        when(gameService.processPlayerMove(gameId, playerId, "Player with 35"))
+        when(gameService.processPlayerMove(eq(gameId), eq(playerId), eq("Player with 35"), isNull()))
             .thenReturn(new GameService.MoveRecord(move, completedGame, match, usedAnswerIds));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(gameHintsService.computeHintsFromCache(eq(questionId), eq(usedAnswerIds), eq(0)))

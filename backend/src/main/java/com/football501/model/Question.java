@@ -185,6 +185,10 @@ public class Question {
     @Builder.Default
     private boolean difficultyLocked = false;
 
+    @Column(name = "suitable_for_daily", nullable = false)
+    @Builder.Default
+    private boolean suitableForDaily = false;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

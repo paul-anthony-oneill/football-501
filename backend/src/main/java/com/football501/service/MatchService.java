@@ -129,7 +129,7 @@ public class MatchService {
         int gameNumber = (int) completedGames + 1;
 
         // Create game
-        Game game = gameService.createGame(match.getId(), question.getId(), gameNumber);
+        Game game = gameService.createGame(match.getId(), question.getId(), gameNumber, 501);
 
         log.info("Game started: matchId={}, gameNumber={}, questionId={}",
             match.getId(), gameNumber, question.getId());

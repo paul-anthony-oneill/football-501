@@ -151,7 +151,7 @@ public class AdminAnswerService {
     }
 
     private String normalizeAnswerKey(String displayText) {
-        return displayText.toLowerCase().trim();
+        return EntitySearchService.stripAccents(displayText.toLowerCase().trim());
     }
 
     private boolean isValidDartsScore(int score) {

@@ -86,16 +86,18 @@ public class SecurityConfig {
                 oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
         }
 
-        // Rate limiting — before auth filters
-        http.addFilterBefore(new RateLimitFilter(),
-            org.springframework.security.web.access.intercept.AuthorizationFilter.class);
-
-        // Dev/test: inject a fixed authenticated principal
+        // Dev/test: inject a fixed authenticated principal BEFORE rate limiting
+        // so the rate limiter sees the authenticated user and applies the
+        // higher limit (100 req/min vs 10 req/min for unauthenticated).
         if (devModeAuthFilter != null) {
             log.info("Adding DevModeAuthFilter");
             http.addFilterBefore(devModeAuthFilter,
                 org.springframework.security.web.access.intercept.AuthorizationFilter.class);
         }
+
+        // Rate limiting — after auth filters so request.getRemoteUser() works
+        http.addFilterBefore(new RateLimitFilter(),
+            org.springframework.security.web.access.intercept.AuthorizationFilter.class);
 
         return http.build();
     }

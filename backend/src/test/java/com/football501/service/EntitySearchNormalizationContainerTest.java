@@ -135,6 +135,43 @@ class EntitySearchNormalizationContainerTest {
     }
 
     @Test
+    @DisplayName("Nordic o-stroke (ø) — Alexander Sørloth stored and found via unaccented query")
+    void nordic_oStroke_storedAndFound() {
+        entitySearchService.upsertEntity("Alexander Sørloth", EntityType.FOOTBALLER, "Norway");
+
+        List<PlayerSearchResponse> results =
+                entitySearchService.search(EntityType.FOOTBALLER, "sorl", 10);
+
+        assertThat(results)
+                .as("Search for 'sorl' should find 'Alexander Sørloth'")
+                .extracting(PlayerSearchResponse::getName)
+                .contains("Alexander Sørloth");
+    }
+
+    @Test
+    @DisplayName("Nordic ae-ligature (æ) stripped to 'ae' in normalized form")
+    void nordic_ae_ligature_stripped() {
+        // æ does not decompose under NFD — must be handled by the explicit mapping
+        assertThat(EntitySearchService.stripAccents("alexander sørloth")).isEqualTo("alexander sorloth");
+        assertThat(EntitySearchService.stripAccents("højbjerg")).isEqualTo("hojbjerg");
+        assertThat(EntitySearchService.stripAccents("martin ødegaard")).isEqualTo("martin odegaard");
+    }
+
+    @Test
+    @DisplayName("Polish l-stroke (ł) stripped to 'l' in normalized form")
+    void polish_lStroke_stripped() {
+        // ł does not decompose under NFD
+        assertThat(EntitySearchService.stripAccents("jakub błaszczykowski")).isEqualTo("jakub blaszczykowski");
+        assertThat(EntitySearchService.stripAccents("wojciech szczesny")).isEqualTo("wojciech szczesny");
+    }
+
+    @Test
+    @DisplayName("German sharp-s (ß) stripped to 'ss' in normalized form")
+    void german_sharpS_stripped() {
+        assertThat(EntitySearchService.stripAccents("groß")).isEqualTo("gross");
+    }
+
+    @Test
     @DisplayName("Entity stored by bulk upsert is retrievable by Java normalised query")
     void bulkUpsertedEntity_isSearchable() {
         // Manually insert a NamedEntity the way the bulk upsert would (using Java-normalised key)

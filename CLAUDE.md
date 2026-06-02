@@ -94,6 +94,36 @@ See `docs/design/AUTOCOMPLETE_ENTITY_DESIGN.md` for the full design document, in
 6. **Checkout Range**: -10 to 0 (inclusive) to win
 7. **Close Finish Rule**: If Player 1 checks out, Player 2 gets one final turn to get closer to 0
 
+### Daily Challenge Mode
+
+Daily Challenges are Wordle-style: one question per category per day, same starting score for everyone, one trust-based attempt, shareable emoji-grid results.
+
+**Key design decisions**:
+- **One challenge per category per day** — `UNIQUE(challenge_date, category_id)` on `daily_challenges` table
+- **Variable starting scores** — randomly selected from `{501, 401, 351, 301, 251, 201, 167, 125, 101}` at creation time; same question pool at different targets = different strategic experience
+- **No leaderboards** — too easy to cheat (look up stats); comparing with friends via share links is the social mechanic
+- **No replay enforcement** — trust-based; the `daily_challenge_results` table was intentionally omitted
+- **Lazy creation + midnight cron** — `DailyChallengeScheduler` pre-selects at 00:00 UTC; `DailyChallengeService.getTodaysChallenge()` creates lazily if the cron missed
+
+**Schema**:
+- `daily_challenges` — one row per category per day (challenge_date, category_id, question_id, starting_score)
+- `suitable_for_daily BOOLEAN` on `questions` — admin-curated pool flag (V19); backfilled for viable easy/medium questions (V20)
+- `game_mode VARCHAR` on `matches` — set to `'DAILY_CHALLENGE'` for daily games; defaults to `'STANDARD'`
+
+**API** (`/api/daily-challenge`):
+- `GET /status` — all categories with today's challenge info
+- `GET /{categorySlug}` — single category status (triggers lazy creation)
+- `POST /{categorySlug}/start` — start a daily challenge game
+- `POST /games/{id}/submit` — submit answer (reuses GameService)
+- `GET /games/{id}` — game state
+- `GET /share/{gameId}` — share data with move emojis (VALID→🟩, BUST→🟥, INVALID→⬜, CHECKOUT→🎯)
+
+**Frontend**:
+- `/daily` — overview of all today's challenges
+- `/daily/[category]` — deep link target for share URLs
+- LobbyView shows daily challenge cards above the category grid
+- MatchView shows "SHARE RESULT" button in win overlay (daily mode only)
+
 ### Question Types
 
 All questions must be pre-populated with answers from API-Football:
@@ -418,9 +448,9 @@ Multiple game modes (Daily Challenge, Rapid Fire, Draft, Category Lock) are **de
 
 ## Current Development Phase
 
-**Phase**: Audit Fixes Complete (Phase 5 of 5) — Moving to MVP Features
+**Phase**: Daily Challenge Mode Complete — Building MVP Features
 
-The five-phase audit campaign is complete. All critical security, data integrity, architecture, scoring, and cleanup findings have been addressed. The codebase is now in a clean state for building the remaining MVP features.
+The five-phase audit campaign is complete. Daily Challenge mode (Wordle-style) is now implemented: one challenge per category per day, variable starting scores (101–501), emoji-grid result sharing, lazy creation with midnight cron fallback. No leaderboards or replay enforcement — trust-based, designed for friends comparing results.
 
 **What was completed in the audit campaign**:
 - Phase 1: Spring Security plumbing, identity spoofing fix, `@PreAuthorize` on admin controllers
@@ -429,9 +459,13 @@ The five-phase audit campaign is complete. All critical security, data integrity
 - Phase 4: `DifficultyCalculator`, viability gate, V13 migration, recalibration endpoint
 - Phase 5: MapStruct mappers, `GlobalExceptionHandler`, `EntityType` constants, SvelteKit frontend deleted
 
+**Recently completed**:
+- Daily Challenge mode: V19 schema (daily_challenges table, game_mode on matches, suitable_for_daily on questions), V20 data backfill, DailyChallengeService, DailyChallengeScheduler, DailyChallengeController, frontend daily cards + /daily pages + emoji-grid sharing
+- Two architectural guardrails shipped: `game_mode VARCHAR` on matches, `suitable_for_daily BOOLEAN` on questions
+
 **Next Steps** (remaining MVP work):
 1. Real authentication — replace `DevModeAuthFilter` with a JWT validation filter; wire OAuth 2.0 (Google social login first)
-2. WebSocket multiplayer — STOMP handler for real-time 1v1 matches; `GameStateMachine` is already ready to receive WebSocket events
-3. Player profiles and matchmaking queue
-4. Data population — run the Python scraper service against the live database to seed `questions` and `answers`
+2. Player profiles — `player_profiles` table (stats, history), personal bests from daily challenges
+3. More daily challenge categories — current data only has Football; add Rugby, Cricket, etc. when question pools exist
+4. Data population — run the Python scraper service against the live database to seed more `questions` and `answers`
 5. Run `backfill_difficulty_scores.sql` after data population to compute initial difficulty scores
