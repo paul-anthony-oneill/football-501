@@ -21,6 +21,12 @@
 
 These items must be complete before real players can use the game.
 
+### Remove test question from daily challenge pool
+- **What**: V20 migration explicitly marks questions with `%test question%` or `%frontend%` in their text as `suitable_for_daily = true`. The `test` category has no exclusion in `DailyChallengeScheduler` or `DailyChallengeService`. Result: "Test Question: Frontend Flow Verification" appears as a real daily challenge.
+- **Fix**: (1) Remove/rewrite the second UPDATE in V20 so it doesn't mark test questions as daily-eligible. (2) Add a category exclusion (by slug `test`) in the scheduler and service so even if data leaks through, the `test` category never produces a daily challenge. (3) Add a new Flyway migration to flip `suitable_for_daily = false` on any test-category questions already in the database.
+- **Why deferred**: Acceptable in dev; would be embarrassing in production.
+- **See**: `V20__mark_daily_suitable_questions.sql` lines 12–17, `DailyChallengeScheduler.java:67`, `DailyChallengeService.java:133`.
+
 ### Auth: Guest accounts
 - **What**: Ephemeral UUID for unauthenticated players; 24-hour inactivity timeout.
 - **Why deferred**: Depends on real auth being wired first.
