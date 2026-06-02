@@ -24,7 +24,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${SUPABASE_JWT_ISSUER}
+          issuer-uri: ${SUPABASE_JWT_ISSUER:}
 
 server:
   port: ${PORT:8080}
