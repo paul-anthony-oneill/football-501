@@ -15,6 +15,11 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,18 +29,30 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Integration test for AnswerEvaluator.
- * Focuses on the orchestration between Service, Repository, and Database.
- * Detailed logic tests are in AnswerEvaluatorTest and ScoringServiceTest.
- * detailed query tests are in AnswerRepositoryTest.
- */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
 @Import({AnswerEvaluator.class, ScoringService.class, JpaConfig.class})
+@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("Answer Evaluator Integration Tests")
 class AnswerEvaluatorIntegrationTest {
+
+    @Container
+    @SuppressWarnings("rawtypes")
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17")
+        .withInitScript("db/init-test-trgm.sql");
+
+    @DynamicPropertySource
+    static void overrideDataSource(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        registry.add("spring.jpa.properties.hibernate.dialect",
+                     () -> "org.hibernate.dialect.PostgreSQLDialect");
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+        registry.add("spring.flyway.enabled", () -> "false");
+    }
 
     @Autowired
     private AnswerEvaluator evaluator;
@@ -65,13 +82,13 @@ class AnswerEvaluatorIntegrationTest {
             .config(Map.of())
             .status(Question.STATUS_ACTIVE)
             .build());
-        
+
         this.questionId = question.getId();
         createTestAnswers();
     }
 
     @Test
-    @DisplayName("Full game flow: Exact Match -> Invalid -> Bust -> Duplicate")
+    @DisplayName("Full game flow: Exact Match -> Invalid -> Exact Match -> Bust -> Duplicate")
     void testFullGameFlow() {
         List<UUID> usedAnswers = new ArrayList<>();
         int currentScore = 501;
@@ -113,17 +130,13 @@ class AnswerEvaluatorIntegrationTest {
     @Test
     @DisplayName("Real game flow using actual database questions and answers")
     void testRealGameFlow() {
-        // 1. Find Premier League category
         Optional<Category> premierLeagueOpt = categoryRepository.findBySlug("premier-league");
         if (premierLeagueOpt.isEmpty()) {
-            // Skip test if no real data available
             System.out.println("Skipping test: No Premier League category found. Run scraper to populate data.");
             return;
         }
 
         Category premierLeague = premierLeagueOpt.get();
-
-        // 2. Get questions from that category
         List<Question> questions = questionRepository.findActiveByCategoryId(premierLeague.getId());
         if (questions.isEmpty()) {
             System.out.println("Skipping test: No active questions found for Premier League.");
@@ -131,8 +144,6 @@ class AnswerEvaluatorIntegrationTest {
         }
 
         Question randomQuestion = questions.get(0);
-
-        // 3. Get real answers for this question (limit to valid darts scores only)
         List<Answer> availableAnswers = answerRepository.findTopNByQuestionIdOrderByScoreDesc(
             randomQuestion.getId(), 50
         ).stream()
@@ -144,11 +155,9 @@ class AnswerEvaluatorIntegrationTest {
             return;
         }
 
-        // 4. Play a realistic game using actual player names
         List<UUID> usedAnswers = new ArrayList<>();
         int currentScore = 501;
 
-        // Turn 1: Submit exact player name
         Answer answer1 = availableAnswers.get(0);
         AnswerResult turn1 = evaluator.evaluateAnswer(
             randomQuestion.getId(),
@@ -167,7 +176,6 @@ class AnswerEvaluatorIntegrationTest {
         usedAnswers.add(turn1.getAnswerId());
         currentScore = turn1.getNewTotal();
 
-        // Turn 2: Submit another exact player name
         Answer answer2 = availableAnswers.get(1);
         AnswerResult turn2 = evaluator.evaluateAnswer(
             randomQuestion.getId(),
@@ -185,7 +193,6 @@ class AnswerEvaluatorIntegrationTest {
         usedAnswers.add(turn2.getAnswerId());
         currentScore = turn2.getNewTotal();
 
-        // Turn 3: Test duplicate answer rejection
         AnswerResult turn3 = evaluator.evaluateAnswer(
             randomQuestion.getId(),
             answer1.getDisplayText(),
@@ -197,7 +204,6 @@ class AnswerEvaluatorIntegrationTest {
         assertThat(turn3.isValid()).isFalse();
         assertThat(turn3.getReason()).isEqualTo("Answer already used");
 
-        // Turn 4: Test case-insensitive matching
         Answer answer3 = availableAnswers.get(2);
         String lowercaseName = answer3.getDisplayText().toLowerCase();
         AnswerResult turn4 = evaluator.evaluateAnswer(
@@ -212,8 +218,7 @@ class AnswerEvaluatorIntegrationTest {
         assertThat(turn4.getDisplayText()).isEqualTo(answer3.getDisplayText());
         assertThat(turn4.getNewTotal()).isEqualTo(currentScore - answer3.getScore());
 
-        // Success! Real database integration works
-        System.out.println("✅ Real game flow test passed with actual database data!");
+        System.out.println("Real game flow test passed with actual database data!");
         System.out.println("   Question: " + randomQuestion.getQuestionText());
         System.out.println("   Answers tested: " + answer1.getDisplayText() + ", " + answer2.getDisplayText() + ", " + answer3.getDisplayText());
     }
@@ -222,7 +227,7 @@ class AnswerEvaluatorIntegrationTest {
         List<Answer> answers = List.of(
             createAnswer("Answer A", 35, true),
             createAnswer("Answer B", 28, true),
-            createAnswer("Answer E", 179, false) // Invalid darts score
+            createAnswer("Answer E", 179, false)
         );
         answerRepository.saveAll(answers);
         answerRepository.flush();
