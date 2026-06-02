@@ -242,12 +242,14 @@ Spring Security is fully wired (`SecurityConfig.java`, `DevModeAuthFilter.java`)
 **URL-level access policy** (enforced by `SecurityConfig`):
 - `/api/entities/**` and `/api/categories/**` — `permitAll` (public autocomplete and listing)
 - `/actuator/health` — `permitAll` (liveness probe)
+- `GET /api/daily-challenge/**` — `permitAll` (public browsing of daily challenges; share URLs)
+- `POST /api/daily-challenge/**` — `authenticated` (game start, submit, abandon)
 - `/api/practice/**` — `ROLE_USER` or `ROLE_ADMIN`
 - `/api/admin/**` — `ROLE_ADMIN`
 - everything else — `authenticated`
 
 **What is deferred to production**:
-- Real OAuth 2.0 / JWT validation filter (replaces `DevModeAuthFilter`)
+- Real OAuth 2.0 / JWT validation filter (replaces `DevModeAuthFilter`). When this ships: set `SPRING_PROFILES_ACTIVE=prod` AND `SUPABASE_JWT_ISSUER` on Fly.io together — never one without the other (see Deployment & Hosting > Fly.io).
 - CSRF protection (currently disabled for stateless REST; re-evaluate when JWT cookies are introduced)
 - Content Security Policy (add in Next.js `middleware.ts`)
 
@@ -320,6 +322,74 @@ docker run -d \
 
 **Coverage Target**: > 80% for unit tests
 
+## Deployment & Hosting
+
+### Infrastructure Layout
+
+```
+[Vercel]                         [Fly.io]                        [Supabase]
+frontend-react/  ──/api/*──▶  backend-rosy-cloud-4618  ───▶  PostgreSQL
+Next.js 16                     Spring Boot 4.0.6              pgBouncer :6543
+                                Java 25
+```
+
+The Vercel frontend proxies all `/api/*` requests to the Fly.io backend via `next.config.ts` rewrites. There is no direct database access from the frontend.
+
+### Vercel (Frontend)
+
+- **Project**: `trivia-501` (team: `fanaticpurifiers-projects`)
+- **Root Directory**: `frontend-react` — **must be set in the Vercel dashboard** (Settings > General > Root Directory). If this is `.` the build fails with "Couldn't find any `pages` or `app` directory."
+- **Framework**: Next.js (auto-detected)
+- **Build**: triggers automatically on push to `master`. Manual: `vercel deploy --prod` from `frontend-react/`.
+
+**Environment variables** (set via `vercel env add` or the dashboard):
+
+| Variable | Purpose |
+|---|---|
+| `API_URL` | Backend base URL (`https://backend-rosy-cloud-4618.fly.dev`) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase anon key |
+
+**How the API proxy works**: `next.config.ts` uses `rewrites()` to map `/api/:path*` → `${API_URL}/api/:path*`. In dev, `API_URL` defaults to `http://localhost:8080`. **The `API_URL` env var must be set on Vercel** — without it, all API calls fail in production.
+
+**Critical rule**: after changing `next.config.ts`, commit the change — Vercel builds from the committed code, not your local filesystem.
+
+### Fly.io (Backend)
+
+- **App**: `backend-rosy-cloud-4618`
+- **Config**: `backend/fly.toml` (committed to repo)
+- **Region**: `sjc`; internal port `8080`; 1 GB RAM, 1 CPU
+- **Deploy**: `fly deploy` from `backend/`.
+
+**Secrets** (set via `fly secrets set KEY=VALUE`):
+
+| Secret | Purpose |
+|---|---|
+| `DB_URL` | Supabase PostgreSQL JDBC URL |
+| `DB_USERNAME` | Database user |
+| `DB_PASSWORD` | Database password |
+| `FOOTBALL501_FRONTEND_ORIGIN` | CORS allowed origin (`https://trivia-501.vercel.app`) |
+
+**Critical — Spring profile**: **Do NOT set `SPRING_PROFILES_ACTIVE=prod`** until real JWT authentication is implemented and the frontend sends Bearer tokens with API calls. The `prod` profile disables `DevModeAuthFilter` (which injects a fixed authenticated principal for dev-mode permissive auth). If `prod` is active without a configured `SUPABASE_JWT_ISSUER` and JWT decoder, there is **no authentication mechanism at all** — every endpoint requiring `authenticated()` returns 403. When real auth ships, remove `DevModeAuthFilter` entirely, or keep it behind `@Profile("!prod")` and set both `SPRING_PROFILES_ACTIVE=prod` and `SUPABASE_JWT_ISSUER` together.
+
+**Verification**: after deploying, check `GET /api/daily-challenge/status` returns 200 (not 403). If it returns 403, check whether `SPRING_PROFILES_ACTIVE` is set to `prod` without JWT config.
+
+### Supabase (Database)
+
+- PostgreSQL 15 with pgBouncer on port 6543 (transaction mode)
+- Connection requires `prepareThreshold=0` in the JDBC URL for pgBouncer compatibility
+- Direct connection on port 5432 available for operations needing prepared-statement caching (e.g. batch migrations)
+- DB credentials are stored as Fly.io secrets, not in application properties
+
+### Health Check URLs
+
+| Environment | URL |
+|---|---|
+| Frontend (prod) | `https://trivia-501.vercel.app` |
+| Backend (prod) | `https://backend-rosy-cloud-4618.fly.dev` |
+| Backend health | `https://backend-rosy-cloud-4618.fly.dev/actuator/health` |
+| Backend API categories | `https://backend-rosy-cloud-4618.fly.dev/api/categories` |
+
 ## Darts Score Validation
 
 Critical utility for game engine - validates if a score is achievable in standard 501 darts:
@@ -384,6 +454,9 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 14. **New model classes must use `@EntityListeners(AuditingEntityListener.class)`** - `@CreatedDate` and `@LastModifiedDate` only populate when this listener is registered. Manual `LocalDateTime.now()` in `@PrePersist` is the old pattern; do not reintroduce it.
 15. **Seed data for new categories goes in CSV files, not inline SQL** — Large `INSERT`-heavy Flyway migrations are a code smell in portfolio review. Store seed data in `src/main/resources/db/data/<category>_answers.csv` and write a Java migration (`extends BaseJavaMigration`) that reads the CSV and batch-inserts. The CSV is reviewable, diffable, and trivially regeneratable from the source script. See V21/V22 for the pattern. Data CSVs live under `db/data/` — the `.gitignore` has an exception for `!**/db/data/*.csv`.
 16. **Use `ON CONFLICT (slug) DO UPDATE SET id = EXCLUDED.id` in seed category inserts** — `DO NOTHING` silently skips when a category already exists with a different UUID, causing subsequent question inserts to fail with FK violations. `DO UPDATE` ensures the expected UUID is always present.
+17. **Never set `SPRING_PROFILES_ACTIVE=prod` on Fly.io without also setting `SUPABASE_JWT_ISSUER`** — `prod` disables `DevModeAuthFilter`, and without JWT config there is zero auth mechanism. Every authenticated endpoint returns 403. These two must ship together when real auth is implemented.
+18. **Vercel root directory must be `frontend-react`** — if someone resets it to `.` in the Vercel dashboard, the build fails. The setting is only visible in the dashboard (or via API); it's not stored in any file in the repo.
+19. **After changing `next.config.ts`, commit and push** — Vercel builds from committed code. Local-only changes to the proxy config have no effect on production.
 
 ## Key Design Decisions
 
