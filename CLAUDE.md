@@ -382,6 +382,8 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 12. **Do not add local `@ExceptionHandler` to controllers** - `GlobalExceptionHandler` (`com.football501.exception`) owns all error formatting. Local handlers produce inconsistent JSON shapes and were eliminated in Phase 5.
 13. **Do not read `playerId` from request parameters in game controllers** - Identity comes from `Principal.getName()` parsed as a UUID. Adding a `@RequestParam UUID playerId` re-opens the identity spoofing vulnerability fixed in Phase 1.
 14. **New model classes must use `@EntityListeners(AuditingEntityListener.class)`** - `@CreatedDate` and `@LastModifiedDate` only populate when this listener is registered. Manual `LocalDateTime.now()` in `@PrePersist` is the old pattern; do not reintroduce it.
+15. **Seed data for new categories goes in CSV files, not inline SQL** — Large `INSERT`-heavy Flyway migrations are a code smell in portfolio review. Store seed data in `src/main/resources/db/data/<category>_answers.csv` and write a Java migration (`extends BaseJavaMigration`) that reads the CSV and batch-inserts. The CSV is reviewable, diffable, and trivially regeneratable from the source script. See V21/V22 for the pattern. Data CSVs live under `db/data/` — the `.gitignore` has an exception for `!**/db/data/*.csv`.
+16. **Use `ON CONFLICT (slug) DO UPDATE SET id = EXCLUDED.id` in seed category inserts** — `DO NOTHING` silently skips when a category already exists with a different UUID, causing subsequent question inserts to fail with FK violations. `DO UPDATE` ensures the expected UUID is always present.
 
 ## Key Design Decisions
 
@@ -462,6 +464,7 @@ The five-phase audit campaign is complete. Daily Challenge mode (Wordle-style) i
 **Recently completed**:
 - Daily Challenge mode: V19 schema (daily_challenges table, game_mode on matches, suitable_for_daily on questions), V20 data backfill, DailyChallengeService, DailyChallengeScheduler, DailyChallengeController, frontend daily cards + /daily pages + emoji-grid sharing
 - Two architectural guardrails shipped: `game_mode VARCHAR` on matches, `suitable_for_daily BOOLEAN` on questions
+- Geography + Film categories: CSV-based Java Flyway migrations (V21, V22) replacing ~12K lines of hardcoded SQL INSERTs. Seed data lives in `db/data/*.csv` files loaded by `BaseJavaMigration` subclasses. Pattern is now the standard for new category seeding.
 
 **Next Steps** (remaining MVP work):
 1. Real authentication — replace `DevModeAuthFilter` with a JWT validation filter; wire OAuth 2.0 (Google social login first)

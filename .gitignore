@@ -64,6 +64,10 @@ dist/
 # Flyway migrations are source code, not backups
 !**/db/migration/*.sql
 
+# Seed data CSVs used by Java-based Flyway migrations
+!**/db/data/
+!**/db/data/*.csv
+
 # Local Settings
 .claude/settings.local.json
 .claude/tsc-cache/
