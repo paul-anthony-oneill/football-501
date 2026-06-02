@@ -142,12 +142,14 @@ public class AnswerEvaluator {
             return exact.get();
         }
 
-        // Accent-insensitive fallback: entity names are accent-stripped in Java
-        // while answer_key may still carry accents from the Python scraper.
-        Optional<Answer> unaccent = answerRepository.findByQuestionIdAndAnswerKeyUnaccent(
+        // Accent-and-space-insensitive fallback: entity names are accent-stripped
+        // in Java (keeping spaces) while answer_key from the Python scraper
+        // strips spaces but preserves accents.  Normalise both sides to bare
+        // alphanumeric before comparing so the two pipelines agree.
+        Optional<Answer> normalised = answerRepository.findByQuestionIdAndAnswerKeyNormalised(
             questionId, answerKey);
-        if (unaccent.isPresent()) {
-            return unaccent.get();
+        if (normalised.isPresent()) {
+            return normalised.get();
         }
 
         // Last resort: fuzzy match via pg_trgm similarity (GIN trigram index).

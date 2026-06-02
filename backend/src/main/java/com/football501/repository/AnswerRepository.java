@@ -36,10 +36,11 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
     @Query(value = """
         SELECT * FROM answers
         WHERE question_id = :questionId
-          AND unaccent(answer_key) = unaccent(:answerKey)
+          AND regexp_replace(unaccent(answer_key), '[^a-z0-9]', '', 'g')
+            = regexp_replace(unaccent(:answerKey), '[^a-z0-9]', '', 'g')
         LIMIT 1
         """, nativeQuery = true)
-    Optional<Answer> findByQuestionIdAndAnswerKeyUnaccent(
+    Optional<Answer> findByQuestionIdAndAnswerKeyNormalised(
         @Param("questionId") UUID questionId,
         @Param("answerKey") String answerKey
     );
