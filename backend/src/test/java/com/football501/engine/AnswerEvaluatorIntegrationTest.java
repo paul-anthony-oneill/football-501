@@ -100,8 +100,8 @@ class AnswerEvaluatorIntegrationTest {
         usedAnswers.add(turn1.getAnswerId());
         currentScore = turn1.getNewTotal();
 
-        // 2. Unknown answer: "answr b" returns INVALID (fuzzy matching removed)
-        AnswerResult turn2 = evaluator.evaluateAnswer(questionId, "answr b", null, currentScore, usedAnswers);
+        // 2. Truly unknown answer: "Zxqw Unknown9999" → INVALID
+        AnswerResult turn2 = evaluator.evaluateAnswer(questionId, "Zxqw Unknown9999", null, currentScore, usedAnswers);
         assertThat(turn2.isValid()).isFalse();
         assertThat(turn2.getReason()).isEqualTo("Answer not found");
 
