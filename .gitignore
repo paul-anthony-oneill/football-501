@@ -61,6 +61,9 @@ dist/
 *.dump
 *.sql
 
+# Flyway migrations are source code, not backups
+!**/db/migration/*.sql
+
 # Local Settings
 .claude/settings.local.json
 .claude/tsc-cache/
