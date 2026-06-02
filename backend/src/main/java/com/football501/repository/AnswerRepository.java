@@ -29,6 +29,22 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
     List<Answer> findByQuestionIdAndAnswerKeyIn(UUID questionId, java.util.Set<String> answerKeys);
 
     /**
+     * Accent-insensitive exact lookup — used as a fallback when the standard
+     * exact match misses, to handle discrepancies between Java NFD-based accent
+     * stripping and the Python scraper's {@code str.lower()} which preserves accents.
+     */
+    @Query(value = """
+        SELECT * FROM answers
+        WHERE question_id = :questionId
+          AND unaccent(answer_key) = unaccent(:answerKey)
+        LIMIT 1
+        """, nativeQuery = true)
+    Optional<Answer> findByQuestionIdAndAnswerKeyUnaccent(
+        @Param("questionId") UUID questionId,
+        @Param("answerKey") String answerKey
+    );
+
+    /**
      * Fuzzy-match fallback — only called when the exact answer-key lookup misses.
      * Uses PostgreSQL {@code similarity()} with a GIN trigram index to catch
      * typos, accent differences, and minor formatting drift.

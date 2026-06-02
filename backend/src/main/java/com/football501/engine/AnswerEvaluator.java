@@ -142,10 +142,17 @@ public class AnswerEvaluator {
             return exact.get();
         }
 
-        // Fallback: fuzzy match via pg_trgm similarity (GIN trigram index).
-        // Only reached when the exact key doesn't match — e.g. raw text with a
-        // typo, or entities/answers drift. Best-effort: if the database doesn't
-        // support pg_trgm, we swallow the error and return null.
+        // Accent-insensitive fallback: entity names are accent-stripped in Java
+        // while answer_key may still carry accents from the Python scraper.
+        Optional<Answer> unaccent = answerRepository.findByQuestionIdAndAnswerKeyUnaccent(
+            questionId, answerKey);
+        if (unaccent.isPresent()) {
+            return unaccent.get();
+        }
+
+        // Last resort: fuzzy match via pg_trgm similarity (GIN trigram index).
+        // Only reached when the key doesn't match at all — e.g. raw text with a
+        // typo, or entities/answers drift. Best-effort: swallow if pg_trgm unavailable.
         try {
             Optional<Answer> fuzzy = answerRepository.findFuzzyMatch(
                 questionId, answerKey, SIMILARITY_THRESHOLD);
