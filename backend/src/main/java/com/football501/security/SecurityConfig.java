@@ -34,6 +34,8 @@ import javax.crypto.spec.SecretKeySpec;
  * <pre>
  *   /api/admin/**           → ROLE_ADMIN   (also @PreAuthorize at method level)
  *   /api/practice/**        → ROLE_USER / ROLE_ADMIN
+ *   GET /api/daily-challenge/** → permitAll (public browsing of daily challenges)
+ *   POST /api/daily-challenge/** → authenticated (game start, submit, abandon)
  *   /api/entities/**        → permitAll    (public autocomplete)
  *   /api/categories/**      → permitAll    (public category listing)
  *   /actuator/health        → permitAll    (liveness probe)
@@ -74,6 +76,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/entities/**").permitAll()
                 .requestMatchers("/api/categories/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/daily-challenge/**").permitAll()
+                .requestMatchers("/api/daily-challenge/**").authenticated()
                 .requestMatchers("/api/practice/**").hasAnyRole("USER", "ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
