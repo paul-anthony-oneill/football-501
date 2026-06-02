@@ -154,15 +154,17 @@ export const CATEGORIES: CategoryDefinition[] = [
   {
     id: "film",
     name: "Film",
-    description: "Career credits of the silver screen",
+    description: "Worldwide box office & blockbuster hits",
     theme: "bigscreen",
     hierarchy: {
       id: "film",
       name: "Film",
       children: [
-        { id: "action",     name: "Action",       questionCount: 16 },
-        { id: "drama",      name: "Drama",        questionCount: 20 },
-        { id: "comedy",     name: "Comedy",       questionCount: 16 },
+        { id: "all-movies", name: "All Movies", questionCount: 1 },
+        { id: "1990s",      name: "1990s",      questionCount: 1 },
+        { id: "2000s",      name: "2000s",      questionCount: 1 },
+        { id: "2010s",      name: "2010s",      questionCount: 1 },
+        { id: "2020s",      name: "2020s",      questionCount: 1 },
       ],
     },
   },

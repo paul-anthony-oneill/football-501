@@ -35,6 +35,9 @@ public final class EntityType {
     /** A football coach or manager (for future question types). */
     public static final String COACH = "coach";
 
+    /** A movie title (for the Film category). */
+    public static final String FILM = "film";
+
     private EntityType() {
         // constants-only utility class — do not instantiate
     }

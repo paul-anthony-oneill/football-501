@@ -18,6 +18,9 @@ public final class CategorySlug {
     /** Test mode category slug — synthetic answers for frontend flow verification. */
     public static final String TEST = "test";
 
+    /** The Film category slug — movie box office trivia. */
+    public static final String FILM = "film";
+
     private CategorySlug() {
         // constants-only utility class — do not instantiate
     }
