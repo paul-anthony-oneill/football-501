@@ -176,6 +176,7 @@ public class AnswerEvaluator {
         if (entityId != null) {
             return namedEntityRepository.findById(entityId)
                 .map(NamedEntity::getNormalizedName)
+                .map(AnswerEvaluator::stripAccents)
                 .orElseGet(() -> normalize(userInput));
         }
         return normalize(userInput);
@@ -184,6 +185,23 @@ public class AnswerEvaluator {
     private static String normalize(String input) {
         if (input == null) return "";
         return input.trim().toLowerCase();
+    }
+
+    /**
+     * Strips combining diacritical marks from a normalized name so it matches
+     * {@code answers.answer_key} after V18's {@code unaccent()} clean-up.
+     * <p>
+     * The {@code entities.normalized_name} column was backfilled from
+     * {@code players.normalized_name}, which was written by the Python scraper
+     * using {@code str.lower()} — this preserves accented characters.  V18 only
+     * applied {@code unaccent()} to {@code answers.answer_key}, so the two
+     * columns can diverge for names like Higuaín or Di María.
+     */
+    static String stripAccents(String input) {
+        if (input == null) return "";
+        return java.text.Normalizer
+            .normalize(input, java.text.Normalizer.Form.NFD)
+            .replaceAll("\\p{InCombiningDiacriticalMarks}", "");
     }
 
     /**

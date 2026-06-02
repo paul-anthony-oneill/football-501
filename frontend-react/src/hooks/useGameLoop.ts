@@ -87,6 +87,8 @@ export interface GameLoopState {
   hints: GameHints | null;
   /** True while a popup or scoreboard animation is playing — input should be disabled. */
   isAnimating: boolean;
+  /** Version counter incremented on each score change; used for flash animation key. */
+  flashVersion: number;
   /** Current popup shown over the game; null when hidden. */
   popup: PopupState | null;
   /** The active game type (solo or daily-challenge). */
@@ -127,7 +129,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
   const { addToast } = useToast();
 
   const [score,      setScore]      = useState(501);
-  const { display: displayScore, isAnimating: scoreAnimating } =
+  const { display: displayScore, isAnimating: scoreAnimating, flashVersion } =
     useAnimatedScore(score);
   const [question,   setQuestion]   = useState("");
   const [turnCount,  setTurnCount]  = useState(0);
@@ -389,6 +391,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
   return {
     score: displayScore,
+    flashVersion,
     question,
     turnCount,
     gameStatus,

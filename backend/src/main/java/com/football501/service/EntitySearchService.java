@@ -101,7 +101,7 @@ public class EntitySearchService {
                 .entityType(entityType)
                 .displayName(displayText.trim())
                 .normalizedName(normalized)
-                .hint(hint)
+                .hint(dedupHint(hint))
                 .build();
 
         namedEntityRepository.save(entity);
@@ -143,7 +143,7 @@ public class EntitySearchService {
                 .entityType(e.entityType)
                 .displayName(e.displayText.trim())
                 .normalizedName(stripAccents(e.displayText.toLowerCase().trim()))
-                .hint(e.hint)
+                .hint(dedupHint(e.hint))
                 .build())
             .collect(Collectors.toList());
 
@@ -228,6 +228,22 @@ public class EntitySearchService {
             Map.entry('Þ', "th"),  // Þ — uppercase
             Map.entry('ß', "ss")   // ß — German sharp-s
     );
+
+    /**
+     * Deduplicates consecutive identical whitespace-separated tokens in a hint string.
+     * e.g. {@code "FRA FRA"} → {@code "FRA"}, {@code "ES ES"} → {@code "ES"}.
+     */
+    static String dedupHint(String hint) {
+        if (hint == null || hint.isBlank()) return hint;
+        String[] tokens = hint.trim().split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < tokens.length; i++) {
+            if (i > 0 && tokens[i].equals(tokens[i - 1])) continue;
+            if (!sb.isEmpty()) sb.append(' ');
+            sb.append(tokens[i]);
+        }
+        return sb.toString();
+    }
 
     /**
      * Strips combining diacritical marks, e.g. {@code "agüero"} → {@code "aguero"}.

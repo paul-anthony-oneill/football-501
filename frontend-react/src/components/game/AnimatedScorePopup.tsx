@@ -8,7 +8,7 @@ interface AnimatedScorePopupProps {
   onComplete: () => void;
 }
 
-type Phase = "counting" | "showing" | "invalid";
+type Phase = "counting" | "flashing" | "showing" | "invalid";
 
 export default function AnimatedScorePopup({
   scoreValue,
@@ -21,7 +21,7 @@ export default function AnimatedScorePopup({
   );
   const frameRef = useRef<number | null>(null);
 
-  const target = result === "BUST" ? 180 : scoreValue;
+  const target = scoreValue;
 
   // ── Counting animation (0 → target) ──────────────────────────────────────
   useEffect(() => {
@@ -53,7 +53,7 @@ export default function AnimatedScorePopup({
         frameRef.current = requestAnimationFrame(tick);
       } else {
         setDisplay(target);
-        setPhase("showing");
+        setPhase(result === "BUST" ? "flashing" : "showing");
       }
     };
 
@@ -67,6 +67,10 @@ export default function AnimatedScorePopup({
 
   // ── Hold final state then dismiss ────────────────────────────────────────
   useEffect(() => {
+    if (phase === "flashing") {
+      const t = setTimeout(() => setPhase("showing"), 500);
+      return () => clearTimeout(t);
+    }
     if (phase === "showing") {
       const t = setTimeout(onComplete, 500);
       return () => clearTimeout(t);
@@ -94,17 +98,18 @@ export default function AnimatedScorePopup({
     );
   }
 
+  const isRedPhase = phase === "flashing" || (phase === "showing" && result === "BUST");
+  const showBustText = phase === "showing" && result === "BUST";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 font-vt323">
       <div className="text-center flex flex-col items-center gap-2">
         <div
           className={`text-[160px] leading-none font-normal transition-colors duration-150 ${
-            phase === "showing" && result === "BUST"
-              ? "text-tele-danger"
-              : "text-tele-green"
-          }`}
+            isRedPhase ? "text-tele-danger" : "text-tele-green"
+          } ${phase === "flashing" ? "animate-pulse" : ""}`}
         >
-          {phase === "showing" && result === "BUST" ? "BUST" : display}
+          {showBustText ? "BUST" : display}
         </div>
         {phase === "showing" && result !== "BUST" && (
           <div className="text-tele-cyan text-[24px] tracking-widest uppercase">

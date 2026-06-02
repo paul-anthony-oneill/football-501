@@ -47,6 +47,7 @@ export default function GamePage() {
     entityType,
     hints,
     isAnimating,
+    flashVersion,
     popup,
     gameType,
     gameId,
@@ -218,6 +219,7 @@ export default function GamePage() {
         isWin={gameStatus === "COMPLETED"}
         hints={hints}
         disabled={isAnimating}
+        flashVersion={flashVersion}
         onShare={gameType === "daily-challenge" ? handleShare : undefined}
         sharing={sharing}
       />

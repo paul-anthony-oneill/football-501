@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getFlagEmoji } from "@/utils/country";
+import { getFlagEmoji, formatNationality } from "@/utils/country";
 
 interface EntitySuggestion {
   id: string;
@@ -30,8 +30,8 @@ interface EntitySearchProps {
  * - Fires after 4 characters to avoid overly broad early results.
  * - Shows "Keep typing…" hint at 1–3 characters so the player knows
  *   suggestions are coming.
- * - Selecting a suggestion auto-submits the answer (Enter on a
- *   highlighted suggestion, or clicking one, both submit immediately).
+ * - Clicking a suggestion or pressing Enter on a highlighted item fills the
+ *   input with the name — the player then presses Enter to confirm and submit.
  * - Accent-insensitive: typing "aguero" surfaces "Sergio Agüero".
  *
  * The search hits GET /api/entities/search?type={entityType}&query={query},
@@ -53,6 +53,7 @@ export default function EntitySearch({
   const [activeIndex, setActiveIndex] = useState(-1);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const selectedEntityIdRef = useRef<string | null>(null);
 
   const fetchSuggestions = useCallback(
     async (query: string) => {
@@ -79,6 +80,7 @@ export default function EntitySearch({
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
     setValue(val);
+    selectedEntityIdRef.current = null; // clear on manual edit
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -107,7 +109,9 @@ export default function EntitySearch({
       if (showSuggestions && activeIndex >= 0) {
         selectEntity(suggestions[activeIndex]);
       } else {
-        onSelect(value);
+        const entityId = selectedEntityIdRef.current;
+        selectedEntityIdRef.current = null;
+        onSelect(value, entityId ?? undefined);
         setValue("");
         setShowSuggestions(false);
       }
@@ -124,11 +128,11 @@ export default function EntitySearch({
 
   function selectEntity(entity: EntitySuggestion) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    setValue("");
+    setValue(entity.name);
     setSuggestions([]);
     setShowSuggestions(false);
+    selectedEntityIdRef.current = entity.id;
     inputRef.current?.focus();
-    onSelect(entity.name, entity.id);
   }
 
   function handleBlur() {
@@ -159,7 +163,7 @@ export default function EntitySearch({
       )}
 
       {showSuggestions && (
-        <ul className="ta-list absolute bottom-full left-0 right-0 mb-2 p-0 m-0 list-none bg-black border-2 border-white overflow-hidden z-50 shadow-[0_-12px_32px_rgba(0,0,0,0.5)]">
+        <ul className="ta-list absolute bottom-full left-0 right-0 mb-2 p-0 m-0 list-none bg-black border-2 border-white overflow-y-auto max-h-[300px] z-50 shadow-[0_-12px_32px_rgba(0,0,0,0.5)]">
           {suggestions.map((entity, idx) => (
             <li key={entity.id}>
               <button
@@ -169,12 +173,12 @@ export default function EntitySearch({
                   activeIndex === idx ? 'bg-[#00008c]' : 'hover:bg-[#00008c]'
                 }`}
               >
-                <span className="ta-opt-name text-white text-[22px] tracking-wide">
+                <span className="ta-opt-name text-white text-[22px] tracking-wide overflow-hidden text-ellipsis whitespace-nowrap">
                   {entity.name.toUpperCase()}
                 </span>
                 {entity.nationality && (
-                  <span className="ta-opt-club text-tele-cyan text-[18px]">
-                    {getFlagEmoji(entity.nationality)} {entity.nationality}
+                  <span className="ta-opt-club text-tele-cyan text-[18px] whitespace-nowrap">
+                    {getFlagEmoji(entity.nationality)} {formatNationality(entity.nationality)}
                   </span>
                 )}
               </button>

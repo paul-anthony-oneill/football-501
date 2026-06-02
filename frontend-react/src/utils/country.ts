@@ -1,4 +1,15 @@
 /**
+ * Deduplicates consecutive identical whitespace-separated tokens in a nationality string.
+ * e.g. "FRA FRA" → "FRA", "ES ES" → "ES"
+ */
+export function formatNationality(nationality: string): string {
+  if (!nationality) return "";
+  const tokens = nationality.trim().split(/\s+/);
+  const deduped = tokens.filter((tok, i) => i === 0 || tok !== tokens[i - 1]);
+  return deduped.join(" ");
+}
+
+/**
  * Converts a country code to a flag emoji.
  * Handles formats like "esES" (locale style) or "ES" (ISO 3166-1 alpha-2).
  */

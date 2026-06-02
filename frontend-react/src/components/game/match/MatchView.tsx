@@ -37,6 +37,8 @@ interface MatchViewProps {
   hints?: GameHints | null;
   /** Disables the answer input while an animation is playing. */
   disabled?: boolean;
+  /** Version counter for the score value; used as a React key to trigger flash animation. */
+  flashVersion?: number;
   /** Called when the player clicks "SHARE RESULT" in the win overlay. Daily-challenge only. */
   onShare?: () => void;
   /** True while a share copy operation is in progress. */
@@ -57,6 +59,7 @@ export default function MatchView({
   isWin = false,
   hints = null,
   disabled = false,
+  flashVersion = 0,
   onShare,
   sharing = false,
 }: MatchViewProps) {
@@ -94,7 +97,9 @@ export default function MatchView({
               POINTS REMAINING
             </div>
             <div className="sb-big text-[160px] text-tele-green leading-none mt-4 font-normal">
-              {score.toString().padStart(3, '0')}
+              <span key={flashVersion} className="animate-score-flash inline-block">
+                {score.toString().padStart(3, '0')}
+              </span>
             </div>
             <div className="sb-foot flex items-baseline gap-2 mt-2">
               <span className="sb-foot-k text-tele-cyan text-[18px] tracking-widest uppercase">LAST SCORE</span>

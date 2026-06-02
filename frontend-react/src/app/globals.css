@@ -89,6 +89,19 @@ body {
   }
 }
 
+/* ─── Score Flash Animation ─────────────────────────────────────────────── */
+
+@keyframes score-flash {
+  0%   { color: var(--tele-green); transform: scale(1); }
+  25%  { color: var(--tele-accent); transform: scale(1.08); }
+  50%  { color: var(--tele-accent); transform: scale(1.04); }
+  100% { color: var(--tele-green); transform: scale(1); }
+}
+
+.animate-score-flash {
+  animation: score-flash 0.35s ease-out;
+}
+
 /* ─── Dart Trajectory Animation ────────────────────────────────────────────── */
 
 @keyframes h-draw { to { stroke-dashoffset: 0; } }
