@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { type User, type Session } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
 import { apiFetch } from "@/lib/api/client";
@@ -42,7 +42,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [backendConfirmed, setBackendConfirmed] = useState(false);
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
-  const supabase = createClient();
+  // createBrowserClient throws synchronously when NEXT_PUBLIC_SUPABASE_* vars are
+  // absent (e.g. during SSR prerendering on CI without those vars). Catch and fall
+  // back to null so the build doesn't crash; auth simply stays unavailable.
+  const supabase = useMemo(() => {
+    try { return createClient(); } catch { return null; }
+  }, []);
 
   // Confirm backend auth state whenever the Supabase session changes
   useEffect(() => {
@@ -81,34 +86,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session?.access_token]);
 
   useEffect(() => {
-    // Load initial session
+    if (!supabase) { setLoading(false); return; }
+
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
     });
 
-    // Listen for auth state changes
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
     });
 
     return () => subscription.subscription.unsubscribe();
-  }, []);
+  }, [supabase]);
 
   const signInWithGoogle = useCallback(async () => {
+    if (!supabase) return;
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
-  }, []);
+  }, [supabase]);
 
   const signOut = useCallback(async () => {
+    if (!supabase) return;
     await supabase.auth.signOut();
-  }, []);
+  }, [supabase]);
 
   return (
     <AuthContext.Provider value={{ user, session, loading, backendConfirmed, profile, signInWithGoogle, signOut }}>
