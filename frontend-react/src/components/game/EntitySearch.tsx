@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getFlagEmoji, formatNationality } from "@/utils/country";
+import { apiFetch } from "@/lib/api/client";
 
 interface EntitySuggestion {
   id: string;
@@ -59,7 +60,7 @@ export default function EntitySearch({
     async (query: string) => {
       setLoading(true);
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `/api/entities/search?type=${encodeURIComponent(entityType)}&query=${encodeURIComponent(query)}`
         );
         if (res.ok) {

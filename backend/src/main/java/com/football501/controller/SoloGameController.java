@@ -11,6 +11,8 @@ import com.football501.service.GameHintsService;
 import com.football501.service.GameService;
 import com.football501.service.MatchService;
 import com.football501.service.QuestionService;
+import com.football501.security.OptionalJwtFilter;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -26,8 +28,9 @@ import java.util.UUID;
  * <h3>Authentication</h3>
  * Player identity is derived from the authenticated {@link Principal} rather
  * than an explicit {@code playerId} request parameter.  In development and
- * test environments a {@code DevModeAuthFilter} provides a fixed principal
- * automatically.  In production a JWT filter will supply the real user.
+ * test environments {@link com.football501.security.OptionalJwtFilter}
+ * provides a fixed principal automatically.  In production the same filter
+ * validates Supabase JWTs.
  *
  * Endpoints:
  * <ul>
@@ -47,6 +50,7 @@ public class SoloGameController {
     private final GameService gameService;
     private final QuestionService questionService;
     private final GameHintsService gameHintsService;
+    private final com.football501.service.PlayerProfileService playerProfileService;
 
     private static final String DEFAULT_CATEGORY_SLUG = CategorySlug.FOOTBALL;
 
@@ -54,12 +58,14 @@ public class SoloGameController {
         MatchService matchService,
         GameService gameService,
         QuestionService questionService,
-        GameHintsService gameHintsService
+        GameHintsService gameHintsService,
+        com.football501.service.PlayerProfileService playerProfileService
     ) {
         this.matchService = matchService;
         this.gameService = gameService;
         this.questionService = questionService;
         this.gameHintsService = gameHintsService;
+        this.playerProfileService = playerProfileService;
     }
 
     /**
@@ -78,9 +84,16 @@ public class SoloGameController {
     @PostMapping("/start")
     public ResponseEntity<GameStateResponse> startSoloGame(
         @Valid @RequestBody StartSoloGameRequest request,
-        Principal principal
+        Principal principal,
+        HttpServletRequest httpRequest
     ) {
         UUID playerId = playerIdFrom(principal);
+        playerProfileService.ensureProfile(playerId);
+
+        // Rotate anonymous session cookie on game start to prevent cross-game tracking
+        if (OptionalJwtFilter.AUTH_TYPE_ANON.equals(httpRequest.getAttribute(OptionalJwtFilter.AUTH_TYPE_ATTR))) {
+            httpRequest.setAttribute(OptionalJwtFilter.ROTATE_ANON_ATTR, "true");
+        }
         log.debug("Starting solo game for player {}", playerId);
 
         // Prevent orphaned-game accumulation: abandon any in-progress games
@@ -128,7 +141,8 @@ public class SoloGameController {
     public ResponseEntity<SubmitAnswerResponse> submitAnswer(
         @PathVariable UUID gameId,
         @Valid @RequestBody SubmitAnswerRequest request,
-        Principal principal
+        Principal principal,
+        HttpServletRequest httpRequest
     ) {
         UUID playerId = playerIdFrom(principal);
         log.debug("Submitting answer for game {}: '{}'", gameId, request.getAnswer());
@@ -142,6 +156,12 @@ public class SoloGameController {
             .orElseThrow(() -> new IllegalStateException("Question not found"));
 
         GameMove move = result.move();
+
+        // Rotate anonymous session cookie on game completion to limit exfiltration window
+        if (move.getResult() == GameMove.MoveResult.CHECKOUT
+                && OptionalJwtFilter.AUTH_TYPE_ANON.equals(httpRequest.getAttribute(OptionalJwtFilter.AUTH_TYPE_ATTR))) {
+            httpRequest.setAttribute(OptionalJwtFilter.ROTATE_ANON_ATTR, "true");
+        }
 
         SubmitAnswerResponse response = SubmitAnswerResponse.builder()
             .result(move.getResult().name())
@@ -249,12 +269,24 @@ public class SoloGameController {
         return ResponseEntity.ok(buildGameStateResponse(game, question, match, moves));
     }
 
+    /**
+     * Returns the player's profile if they are authenticated (has a real JWT).
+     * Returns 404 for anonymous users.
+     */
+    @GetMapping("/profile")
+    public ResponseEntity<?> getProfile(Principal principal) {
+        UUID playerId = playerIdFrom(principal);
+        return playerProfileService.findByPlayerId(playerId)
+            .<ResponseEntity<?>>map(ResponseEntity::ok)
+            .orElse(ResponseEntity.notFound().build());
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /**
      * Parses the authenticated principal name as a {@link UUID}.
      * The principal name is the player's UUID string set by the auth filter
-     * (dev: {@code DevModeAuthFilter}; prod: JWT filter).
+     * (via {@link com.football501.security.OptionalJwtFilter}).
      */
     private UUID playerIdFrom(Principal principal) {
         return UUID.fromString(principal.getName());

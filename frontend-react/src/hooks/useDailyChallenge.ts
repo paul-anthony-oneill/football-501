@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api/client";
 
 export interface CategoryChallenge {
   categorySlug: string;
@@ -27,7 +28,7 @@ export function useDailyChallenge(): DailyChallengeState & { refresh: () => void
     setLoading(true);
     setError(null);
 
-    fetch("/api/daily-challenge/status")
+    apiFetch("/api/daily-challenge/status")
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to fetch daily challenges");
         return res.json();

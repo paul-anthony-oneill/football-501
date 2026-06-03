@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import CategoryPopup from "./CategoryPopup";
+import LoginButton from "@/components/auth/LoginButton";
+import { useAuth } from "@/context/AuthContext";
 import { CATEGORIES, type CategoryDefinition } from "@/lib/questionHierarchy";
 import type { CategoryChallenge } from "@/hooks/useDailyChallenge";
 
@@ -45,6 +47,7 @@ export default function LobbyView({
   dailyLoading,
 }: LobbyViewProps) {
   const [popupCat, setPopupCat] = useState<CategoryDefinition | null>(null);
+  const { user, loading } = useAuth();
 
   const handleCardClick = (cat: Category) => {
     const def = findHierarchyDef(cat.slug);
@@ -76,8 +79,11 @@ export default function LobbyView({
 
       {/* Header */}
       <header className="h-head relative z-10 flex items-baseline justify-between border-b border-h-rule pb-3.5 mb-9">
-        <div className="h-mark">FOOTBALL 501</div>
-        <div className="h-kicker">THE TRIVIA DARTS CHAMPIONSHIP</div>
+        <div className="flex items-baseline gap-6">
+          <div className="h-mark">FOOTBALL 501</div>
+          <div className="h-kicker hidden sm:block">THE TRIVIA DARTS CHAMPIONSHIP</div>
+        </div>
+        <LoginButton />
       </header>
 
       {/* Main */}
@@ -225,6 +231,12 @@ export default function LobbyView({
               placeholder="GUEST_123"
             />
           </div>
+
+          {!loading && !user && (
+            <div className="font-plex text-[10px] tracking-wider text-h-dim">
+              Sign in to save your progress
+            </div>
+          )}
 
           <button
             onClick={onStartTestGame}

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import EntitySearch from '../EntitySearch';
+import LoginButton from '@/components/auth/LoginButton';
 
 interface Move {
   answer: string;
@@ -84,7 +85,9 @@ export default function MatchView({
             {categorySub}
           </div>
         </div>
-        <div className="game-spacer w-20"></div>
+        <div className="game-spacer w-20 flex justify-end">
+          <LoginButton />
+        </div>
       </header>
 
       {/* Main Game Area */}

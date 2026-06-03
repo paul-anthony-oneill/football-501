@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDailyChallenge, type CategoryChallenge } from "@/hooks/useDailyChallenge";
+import { apiFetch } from "@/lib/api/client";
 
 export default function DailyPage() {
   const router = useRouter();
@@ -12,7 +13,7 @@ export default function DailyPage() {
   const handlePlay = async (slug: string, label: string) => {
     setStarting(slug);
     try {
-      const res = await fetch(`/api/daily-challenge/${encodeURIComponent(slug)}/start`, {
+      const res = await apiFetch(`/api/daily-challenge/${encodeURIComponent(slug)}/start`, {
         method: "POST",
       });
       if (!res.ok) {

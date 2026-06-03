@@ -19,37 +19,13 @@ import java.util.List;
 /**
  * Development-mode authentication filter.
  *
- * <p>Active on every Spring profile <em>except</em> {@code prod}.
- * Injects a fixed, fully-authenticated principal into the {@link
- * org.springframework.security.core.context.SecurityContext} before
- * every request so that all endpoints — including admin-only ones —
- * are reachable without real OAuth tokens during local development
- * and automated tests.
- *
- * <h3>What it does</h3>
- * <ul>
- *   <li>Principal name: {@link #DEV_PLAYER_ID} — a fixed UUID string that
- *       acts as the logged-in player's identity.  Controllers read player
- *       identity via {@code principal.getName()} and parse it as a UUID.</li>
- *   <li>Authorities: {@code ROLE_USER} + {@code ROLE_ADMIN} — grants full
- *       access so both game endpoints and admin debug endpoints work out of
- *       the box during development.</li>
- *   <li>Idempotent: if a request already carries authentication (e.g. from
- *       a test that explicitly sets one), this filter is a no-op.</li>
- * </ul>
- *
- * <h3>Production</h3>
- * This bean is not created on the {@code prod} profile.  A JWT validation
- * filter provides real authentication in production.
- *
- * <h3>Tests</h3>
- * {@code @WebMvcTest} and {@code @SpringBootTest} tests running under the
- * {@code test} profile automatically get this filter, so no {@code @WithMockUser}
- * is required.  Tests that need to simulate a specific player ID should set the
- * player UUID to {@link #DEV_PLAYER_ID}.
+ * @deprecated Replaced by {@link OptionalJwtFilter} which provides hybrid
+ *             JWT + anonymous authentication on every profile with no
+ *             dev/prod split.  Kept on disk as reference documentation
+ *             and for the {@link #DEV_PLAYER_ID} constant still referenced
+ *             by older test classes.
  */
-@Component
-@Profile("!prod")
+@Deprecated
 @Slf4j
 public class DevModeAuthFilter extends OncePerRequestFilter {
 

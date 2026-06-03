@@ -44,8 +44,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         String ip = request.getRemoteAddr();
-        String key = request.getRemoteUser() != null ? "auth:" + ip : "anon:" + ip;
-        int limit = request.getRemoteUser() != null ? AUTHENTICATED_LIMIT : UNAUTHENTICATED_LIMIT;
+        boolean isJwt = "jwt".equals(request.getAttribute(OptionalJwtFilter.AUTH_TYPE_ATTR));
+        String key = isJwt ? "auth:" + ip : "anon:" + ip;
+        int limit = isJwt ? AUTHENTICATED_LIMIT : UNAUTHENTICATED_LIMIT;
 
         long now = System.currentTimeMillis();
         Window window = windows.compute(key, (k, w) -> {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api/client";
 
 interface CategoryStatus {
   categorySlug: string;
@@ -22,7 +23,7 @@ export default function DailyCategoryPage() {
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/daily-challenge/${encodeURIComponent(categorySlug)}`)
+    apiFetch(`/api/daily-challenge/${encodeURIComponent(categorySlug)}`)
       .then(async (res) => {
         if (!res.ok) {
           if (res.status === 404) throw new Error("No challenge found for this category today");
@@ -44,7 +45,7 @@ export default function DailyCategoryPage() {
     if (!status) return;
     setStarting(true);
     try {
-      const res = await fetch(`/api/daily-challenge/${encodeURIComponent(categorySlug)}/start`, {
+      const res = await apiFetch(`/api/daily-challenge/${encodeURIComponent(categorySlug)}/start`, {
         method: "POST",
       });
       if (!res.ok) {

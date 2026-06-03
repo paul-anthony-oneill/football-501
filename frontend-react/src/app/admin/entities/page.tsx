@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "@/lib/api/admin";
 import { useToast } from "@/context/ToastContext";
+import { apiFetch } from "@/lib/api/client";
 
 interface EntityCounts {
   [entityType: string]: number;
@@ -41,7 +42,7 @@ export default function EntitiesPage() {
   const loadCounts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/entities/counts");
+      const res = await apiFetch("/api/admin/entities/counts");
       if (!res.ok) throw new Error("Failed to load entity counts");
       const data: EntityCounts = await res.json();
       setCounts(data);

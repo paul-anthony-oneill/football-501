@@ -14,6 +14,8 @@ import com.football501.service.GameHintsService;
 import com.football501.service.GameService;
 import com.football501.service.MatchService;
 import com.football501.service.QuestionService;
+import com.football501.security.OptionalJwtFilter;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -35,6 +37,7 @@ public class DailyChallengeController {
     private final QuestionService questionService;
     private final GameHintsService gameHintsService;
     private final CategoryRepository categoryRepository;
+    private final com.football501.service.PlayerProfileService playerProfileService;
 
     public DailyChallengeController(
             DailyChallengeService dailyChallengeService,
@@ -42,7 +45,8 @@ public class DailyChallengeController {
             MatchService matchService,
             QuestionService questionService,
             GameHintsService gameHintsService,
-            CategoryRepository categoryRepository
+            CategoryRepository categoryRepository,
+            com.football501.service.PlayerProfileService playerProfileService
     ) {
         this.dailyChallengeService = dailyChallengeService;
         this.gameService = gameService;
@@ -50,6 +54,7 @@ public class DailyChallengeController {
         this.questionService = questionService;
         this.gameHintsService = gameHintsService;
         this.categoryRepository = categoryRepository;
+        this.playerProfileService = playerProfileService;
     }
 
     /**
@@ -109,9 +114,17 @@ public class DailyChallengeController {
     @PostMapping("/{categorySlug}/start")
     public ResponseEntity<GameStateResponse> startDailyChallenge(
             @PathVariable String categorySlug,
-            Principal principal
+            Principal principal,
+            HttpServletRequest httpRequest
     ) {
         UUID playerId = playerIdFrom(principal);
+        playerProfileService.ensureProfile(playerId);
+
+        // Rotate anonymous session cookie on game start to prevent cross-game tracking
+        if (OptionalJwtFilter.AUTH_TYPE_ANON.equals(httpRequest.getAttribute(OptionalJwtFilter.AUTH_TYPE_ATTR))) {
+            httpRequest.setAttribute(OptionalJwtFilter.ROTATE_ANON_ATTR, "true");
+        }
+
         log.debug("Starting daily challenge for player {} in category '{}'", playerId, categorySlug);
 
         DailyChallengeService.GameStartRecord startRecord =
@@ -135,7 +148,8 @@ public class DailyChallengeController {
     public ResponseEntity<SubmitAnswerResponse> submitAnswer(
             @PathVariable UUID gameId,
             @Valid @RequestBody SubmitAnswerRequest request,
-            Principal principal
+            Principal principal,
+            HttpServletRequest httpRequest
     ) {
         UUID playerId = playerIdFrom(principal);
         log.debug("Submitting daily challenge answer for game {}: '{}'", gameId, request.getAnswer());
@@ -150,6 +164,12 @@ public class DailyChallengeController {
                 .orElseThrow(() -> new IllegalStateException("Question not found"));
 
         GameMove move = result.move();
+
+        // Rotate anonymous session cookie on game completion to limit exfiltration window
+        if (move.getResult() == GameMove.MoveResult.CHECKOUT
+                && OptionalJwtFilter.AUTH_TYPE_ANON.equals(httpRequest.getAttribute(OptionalJwtFilter.AUTH_TYPE_ATTR))) {
+            httpRequest.setAttribute(OptionalJwtFilter.ROTATE_ANON_ATTR, "true");
+        }
 
         SubmitAnswerResponse response = SubmitAnswerResponse.builder()
                 .result(move.getResult().name())

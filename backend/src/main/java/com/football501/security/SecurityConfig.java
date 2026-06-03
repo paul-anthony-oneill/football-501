@@ -19,21 +19,18 @@ import org.springframework.security.web.SecurityFilterChain;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * Spring Security configuration for Football 501.
+ * Spring Security configuration for Trivia 501.
  *
  * <h3>Design intent</h3>
- * <ul>
- *   <li>On dev/test profiles: {@link DevModeAuthFilter} injects a fixed authenticated
- *       principal so all endpoints work without real OAuth tokens.</li>
- *   <li>On prod profile: OAuth2 Resource Server validates Supabase-issued JWTs.
- *       Configure via {@code spring.security.oauth2.resourceserver.jwt.issuer-uri}
- *       and {@code SUPABASE_JWT_SECRET} (for HMAC-SHA256 verification).</li>
- * </ul>
+ * <p>{@link OptionalJwtFilter} runs on every request — no dev/prod split.
+ * If a valid Supabase JWT is present the user is authenticated with their real
+ * identity; otherwise an anonymous session UUID is assigned via cookie.
+ * Gameplay works identically for both paths.
  *
  * <h3>Endpoint access policy</h3>
  * <pre>
  *   /api/admin/**           → ROLE_ADMIN   (also @PreAuthorize at method level)
- *   /api/practice/**        → ROLE_USER / ROLE_ADMIN
+ *   /api/solo/**            → ROLE_USER / ROLE_ADMIN
  *   GET /api/daily-challenge/** → permitAll (public browsing of daily challenges)
  *   POST /api/daily-challenge/** → authenticated (game start, submit, abandon)
  *   /api/entities/**        → permitAll    (public autocomplete)
@@ -49,17 +46,15 @@ public class SecurityConfig {
 
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
-    private final DevModeAuthFilter devModeAuthFilter;
-    private final String jwtIssuerUri;
+    private final OptionalJwtFilter optionalJwtFilter;
 
-    public SecurityConfig(
-            org.springframework.beans.factory.ObjectProvider<DevModeAuthFilter> provider,
-            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}") String jwtIssuerUri) {
-        this.devModeAuthFilter = provider.getIfAvailable();
-        this.jwtIssuerUri = jwtIssuerUri;
-        log.info("SecurityConfig: devModeAuthFilter = {}, jwtIssuerUri = {}",
-                devModeAuthFilter != null ? "PRESENT" : "NULL",
-                jwtIssuerUri.isEmpty() ? "NOT SET" : jwtIssuerUri);
+    public SecurityConfig(JwtDecoder jwtDecoder,
+                          JwtAuthenticationConverter jwtConverter,
+                          @Value("${SUPABASE_JWT_SECRET:#{null}}") String jwtSecret) {
+        boolean jwtConfigured = jwtSecret != null && !jwtSecret.isEmpty();
+        this.optionalJwtFilter = new OptionalJwtFilter(jwtDecoder, jwtConverter, jwtConfigured);
+        log.info("SecurityConfig: OptionalJwtFilter configured (JWT {}configured)",
+                jwtConfigured ? "" : "NOT ");
     }
 
     @Bean
@@ -67,6 +62,10 @@ public class SecurityConfig {
         http
             .cors(Customizer.withDefaults())
 
+            // CSRF disabled — this is a stateless REST API with Bearer-token auth.
+            // However, OptionalJwtFilter sets a cookie (X-Anonymous-Id) for anonymous
+            // sessions. If real auth tokens are ever stored in cookies instead of
+            // Bearer headers, CSRF protection must be re-enabled before shipping.
             .csrf(csrf -> csrf.disable())
 
             .sessionManagement(session ->
@@ -78,28 +77,17 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/daily-challenge/**").permitAll()
                 .requestMatchers("/api/daily-challenge/**").authenticated()
-                .requestMatchers("/api/practice/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers("/api/solo/**").hasAnyRole("USER", "ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             );
 
-        // Prod: validate Supabase JWTs via OAuth2 Resource Server
-        if (!jwtIssuerUri.isEmpty()) {
-            log.info("Configuring OAuth2 Resource Server for JWT validation");
-            http.oauth2ResourceServer(oauth2 ->
-                oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
-        }
+        // Hybrid auth: validates JWT if present, falls back to anonymous session if not.
+        // Runs BEFORE AuthorizationFilter so all requests have an identity.
+        http.addFilterBefore(optionalJwtFilter,
+            org.springframework.security.web.access.intercept.AuthorizationFilter.class);
 
-        // Dev/test: inject a fixed authenticated principal BEFORE rate limiting
-        // so the rate limiter sees the authenticated user and applies the
-        // higher limit (100 req/min vs 10 req/min for unauthenticated).
-        if (devModeAuthFilter != null) {
-            log.info("Adding DevModeAuthFilter");
-            http.addFilterBefore(devModeAuthFilter,
-                org.springframework.security.web.access.intercept.AuthorizationFilter.class);
-        }
-
-        // Rate limiting — after auth filters so request.getRemoteUser() works
+        // Rate limiting — after auth filters so it can read the X-Auth-Type attribute
         http.addFilterBefore(new RateLimitFilter(),
             org.springframework.security.web.access.intercept.AuthorizationFilter.class);
 
@@ -112,7 +100,8 @@ public class SecurityConfig {
      * authenticated tokens. Admin elevation is done via the {@code app_metadata.role}
      * custom claim if present.
      */
-    private JwtAuthenticationConverter jwtAuthenticationConverter() {
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
         var grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
         grantedAuthoritiesConverter.setAuthorityPrefix("");
         grantedAuthoritiesConverter.setAuthoritiesClaimName("role");
@@ -138,7 +127,8 @@ public class SecurityConfig {
 
     /**
      * JWT decoder for Supabase-issued tokens (HMAC-SHA256).
-     * Only effective when SUPABASE_JWT_SECRET is set (required on prod).
+     * When {@code SUPABASE_JWT_SECRET} is not set returns a no-op decoder —
+     * {@link OptionalJwtFilter} catches the exception and falls back to anonymous.
      */
     @Bean
     public JwtDecoder jwtDecoder(@Value("${SUPABASE_JWT_SECRET:#{null}}") String jwtSecret) {

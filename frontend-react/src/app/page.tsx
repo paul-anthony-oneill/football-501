@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import LobbyView from "@/components/game/lobby/LobbyView";
 import MatchView from "@/components/game/match/MatchView";
 import AnimatedScorePopup from "@/components/game/AnimatedScorePopup";
 import { useGameLoop, getSavedLabel } from "@/hooks/useGameLoop";
 import { useDailyChallenge } from "@/hooks/useDailyChallenge";
 import { useToast } from "@/context/ToastContext";
+import { useAuth } from "@/context/AuthContext";
 import { CATEGORIES } from "@/lib/questionHierarchy";
+import { apiFetch } from "@/lib/api/client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,6 +65,7 @@ export default function GamePage() {
   const { challenges: dailyChallenges, loading: dailyLoading } = useDailyChallenge();
 
   const { addToast } = useToast();
+  const { user } = useAuth();
 
   // Share state
   const [sharing, setSharing] = useState(false);
@@ -79,8 +83,29 @@ export default function GamePage() {
     [],
   );
 
-  // Lobby state
-  const [playerName, setPlayerName] = useState("GUEST_PLAYER");
+  // Lobby state — default player name from Google profile when signed in
+  const [playerName, setPlayerName] = useState(
+    () => user?.user_metadata?.full_name || "GUEST_PLAYER",
+  );
+
+  // Sync player name when auth state changes (sign in / sign out)
+  useEffect(() => {
+    if (user?.user_metadata?.full_name) {
+      setPlayerName(user.user_metadata.full_name);
+    }
+  }, [user]);
+
+  // Auth-required redirect from middleware (admin routes)
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("auth_required")) {
+      addToast("Please sign in to access admin pages", "info");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("auth_required");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [searchParams, addToast]);
+
   const [gameMode, setGameMode] = useState<"solo" | "ranked">("solo");
   // Track the last selection so we can replay and display in MatchView.
   // On mount, try to recover the label from a saved game (refresh recovery).
@@ -117,7 +142,7 @@ export default function GamePage() {
     if (!gameId || sharing) return;
     setSharing(true);
     try {
-      const res = await fetch(`/api/daily-challenge/share/${gameId}`);
+      const res = await apiFetch(`/api/daily-challenge/share/${gameId}`);
       if (!res.ok) throw new Error("Failed to get share data");
       const data = await res.json();
 

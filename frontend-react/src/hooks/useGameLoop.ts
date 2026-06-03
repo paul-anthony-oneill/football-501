@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/context/ToastContext";
 import { useAnimatedScore } from "@/hooks/useAnimatedScore";
+import { apiFetch } from "@/lib/api/client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -172,7 +173,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
     setGameStatus("RESTORING");
 
-    fetch(`${restoreBase}/games/${saved.gameId}`)
+    apiFetch(`${restoreBase}/games/${saved.gameId}`)
       .then(async (res) => {
         if (!res.ok) throw new Error("Game not found");
         return res.json();
@@ -217,7 +218,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
   async function abandonCurrentGame() {
     if (!gameId) return;
     // Fire-and-forget: server is idempotent; don't block the UI on network errors
-    fetch(`${apiBase()}/games/${gameId}/abandon`, { method: "POST" }).catch(() => {});
+    apiFetch(`${apiBase()}/games/${gameId}/abandon`, { method: "POST" }).catch(() => {});
   }
 
   async function startNewGame(categorySlug: string, label: string) {
@@ -225,7 +226,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
     await abandonCurrentGame();
     clearSavedGameState();
     try {
-      const res = await fetch(`${apiBase()}/start`, {
+      const res = await apiFetch(`${apiBase()}/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ categorySlug }),
@@ -270,7 +271,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
     clearSavedGameState();
     try {
       const base = "/api/daily-challenge";
-      const res = await fetch(`${base}/${encodeURIComponent(categorySlug)}/start`, {
+      const res = await apiFetch(`${base}/${encodeURIComponent(categorySlug)}/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -312,7 +313,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
     if (!gameId || !answer.trim() || popup) return;
 
     try {
-      const res = await fetch(`${apiBase()}/games/${gameId}/submit`, {
+      const res = await apiFetch(`${apiBase()}/games/${gameId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ answer: answer.trim(), entityId: entityId ?? null }),

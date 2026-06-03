@@ -46,19 +46,22 @@ public class GameService {
     private final MatchRepository matchRepository;
     private final AnswerEvaluator answerEvaluator;
     private final GameStateMachine gameStateMachine;
+    private final PlayerProfileService playerProfileService;
 
     public GameService(
             GameRepository gameRepository,
             GameMoveRepository gameMoveRepository,
             MatchRepository matchRepository,
             AnswerEvaluator answerEvaluator,
-            GameStateMachine gameStateMachine
+            GameStateMachine gameStateMachine,
+            PlayerProfileService playerProfileService
     ) {
-        this.gameRepository    = gameRepository;
-        this.gameMoveRepository = gameMoveRepository;
-        this.matchRepository   = matchRepository;
-        this.answerEvaluator   = answerEvaluator;
-        this.gameStateMachine  = gameStateMachine;
+        this.gameRepository       = gameRepository;
+        this.gameMoveRepository   = gameMoveRepository;
+        this.matchRepository      = matchRepository;
+        this.answerEvaluator      = answerEvaluator;
+        this.gameStateMachine     = gameStateMachine;
+        this.playerProfileService = playerProfileService;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -105,6 +108,11 @@ public class GameService {
 
         applyTransition(game, match, playerId, transition);
         gameRepository.save(game);
+
+        // Record game completion for authenticated players
+        if (transition.moveResult() == GameMove.MoveResult.CHECKOUT) {
+            playerProfileService.recordGameCompleted(playerId, transition.scoreAfter(), true);
+        }
 
         log.debug("Move processed: result={}, score {}→{}",
                 transition.moveResult(), currentScore, transition.scoreAfter());

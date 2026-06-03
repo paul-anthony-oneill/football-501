@@ -18,6 +18,7 @@ import type {
   GeneratorResult,
   RematerializeResult,
 } from "@/lib/types/admin";
+import { apiFetch } from "@/lib/api/client";
 
 // When running through the Next.js dev server the rewrites in next.config.ts
 // proxy /api/* → http://localhost:8080/api/*. In production point to your API host.
@@ -28,7 +29,7 @@ class AdminApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const response = await apiFetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
