@@ -31,8 +31,8 @@ interface EntitySearchProps {
  * - Fires after 4 characters to avoid overly broad early results.
  * - Shows "Keep typing…" hint at 1–3 characters so the player knows
  *   suggestions are coming.
- * - Clicking a suggestion or pressing Enter on a highlighted item fills the
- *   input with the name — the player then presses Enter to confirm and submit.
+ * - Clicking a suggestion, or pressing Enter (snaps to first if none highlighted),
+ *   calls onSelect and clears the input. Submission is handled by the parent.
  * - Accent-insensitive: typing "aguero" surfaces "Sergio Agüero".
  *
  * The search hits GET /api/entities/search?type={entityType}&query={query},
@@ -52,9 +52,9 @@ export default function EntitySearch({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [noMatch, setNoMatch] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const selectedEntityIdRef = useRef<string | null>(null);
 
   const fetchSuggestions = useCallback(
     async (query: string) => {
@@ -81,7 +81,7 @@ export default function EntitySearch({
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
     setValue(val);
-    selectedEntityIdRef.current = null; // clear on manual edit
+    setNoMatch(false);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -107,17 +107,18 @@ export default function EntitySearch({
     if (e.key === "Enter") {
       e.preventDefault();
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      if (showSuggestions && activeIndex >= 0) {
-        selectEntity(suggestions[activeIndex]);
-      } else {
-        const entityId = selectedEntityIdRef.current;
-        selectedEntityIdRef.current = null;
-        onSelect(value, entityId ?? undefined);
-        setValue("");
-        setShowSuggestions(false);
+      if (showSuggestions && suggestions.length > 0) {
+        // Snap to first item if nothing is highlighted, then select
+        const idx = activeIndex >= 0 ? activeIndex : 0;
+        selectEntity(suggestions[idx]);
+      } else if (!showSuggestions && value.trim().length >= 4) {
+        // Typed something but no suggestions came back
+        setNoMatch(true);
       }
+      // If <4 chars, the "Keep typing" hint already guides the user — do nothing
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
+      if (!showSuggestions && suggestions.length > 0) setShowSuggestions(true);
       setActiveIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -129,10 +130,12 @@ export default function EntitySearch({
 
   function selectEntity(entity: EntitySuggestion) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    setValue(entity.name);
+    setValue("");
     setSuggestions([]);
     setShowSuggestions(false);
-    selectedEntityIdRef.current = entity.id;
+    setActiveIndex(-1);
+    setNoMatch(false);
+    onSelect(entity.name, entity.id);
     inputRef.current?.focus();
   }
 
@@ -160,6 +163,13 @@ export default function EntitySearch({
       {value.length > 0 && value.length < 4 && (
         <p className="mt-1 text-xs text-tele-cyan px-1 opacity-80">
           Keep typing for suggestions…
+        </p>
+      )}
+
+      {/* No-match hint — shown when ≥4 chars typed but no results */}
+      {noMatch && value.length >= 4 && (
+        <p className="mt-1 text-xs text-tele-danger px-1">
+          No match — try a different spelling
         </p>
       )}
 

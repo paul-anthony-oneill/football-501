@@ -1,8 +1,13 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import EntitySearch from '../EntitySearch';
 import LoginButton from '@/components/auth/LoginButton';
+
+interface StagedAnswer {
+  name: string;
+  entityId?: string;
+}
 
 interface Move {
   answer: string;
@@ -64,6 +69,18 @@ export default function MatchView({
   onShare,
   sharing = false,
 }: MatchViewProps) {
+  const [staged, setStaged] = useState<StagedAnswer | null>(null);
+
+  function handleStage(name: string, entityId?: string) {
+    setStaged({ name, entityId });
+  }
+
+  function handleThrowDart() {
+    if (!staged) return;
+    onSubmitAnswer(staged.name, staged.entityId);
+    setStaged(null);
+  }
+
   return (
     <div className="game theme-teletext min-h-screen flex flex-col font-vt323 text-lg bg-black text-white relative">
       {/* Teletext Header Status Line */}
@@ -148,22 +165,51 @@ export default function MatchView({
               {question || "Loading question..."}
             </div>
 
+            {/* Search input */}
             <div className="ta-wrap relative">
               <div className="ta-input-row flex items-center gap-3.5 bg-black border-2 border-tele-cyan p-0 px-5.5 h-16">
                 <span className="ta-caret text-tele-green text-[26px] animate-pulse">{'>'}</span>
                 <EntitySearch
                   entityType={entityType}
-                  onSelect={onSubmitAnswer}
-                  placeholder="TYPE PLAYER NAME..."
+                  onSelect={handleStage}
+                  placeholder="SEARCH PLAYER NAME..."
                   className="teletext-input flex-1 bg-transparent border-0 outline-none text-tele-accent text-[30px] font-vt323 p-0"
                   disabled={disabled}
                 />
               </div>
             </div>
 
-            <div className="prompt-sub text-white text-[18px]">
-              Type a player and press <b className="text-tele-danger">ENTER</b> to score.
-            </div>
+            {/* Staged answer card */}
+            {staged ? (
+              <div className="staged-card flex items-center justify-between border-2 border-tele-green bg-black px-5.5 py-3 gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-tele-green text-[18px] tracking-widest">SELECTED</span>
+                  <span className="text-white text-[26px] tracking-wide font-vt323 uppercase">
+                    {staged.name}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setStaged(null)}
+                  className="text-tele-danger text-[22px] hover:opacity-70 transition-opacity leading-none"
+                  aria-label="Clear selection"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className="prompt-sub text-[#555] text-[18px] border-2 border-dashed border-[#333] px-5.5 py-3">
+                Select a player from the list to stage your answer
+              </div>
+            )}
+
+            {/* Throw Dart button */}
+            <button
+              onClick={handleThrowDart}
+              disabled={!staged || disabled}
+              className="throw-btn border-2 border-tele-danger text-tele-danger px-6 py-3 text-[28px] tracking-widest font-vt323 transition-colors hover:bg-tele-danger hover:text-black disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-tele-danger"
+            >
+              THROW DART →
+            </button>
           </div>
         </div>
 
