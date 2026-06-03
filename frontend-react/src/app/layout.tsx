@@ -3,6 +3,7 @@ import { Hanken_Grotesk, IBM_Plex_Mono, Bricolage_Grotesque, VT323 } from "next/
 import "./globals.css";
 import { ToastProvider } from "@/context/ToastContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const hanken = Hanken_Grotesk({
   subsets: ["latin"],
@@ -47,6 +48,7 @@ export default function RootLayout({
         <AuthProvider>
           <ToastProvider>{children}</ToastProvider>
         </AuthProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
