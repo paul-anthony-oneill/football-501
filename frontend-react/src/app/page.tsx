@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import LobbyView from "@/components/game/lobby/LobbyView";
 import MatchView from "@/components/game/match/MatchView";
@@ -35,6 +35,22 @@ function categoryLabel(label: string): { name: string; sub: string } {
   const name = parts[0] ?? "Trivia";
   const sub = parts.slice(1).join(" > ") || "Darts Edition";
   return { name, sub };
+}
+
+// ─── Auth redirect handler (must be inside Suspense — uses useSearchParams) ───
+
+function AuthRequiredRedirect() {
+  const searchParams = useSearchParams();
+  const { addToast } = useToast();
+  useEffect(() => {
+    if (searchParams.get("auth_required")) {
+      addToast("Please sign in to access admin pages", "info");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("auth_required");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [searchParams, addToast]);
+  return null;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -94,17 +110,6 @@ export default function GamePage() {
       setPlayerName(user.user_metadata.full_name);
     }
   }, [user]);
-
-  // Auth-required redirect from middleware (admin routes)
-  const searchParams = useSearchParams();
-  useEffect(() => {
-    if (searchParams.get("auth_required")) {
-      addToast("Please sign in to access admin pages", "info");
-      const url = new URL(window.location.href);
-      url.searchParams.delete("auth_required");
-      window.history.replaceState({}, "", url.toString());
-    }
-  }, [searchParams, addToast]);
 
   const [gameMode, setGameMode] = useState<"solo" | "ranked">("solo");
   // Track the last selection so we can replay and display in MatchView.
@@ -196,9 +201,17 @@ export default function GamePage() {
 
   // ── Restoring state ─────────────────────────────────────────────────────────
 
+  // AuthRequiredRedirect uses useSearchParams — must live inside Suspense
+  const authRedirect = (
+    <Suspense fallback={null}>
+      <AuthRequiredRedirect />
+    </Suspense>
+  );
+
   if (gameStatus === "RESTORING") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-950">
+        {authRedirect}
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4" />
           <p className="text-gray-400 text-lg">Restoring game...</p>
@@ -211,18 +224,21 @@ export default function GamePage() {
 
   if (gameStatus === "NOT_STARTED") {
     return (
-      <LobbyView
-        categories={lobbyCategories}
-        onStartGame={handleStartGame}
-        onStartDailyChallenge={handleStartDailyChallenge}
-        onStartTestGame={handleStartTestGame}
-        playerName={playerName}
-        onPlayerNameChange={setPlayerName}
-        gameMode={gameMode}
-        onGameModeChange={setGameMode}
-        dailyChallenges={dailyChallenges}
-        dailyLoading={dailyLoading}
-      />
+      <>
+        {authRedirect}
+        <LobbyView
+          categories={lobbyCategories}
+          onStartGame={handleStartGame}
+          onStartDailyChallenge={handleStartDailyChallenge}
+          onStartTestGame={handleStartTestGame}
+          playerName={playerName}
+          onPlayerNameChange={setPlayerName}
+          gameMode={gameMode}
+          onGameModeChange={setGameMode}
+          dailyChallenges={dailyChallenges}
+          dailyLoading={dailyLoading}
+        />
+      </>
     );
   }
 
@@ -230,6 +246,7 @@ export default function GamePage() {
 
   return (
     <>
+      {authRedirect}
       <MatchView
         score={score}
         question={question}
