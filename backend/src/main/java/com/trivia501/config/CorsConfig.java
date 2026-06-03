@@ -25,7 +25,7 @@ public class CorsConfig {
 
     private static final Logger log = LoggerFactory.getLogger(CorsConfig.class);
 
-    @Value("${FOOTBALL501_FRONTEND_ORIGIN:}")
+    @Value("${TRIVIA501_FRONTEND_ORIGIN:}")
     private String frontendOrigin;
 
     @Bean
