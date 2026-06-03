@@ -267,7 +267,7 @@ CREATE TABLE question_templates (
 
 The Java `QuestionMaterializer` interface registers itself under a key. The generator job reads active templates, enumerates params, inserts draft `questions`. No template → no materializer wiring.
 
-The `QuestionTemplate` JPA model and `QuestionTemplateRepository` are implemented in `com.football501.model` and `com.football501.repository`. Seven template rows are seeded across V10 and V11 — three "since year" templates (`football.team_competition_metric_since`) and four per-season templates (`football.team_competition_season_metric`).
+The `QuestionTemplate` JPA model and `QuestionTemplateRepository` are implemented in `com.trivia501.model` and `com.trivia501.repository`. Seven template rows are seeded across V10 and V11 — three "since year" templates (`football.team_competition_metric_since`) and four per-season templates (`football.team_competition_season_metric`).
 
 ### 5.3 `questions` ✅ evolved in V7
 

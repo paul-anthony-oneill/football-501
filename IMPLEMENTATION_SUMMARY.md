@@ -1,4 +1,4 @@
-# Football 501 - Implementation Summary
+# Trivia 501 - Implementation Summary
 
 **Status:** Phase 3 (Game Engine & Admin UI) Complete
 **Last Updated:** 2026-02-04
@@ -40,9 +40,9 @@ We have successfully implemented the core game engine for single-player practice
 
 ### Backend
 - `src/main/resources/db/migration/V3__add_game_tables.sql`: Schema for gameplay.
-- `src/main/java/com/football501/controller/PracticeGameController.java`: Endpoints for practice mode.
-- `src/main/java/com/football501/service/GameService.java`: Core game state machine.
-- `src/main/java/com/football501/engine/ScoringService.java`: Darts math logic.
+- `src/main/java/com/trivia501/controller/PracticeGameController.java`: Endpoints for practice mode.
+- `src/main/java/com/trivia501/service/GameService.java`: Core game state machine.
+- `src/main/java/com/trivia501/engine/ScoringService.java`: Darts math logic.
 
 ### Frontend
 - `src/routes/admin/categories/+page.svelte`: Category management page.
@@ -60,7 +60,7 @@ We have successfully implemented the core game engine for single-player practice
    - User accounts and profiles.
    - Secure admin routes.
 3. **Data Pipeline Integration**:
-   - Connect the Python scraper (`football-501-scraper`) to the main application for automated updates.
+   - Connect the Python scraper (`trivia-501-scraper`) to the main application for automated updates.
 
 ---
 

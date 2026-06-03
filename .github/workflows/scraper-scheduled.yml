@@ -18,22 +18,22 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
-        working-directory: football-501-scraper
+        working-directory: trivia-501-scraper
 
       - name: Scrape current season data
         run: python scrape_current_season.py
-        working-directory: football-501-scraper
+        working-directory: trivia-501-scraper
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
 
       - name: Populate questions
         run: python init_questions_v2.py
-        working-directory: football-501-scraper
+        working-directory: trivia-501-scraper
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
 
       - name: Populate answers
         run: python populate_answers_v2.py
-        working-directory: football-501-scraper
+        working-directory: trivia-501-scraper
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}

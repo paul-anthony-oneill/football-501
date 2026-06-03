@@ -1,4 +1,4 @@
-# Football 501 — Hosting Brief
+# Trivia 501 — Hosting Brief
 
 A concise overview for discussing infrastructure, deployment, and hosting options.  
 **Use this as your starting context when talking to an LLM about hosting decisions.**
@@ -7,7 +7,7 @@ A concise overview for discussing infrastructure, deployment, and hosting option
 
 ## What It Is
 
-Football 501 is a competitive football trivia game built on 501-darts scoring mechanics. Two players compete to reduce their score from 501 to exactly 0 by naming football players whose career statistics match a given question (e.g. "Name a player with exactly 23 appearances for Arsenal in the Premier League").
+Trivia 501 is a competitive football trivia game built on 501-darts scoring mechanics. Two players compete to reduce their score from 501 to exactly 0 by naming football players whose career statistics match a given question (e.g. "Name a player with exactly 23 appearances for Arsenal in the Premier League").
 
 Target audience: football fans who want a quick, skill-based competitive game.  
 Target launch: MVP (pre-commercial, small user base initially).

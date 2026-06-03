@@ -1,4 +1,4 @@
-# ⚽ Football 501
+# ⚽ Trivia 501
 
 > A competitive football trivia game with darts 501 scoring mechanics
 
@@ -11,7 +11,7 @@
 
 ## 📋 Overview
 
-**Football 501** is a daily puzzle and multiplayer game that combines football knowledge with the scoring system of darts 501. Players compete to reduce their score from 501 to exactly 0 by naming football players whose statistics (appearances, goals, etc.) match a given question.
+**Trivia 501** is a daily puzzle and multiplayer game that combines football knowledge with the scoring system of darts 501. Players compete to reduce their score from 501 to exactly 0 by naming football players whose statistics (appearances, goals, etc.) match a given question.
 
 ### 🎯 Key Features
 
@@ -97,7 +97,7 @@ Continue until someone reaches 0!
 ## 📁 Project Structure
 
 ```
-football-501/
+trivia-501/
 ├── docs/                           # 📚 Documentation
 │   ├── PRD.md                      # Product Requirements Document
 │   ├── GAME_RULES.md               # Complete game rules
@@ -167,7 +167,7 @@ Comprehensive documentation for this project (suitable for portfolio showcase):
 
 ## 🏆 Ranking System
 
-Football 501 features a **football-themed ranking system** with 9 tiers and 4 subtiers each (36 total ranks):
+Trivia 501 features a **football-themed ranking system** with 9 tiers and 4 subtiers each (36 total ranks):
 
 ### Tiers (Low → High)
 

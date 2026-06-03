@@ -1,6 +1,6 @@
 spring:
   application:
-    name: football-501
+    name: trivia-501
 
   datasource:
     # Defaults to Supabase dev project (pooler port 6543).
@@ -40,7 +40,7 @@ server:
   port: 8080
 
 # Custom application properties
-football501:
+trivia501:
   data:
     import-path: ${DATA_PATH:../data/transfermarkt}
   game:

@@ -1,4 +1,4 @@
-# ScraperFC Integration for Football 501
+# ScraperFC Integration for Trivia 501
 
 **Date**: 2026-01-18
 **Status**: Proposed Implementation
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-ScraperFC is a **viable alternative** to API-Football for populating Football 501's question/answer database with historical player statistics. It offers **unlimited free access** to FBref data (StatsBomb/Opta quality) at the cost of increased implementation complexity (Python microservice).
+ScraperFC is a **viable alternative** to API-Football for populating Trivia 501's question/answer database with historical player statistics. It offers **unlimited free access** to FBref data (StatsBomb/Opta quality) at the cost of increased implementation complexity (Python microservice).
 
 **Recommendation**: Implement ScraperFC as a **Python microservice** that runs batch jobs to populate the PostgreSQL database, keeping the Spring Boot backend unchanged.
 
@@ -22,7 +22,7 @@ ScraperFC is a **viable alternative** to API-Football for populating Football 50
 - **Installation**: `pip install ScraperFC`
 - **Documentation**: https://scraperfc.readthedocs.io
 
-### Key Features for Football 501
+### Key Features for Trivia 501
 
 ✅ **Free & Unlimited**: No API rate limits (respects FBref's 10 req/min guideline)
 ✅ **Historical Data**: Access to seasons dating back to 1888 on FBref
@@ -114,7 +114,7 @@ valid_seasons = fb_scraper.get_valid_seasons("EPL")
 
 For `scrape_stats()` and `scrape_all_stats()`:
 
-| Stat Category | Description | Relevant for Football 501? |
+| Stat Category | Description | Relevant for Trivia 501? |
 |--------------|-------------|----------------------------|
 | `standard` | Appearances, goals, assists, minutes | ✅ **PRIMARY** |
 | `shooting` | Shots, shots on target, conversion rate | ❌ |
@@ -128,7 +128,7 @@ For `scrape_stats()` and `scrape_all_stats()`:
 | `keeper` | Saves, goals against, clean sheets | ✅ **GOALKEEPERS** |
 | `keeper_adv` | Advanced GK metrics (PSxG, etc.) | ❌ |
 
-**For Football 501**: Focus on `"standard"`, `"playing_time"`, and `"keeper"`.
+**For Trivia 501**: Focus on `"standard"`, `"playing_time"`, and `"keeper"`.
 
 ### Supported Leagues
 
@@ -156,7 +156,7 @@ From `comps.yaml` (access via `list(fb_scraper.comps.keys())`):
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Football 501 Ecosystem                    │
+│                    Trivia 501 Ecosystem                    │
 ├─────────────────────────────────────────────────────────────┤
 │                                                               │
 │  ┌─────────────────────────────────────────────────────┐   │
@@ -165,7 +165,7 @@ From `comps.yaml` (access via `list(fb_scraper.comps.keys())`):
 │  │                                                       │   │
 │  │  • Runs scheduled batch jobs (cron/APScheduler)     │   │
 │  │  • Scrapes FBref historical data                    │   │
-│  │  • Transforms to Football 501 schema                │   │
+│  │  • Transforms to Trivia 501 schema                │   │
 │  │  • Writes directly to PostgreSQL                    │   │
 │  │  • Exposes health check endpoint                    │   │
 │  └────────────────┬────────────────────────────────────┘   │
@@ -203,11 +203,11 @@ From `comps.yaml` (access via `list(fb_scraper.comps.keys())`):
 
 ## Database Schema Alignment
 
-ScraperFC data maps cleanly to Football 501's database schema:
+ScraperFC data maps cleanly to Trivia 501's database schema:
 
 ### `answers` Table Population
 
-**Football 501 Schema** (from CLAUDE.md):
+**Trivia 501 Schema** (from CLAUDE.md):
 ```sql
 CREATE TABLE answers (
     id BIGSERIAL PRIMARY KEY,
@@ -230,7 +230,7 @@ ON answers USING gin(player_name gin_trgm_ops);
 # From fb_scraper.scrape_stats("2023-2024", "EPL", "standard")
 player_df = ...
 
-# Map DataFrame columns to Football 501 schema
+# Map DataFrame columns to Trivia 501 schema
 answers_data = {
     'player_name': player_df['Player'],           # Direct match
     'player_api_id': None,                         # FBref doesn't expose IDs
@@ -335,7 +335,7 @@ for _, player in brazilian_players.iterrows():
 
 ### Phase 1: Proof of Concept (1-2 days)
 
-**Goal**: Validate ScraperFC works for Football 501's use cases.
+**Goal**: Validate ScraperFC works for Trivia 501's use cases.
 
 ```python
 # poc_scraperfc.py
@@ -387,14 +387,14 @@ if __name__ == "__main__":
 
 **Project Structure**:
 ```
-football-501-scraper/
+trivia-501-scraper/
 ├── Dockerfile
 ├── requirements.txt
 ├── config.py              # Database connection, leagues config
 ├── scrapers/
 │   ├── __init__.py
 │   ├── fbref_scraper.py   # ScraperFC wrapper
-│   └── data_transformer.py # Transform to Football 501 schema
+│   └── data_transformer.py # Transform to Trivia 501 schema
 ├── jobs/
 │   ├── __init__.py
 │   ├── populate_questions.py  # Batch job to scrape and populate DB
@@ -484,7 +484,7 @@ def transform_to_answers(
     stat_column: str = 'Playing_Time_MP'
 ) -> List[Dict]:
     """
-    Transform ScraperFC DataFrame to Football 501 answers schema.
+    Transform ScraperFC DataFrame to Trivia 501 answers schema.
 
     Returns:
         List of dicts ready for database insertion
@@ -556,7 +556,7 @@ def populate_all_historical_data():
 from fastapi import FastAPI
 from jobs.scheduler import start_scheduler
 
-app = FastAPI(title="Football 501 Scraper Service")
+app = FastAPI(title="Trivia 501 Scraper Service")
 
 @app.on_event("startup")
 async def startup_event():
@@ -585,7 +585,7 @@ from sqlalchemy.orm import sessionmaker
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://football501:dev_password@localhost:5432/football501"
+    "postgresql://trivia501:dev_password@localhost:5432/trivia501"
 )
 
 engine = create_engine(DATABASE_URL)
@@ -647,19 +647,19 @@ version: '3.8'
 
 services:
   scraper-service:
-    build: ./football-501-scraper
+    build: ./trivia-501-scraper
     ports:
       - "8001:8001"
     environment:
-      - DATABASE_URL=postgresql://football501:dev_password@postgres:5432/football501
+      - DATABASE_URL=postgresql://trivia501:dev_password@postgres:5432/trivia501
     depends_on:
       - postgres
 
   postgres:
     image: postgres:15
     environment:
-      - POSTGRES_DB=football501
-      - POSTGRES_USER=football501
+      - POSTGRES_DB=trivia501
+      - POSTGRES_USER=trivia501
       - POSTGRES_PASSWORD=dev_password
     ports:
       - "5432:5432"
@@ -830,7 +830,7 @@ def test_invalid_darts_scores_flagged():
 
     for stat in df['Playing_Time_MP']:
         is_valid = stat not in {163, 166, 169, 172, 173, 175, 176, 178, 179}
-        # Verify our logic matches Football 501 rules
+        # Verify our logic matches Trivia 501 rules
 ```
 
 ### Integration Tests
@@ -875,10 +875,10 @@ def test_end_to_end_population():
 
 1. **✅ Approve this document** - Confirm ScraperFC is the chosen approach
 2. **Run PoC** - Execute `poc_scraperfc.py` to validate data quality
-3. **Set up Python environment** - Create `football-501-scraper/` directory
+3. **Set up Python environment** - Create `trivia-501-scraper/` directory
 4. **Initial scraping** - Populate EPL 2023-24 data for testing
 5. **Microservice development** - Build FastAPI service
-6. **Database integration** - Connect to Football 501 PostgreSQL
+6. **Database integration** - Connect to Trivia 501 PostgreSQL
 7. **Testing** - Validate data in Spring Boot game engine
 8. **Deployment** - Dockerize and deploy alongside Spring Boot
 
@@ -913,7 +913,7 @@ def get_player_stats(season, league, team):
 
 ## Conclusion
 
-ScraperFC is a **strong alternative** to API-Football for Football 501's MVP, offering:
+ScraperFC is a **strong alternative** to API-Football for Trivia 501's MVP, offering:
 
 - ✅ **Free unlimited access** to StatsBomb-quality data
 - ✅ **Easy Python implementation** with minimal learning curve
@@ -937,4 +937,4 @@ ScraperFC is a **strong alternative** to API-Football for Football 501's MVP, of
 - [FBref Documentation](https://scraperfc.readthedocs.io/en/latest/fbref.html)
 - [Diggy Digs Data - ScraperFC API Guide](https://diggydigsdata.github.io/posts/scraper-fc-api-doc/index.html)
 - [FBref Bot Traffic Policy](https://www.sports-reference.com/bot-traffic.html)
-- [Football 501 Technical Design](../TECHNICAL_DESIGN.md)
+- [Trivia 501 Technical Design](../TECHNICAL_DESIGN.md)

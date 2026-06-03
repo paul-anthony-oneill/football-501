@@ -1,4 +1,4 @@
-# Football 501 - Comprehensive Project Audit
+# Trivia 501 - Comprehensive Project Audit
 
 **Date:** 2026-05-26  
 **Revised:** 2026-05-26 (cross-referenced against codebase)  

@@ -66,7 +66,7 @@ PostgreSQL
 ## Package Structure
 
 ```
-com.football501/
+com.trivia501/
   controller/           # REST controllers & WebSocket handlers
     GameController.java
     MatchController.java

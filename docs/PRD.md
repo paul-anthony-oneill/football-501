@@ -1,4 +1,4 @@
-# Football 501 - Product Requirements Document (PRD)
+# Trivia 501 - Product Requirements Document (PRD)
 
 **Version**: 1.0
 **Last Updated**: 2026-01-17
@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Football 501 is a daily puzzle/trivia game that combines football knowledge with darts 501 scoring mechanics. Players compete to reach exactly 0 points (or -10 to 0 range) by naming football players that match a given question, with each player's statistics determining the score deducted from 501.
+Trivia 501 is a daily puzzle/trivia game that combines football knowledge with darts 501 scoring mechanics. Players compete to reach exactly 0 points (or -10 to 0 range) by naming football players that match a given question, with each player's statistics determining the score deducted from 501.
 
 **Target Platforms**: Desktop (Web) and Mobile (Progressive Web App)
 **Core Audience**: Football fans who enjoy trivia and competitive daily challenges

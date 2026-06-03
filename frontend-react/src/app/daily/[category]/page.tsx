@@ -132,9 +132,9 @@ export default function DailyCategoryPage() {
       </div>
 
       <footer className="mt-8 text-h-dim text-[12px] tracking-widest">
-        Shared via Football 501 ·{" "}
+        Shared via Trivia 501 ·{" "}
         <a href="/daily" className="text-h-accent hover:underline">
-          football501.com/daily
+          trivia501.com/daily
         </a>
       </footer>
     </div>

@@ -1,6 +1,6 @@
-# Football 501 Documentation
+# Trivia 501 Documentation
 
-Welcome to the Football 501 documentation. This index is the canonical entry point for navigating the project.
+Welcome to the Trivia 501 documentation. This index is the canonical entry point for navigating the project.
 
 **Last Updated**: 2026-05-27  
 **Status**: Audit Fixes Complete (Phase 5 of 5) — Moving to MVP Features

@@ -1,4 +1,4 @@
-# Football 501 - Project Implementation Log
+# Trivia 501 - Project Implementation Log
 
 **Last Updated**: 2026-05-27  
 **Status**: Audit Fixes Complete (Phase 5 of 5)
@@ -19,7 +19,7 @@
 
 ## Project Overview
 
-**Football 501** is a competitive football trivia game that combines football knowledge with darts 501 scoring mechanics.
+**Trivia 501** is a competitive football trivia game that combines football knowledge with darts 501 scoring mechanics.
 
 ### Tech Stack
 - **Frontend**: SvelteKit + TypeScript + Tailwind CSS
@@ -108,7 +108,7 @@ Reflected the completion of Phase 3, highlighting the new Game Engine capabiliti
 ### Session Date: 2026-05-26
 
 ### Key Design Insight
-The interesting difficulty in Football 501 is **strategic, not knowledge-based**. The game's depth comes from deciding *when* to play an answer and *which score to target*, not just from knowing valid answers. This means question difficulty ≠ game difficulty, and easy/medium questions can produce deeply competitive games.
+The interesting difficulty in Trivia 501 is **strategic, not knowledge-based**. The game's depth comes from deciding *when* to play an answer and *which score to target*, not just from knowing valid answers. This means question difficulty ≠ game difficulty, and easy/medium questions can produce deeply competitive games.
 
 ### Decisions Made
 - **Question pool weighting / difficulty stratification**: Parked as a stretch goal. The priority is a solid, well-known-clubs question pool for the core game.

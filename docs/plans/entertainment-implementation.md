@@ -9,7 +9,7 @@ Following the pattern set by the Geography category (V21 migration), we will imp
 - Follow the "Geography Pattern" (SQL-based seed for MVP).
 
 ## Phase 1: Data Acquisition (Scraper)
-- Create `football-501-scraper/scrapers/tmdb_scraper.py`.
+- Create `trivia-501-scraper/scrapers/tmdb_scraper.py`.
 - Use TMDB API to fetch:
     - Top movies by revenue for specific years/decades.
     - Movie metadata (title, release year, revenue, poster path).

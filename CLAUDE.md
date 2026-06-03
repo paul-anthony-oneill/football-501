@@ -11,7 +11,7 @@ Before starting any task, check **`docs/BACKLOG.md`**. After completing or defer
 
 ## Project Overview
 
-Football 501 is a competitive football trivia game that combines football knowledge with darts 501 scoring mechanics. Players compete to reduce their score from 501 to exactly 0 by naming football players whose statistics match a given question.
+Trivia 501 is a competitive football trivia game that combines football knowledge with darts 501 scoring mechanics. Players compete to reduce their score from 501 to exactly 0 by naming football players whose statistics match a given question.
 
 **Current Status**: Audit Fixes Complete (Phase 5 of 5).
 
@@ -169,7 +169,7 @@ Key tables to understand:
 
 ### Critical Rules
 
-1. **Python Microservice**: All scraping logic resides in `football-501-scraper/`.
+1. **Python Microservice**: All scraping logic resides in `trivia-501-scraper/`.
 2. **Batch Population**: Questions are populated in advance via scheduled jobs in the Python service.
 3. **Zero Live Calls**: The main Spring Boot backend NEVER calls external APIs. It only reads from the `answers` table.
 4. **Weekly Updates**: Automated batch refresh of current season stats.
@@ -197,7 +197,7 @@ ScraperFC data maps to the `answers` table:
 ## WebSocket Protocol
 
 ### Connection
-- Endpoint: `wss://api.football501.com/ws?token={JWT_TOKEN}`
+- Endpoint: `wss://api.trivia501.com/ws?token={JWT_TOKEN}`
 - Protocol: STOMP over WebSocket
 - Heartbeat: 30-second ping/pong
 
@@ -301,9 +301,9 @@ mvn spring-boot:run
 ```bash
 # Using Docker for local PostgreSQL
 docker run -d \
-  --name football501-postgres \
-  -e POSTGRES_DB=football501 \
-  -e POSTGRES_USER=football501 \
+  --name trivia501-postgres \
+  -e POSTGRES_DB=trivia501 \
+  -e POSTGRES_USER=trivia501 \
   -e POSTGRES_PASSWORD=dev_password \
   -p 5432:5432 \
   postgres:15
@@ -409,8 +409,8 @@ FOOTBALL_API_KEY=your_api_key_here
 # Database
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=football501
-DB_USER=football501
+DB_NAME=trivia501
+DB_USER=trivia501
 DB_PASSWORD=your_password_here
 
 # JWT
@@ -448,8 +448,8 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 8. **Never use `answers` as the autocomplete source** - It would reveal valid answers for the current question. Autocomplete must query the `entities` table only.
 9. **Always populate `entities` when adding answers** - `AdminAnswerService` does this automatically via `EntitySearchService.upsertEntity()`. If running a manual SQL backfill, see `docs/design/AUTOCOMPLETE_ENTITY_DESIGN.md`.
 10. **Match `entity_type` slug in question config to the `entities` pool** - If `config` says `"entity_type": "city"` but no city rows exist in `entities`, the autocomplete will silently return nothing. Seed the pool before activating the question type.
-11. **Use `EntityType` constants, never bare strings** - Use `EntityType.FOOTBALLER`, `EntityType.CITY`, etc. (in `com.football501.model.EntityType`). Bare `"footballer"` literals were a Phase 5 audit finding; compile-time constants prevent silent slug drift.
-12. **Do not add local `@ExceptionHandler` to controllers** - `GlobalExceptionHandler` (`com.football501.exception`) owns all error formatting. Local handlers produce inconsistent JSON shapes and were eliminated in Phase 5.
+11. **Use `EntityType` constants, never bare strings** - Use `EntityType.FOOTBALLER`, `EntityType.CITY`, etc. (in `com.trivia501.model.EntityType`). Bare `"footballer"` literals were a Phase 5 audit finding; compile-time constants prevent silent slug drift.
+12. **Do not add local `@ExceptionHandler` to controllers** - `GlobalExceptionHandler` (`com.trivia501.exception`) owns all error formatting. Local handlers produce inconsistent JSON shapes and were eliminated in Phase 5.
 13. **Do not read `playerId` from request parameters in game controllers** - Identity comes from `Principal.getName()` parsed as a UUID. Adding a `@RequestParam UUID playerId` re-opens the identity spoofing vulnerability fixed in Phase 1.
 14. **New model classes must use `@EntityListeners(AuditingEntityListener.class)`** - `@CreatedDate` and `@LastModifiedDate` only populate when this listener is registered. Manual `LocalDateTime.now()` in `@PrePersist` is the old pattern; do not reintroduce it.
 15. **Seed data for new categories goes in CSV files, not inline SQL** — Large `INSERT`-heavy Flyway migrations are a code smell in portfolio review. Store seed data in `src/main/resources/db/data/<category>_answers.csv` and write a Java migration (`extends BaseJavaMigration`) that reads the CSV and batch-inserts. The CSV is reviewable, diffable, and trivially regeneratable from the source script. See V21/V22 for the pattern. Data CSVs live under `db/data/` — the `.gitignore` has an exception for `!**/db/data/*.csv`.

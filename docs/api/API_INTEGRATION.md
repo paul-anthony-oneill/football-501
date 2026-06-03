@@ -1,4 +1,4 @@
-# Football 501 - API Integration Specification
+# Trivia 501 - API Integration Specification
 
 **Version**: 1.0
 **Last Updated**: 2026-01-17
@@ -24,7 +24,7 @@
 
 ## Overview
 
-Football 501 integrates with **API-Football** to obtain player statistics for answer validation. The integration follows an **aggressive caching strategy** to minimize API calls and ensure match validation never depends on real-time API availability.
+Trivia 501 integrates with **API-Football** to obtain player statistics for answer validation. The integration follows an **aggressive caching strategy** to minimize API calls and ensure match validation never depends on real-time API availability.
 
 ### Integration Architecture
 
@@ -263,7 +263,7 @@ X-RapidAPI-Host: v3.football.api-sports.io
 }
 ```
 
-#### Relevant Fields for Football 501
+#### Relevant Fields for Trivia 501
 
 | Field Path | Description | Use Case |
 |------------|-------------|----------|

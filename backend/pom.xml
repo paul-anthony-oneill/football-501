@@ -12,11 +12,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.football501</groupId>
-    <artifactId>football-501-backend</artifactId>
+    <groupId>com.trivia501</groupId>
+    <artifactId>trivia-501-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>Football 501 Backend</name>
-    <description>Backend service for Football 501 game</description>
+    <name>Trivia 501 Backend</name>
+    <description>Backend service for Trivia 501 game</description>
 
     <properties>
         <java.version>25</java.version>

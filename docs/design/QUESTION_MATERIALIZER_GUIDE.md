@@ -21,7 +21,7 @@ This guide walks through how the question materializer works, from a question te
 
 ## 1. What problem does it solve?
 
-Football 501 is a trivia game. A question like *"Goals for Manchester United in the Premier League since 2000"* needs a list of correct answers — every player who scored for United in the league since 2000, with their goal count as the score.
+Trivia 501 is a trivia game. A question like *"Goals for Manchester United in the Premier League since 2000"* needs a list of correct answers — every player who scored for United in the league since 2000, with their goal count as the score.
 
 We can't call an external API during a live game (too slow, rate-limited, unreliable). So we need to **pre-compute** all the answers and store them in our database. The question materializer is the system that does this pre-computation.
 

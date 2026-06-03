@@ -1,4 +1,4 @@
-# Football 501 — Backlog & Future Work
+# Trivia 501 — Backlog & Future Work
 
 **Last updated**: 2026-06-01  
 **Purpose**: Living document capturing all deferred work, stretch goals, and improvement ideas regardless of size or urgency. Update this whenever a decision is made to defer something, or when a backlog item is completed or abandoned.

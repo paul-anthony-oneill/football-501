@@ -8,7 +8,7 @@
 
 ## Overview
 
-The Football 501 frontend has been overhauled to support a high-impact, themeable visual language. The architecture moves away from a standard "app" feel towards an immersive, cinematic experience that changes based on the game context.
+The Trivia 501 frontend has been overhauled to support a high-impact, themeable visual language. The architecture moves away from a standard "app" feel towards an immersive, cinematic experience that changes based on the game context.
 
 ## 1. Visual Identity & Themes
 

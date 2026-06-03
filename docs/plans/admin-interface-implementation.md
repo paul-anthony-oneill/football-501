@@ -2,7 +2,7 @@
 
 ## Overview
 
-Build a comprehensive admin interface for managing categories, questions, and answers in the Football 501 application. The admin panel will allow adding, editing, and removing data while maintaining database integrity and following existing codebase patterns.
+Build a comprehensive admin interface for managing categories, questions, and answers in the Trivia 501 application. The admin panel will allow adding, editing, and removing data while maintaining database integrity and following existing codebase patterns.
 
 ## Architecture Summary
 
@@ -18,17 +18,17 @@ Create admin services and controllers for category CRUD operations.
 
 **Files to Create:**
 
-1. **backend/src/main/java/com/football501/dto/admin/CreateCategoryRequest.java**
+1. **backend/src/main/java/com/trivia501/dto/admin/CreateCategoryRequest.java**
    - Fields: name, slug, description
    - Validation: @NotBlank on name and slug
 
-2. **backend/src/main/java/com/football501/dto/admin/UpdateCategoryRequest.java**
+2. **backend/src/main/java/com/trivia501/dto/admin/UpdateCategoryRequest.java**
    - Fields: name, description (slug immutable after creation)
 
-3. **backend/src/main/java/com/football501/dto/admin/CategoryResponse.java**
+3. **backend/src/main/java/com/trivia501/dto/admin/CategoryResponse.java**
    - Fields: id, name, slug, description, questionCount, createdAt, updatedAt
 
-4. **backend/src/main/java/com/football501/service/AdminCategoryService.java**
+4. **backend/src/main/java/com/trivia501/service/AdminCategoryService.java**
    - Methods:
      - `CategoryResponse createCategory(CreateCategoryRequest)`
      - `CategoryResponse updateCategory(UUID id, UpdateCategoryRequest)`
@@ -37,7 +37,7 @@ Create admin services and controllers for category CRUD operations.
      - `CategoryResponse getCategory(UUID id)`
    - Validation: Check slug uniqueness, prevent delete if questions exist
 
-5. **backend/src/main/java/com/football501/controller/AdminCategoryController.java**
+5. **backend/src/main/java/com/trivia501/controller/AdminCategoryController.java**
    - Endpoints:
      - `POST /api/admin/categories` - Create category
      - `GET /api/admin/categories` - List all categories with question counts
@@ -46,14 +46,14 @@ Create admin services and controllers for category CRUD operations.
      - `DELETE /api/admin/categories/{id}` - Delete category (error if questions exist)
    - Error handling with @ExceptionHandler
 
-6. **backend/src/main/java/com/football501/exception/DuplicateEntityException.java**
+6. **backend/src/main/java/com/trivia501/exception/DuplicateEntityException.java**
    - Custom exception for duplicate slug/name validation
 
-7. **backend/src/main/java/com/football501/exception/CategoryHasQuestionsException.java**
+7. **backend/src/main/java/com/trivia501/exception/CategoryHasQuestionsException.java**
    - Custom exception for delete prevention
 
 **Modifications:**
-- **backend/src/main/java/com/football501/repository/QuestionRepository.java**
+- **backend/src/main/java/com/trivia501/repository/QuestionRepository.java**
   - Add: `long countByCategoryId(UUID categoryId)`
 
 ### Phase 2: Backend - Question Management
@@ -62,19 +62,19 @@ Implement question CRUD with soft delete and filtering.
 
 **Files to Create:**
 
-1. **backend/src/main/java/com/football501/dto/admin/CreateQuestionRequest.java**
+1. **backend/src/main/java/com/trivia501/dto/admin/CreateQuestionRequest.java**
    - Fields: categoryId, questionText, metricKey, config (Map<String, Object>), minScore
 
-2. **backend/src/main/java/com/football501/dto/admin/UpdateQuestionRequest.java**
+2. **backend/src/main/java/com/trivia501/dto/admin/UpdateQuestionRequest.java**
    - Same fields as create (allow full update)
 
-3. **backend/src/main/java/com/football501/dto/admin/QuestionResponse.java**
+3. **backend/src/main/java/com/trivia501/dto/admin/QuestionResponse.java**
    - Fields: id, categoryId, categoryName, questionText, metricKey, config, minScore, isActive, answerCount, validDartsCount, createdAt, updatedAt
 
-4. **backend/src/main/java/com/football501/dto/admin/QuestionListResponse.java**
+4. **backend/src/main/java/com/trivia501/dto/admin/QuestionListResponse.java**
    - Paginated wrapper with: content (List<QuestionResponse>), totalElements, totalPages, currentPage
 
-5. **backend/src/main/java/com/football501/service/AdminQuestionService.java**
+5. **backend/src/main/java/com/trivia501/service/AdminQuestionService.java**
    - Methods:
      - `QuestionResponse createQuestion(CreateQuestionRequest)` - creates with isActive=false
      - `QuestionResponse updateQuestion(UUID id, UpdateQuestionRequest)`
@@ -82,7 +82,7 @@ Implement question CRUD with soft delete and filtering.
      - `QuestionListResponse listQuestions(UUID categoryId, Boolean isActive, Pageable)`
      - `QuestionResponse getQuestion(UUID id)` - includes computed counts
 
-6. **backend/src/main/java/com/football501/controller/AdminQuestionController.java**
+6. **backend/src/main/java/com/trivia501/controller/AdminQuestionController.java**
    - Endpoints:
      - `POST /api/admin/questions` - Create question
      - `GET /api/admin/questions?categoryId=&isActive=&page=&size=` - List with filters
@@ -92,7 +92,7 @@ Implement question CRUD with soft delete and filtering.
      - `DELETE /api/admin/questions/{id}` - Hard delete (cascade to answers)
 
 **Modifications:**
-- **backend/src/main/java/com/football501/repository/QuestionRepository.java**
+- **backend/src/main/java/com/trivia501/repository/QuestionRepository.java**
   - Add: `Page<Question> findByCategoryIdAndIsActive(UUID categoryId, Boolean isActive, Pageable)`
   - Add: `Page<Question> findAll(Pageable)` (already exists in JpaRepository)
 
@@ -102,19 +102,19 @@ Implement answer CRUD with bulk import and validation.
 
 **Files to Create:**
 
-1. **backend/src/main/java/com/football501/dto/admin/CreateAnswerRequest.java**
+1. **backend/src/main/java/com/trivia501/dto/admin/CreateAnswerRequest.java**
    - Fields: displayText, score, metadata (Map<String, Object>)
 
-2. **backend/src/main/java/com/football501/dto/admin/BulkCreateAnswersRequest.java**
+2. **backend/src/main/java/com/trivia501/dto/admin/BulkCreateAnswersRequest.java**
    - Field: answers (List<CreateAnswerRequest>)
 
-3. **backend/src/main/java/com/football501/dto/admin/AnswerResponse.java**
+3. **backend/src/main/java/com/trivia501/dto/admin/AnswerResponse.java**
    - Fields: id, questionId, answerKey, displayText, score, isValidDarts, isBust, metadata, createdAt
 
-4. **backend/src/main/java/com/football501/dto/admin/BulkCreateAnswersResponse.java**
+4. **backend/src/main/java/com/trivia501/dto/admin/BulkCreateAnswersResponse.java**
    - Fields: created (int), skipped (int), errors (List<String>)
 
-5. **backend/src/main/java/com/football501/service/AdminAnswerService.java**
+5. **backend/src/main/java/com/trivia501/service/AdminAnswerService.java**
    - Methods:
      - `AnswerResponse createAnswer(UUID questionId, CreateAnswerRequest)` - validates darts score
      - `BulkCreateAnswersResponse bulkCreateAnswers(UUID questionId, BulkCreateAnswersRequest)`
@@ -127,7 +127,7 @@ Implement answer CRUD with bulk import and validation.
      - `boolean isValidDartsScore(int score)` - check against invalid list
      - `boolean isBust(int score)` - score > 180
 
-6. **backend/src/main/java/com/football501/controller/AdminAnswerController.java**
+6. **backend/src/main/java/com/trivia501/controller/AdminAnswerController.java**
    - Endpoints:
      - `POST /api/admin/questions/{questionId}/answers` - Create single answer
      - `POST /api/admin/questions/{questionId}/answers/bulk` - Bulk create (CSV/JSON)
@@ -136,12 +136,12 @@ Implement answer CRUD with bulk import and validation.
      - `DELETE /api/admin/answers/{id}` - Delete single answer
      - `DELETE /api/admin/answers/bulk` - Delete multiple answers (body: {ids: []})
 
-7. **backend/src/main/java/com/football501/util/DartsScoreValidator.java**
+7. **backend/src/main/java/com/trivia501/util/DartsScoreValidator.java**
    - Static utility class with invalid scores constant: [163, 166, 169, 172, 173, 175, 176, 178, 179]
    - Method: `public static boolean isValid(int score)`
 
 **Modifications:**
-- **backend/src/main/java/com/football501/repository/AnswerRepository.java**
+- **backend/src/main/java/com/trivia501/repository/AnswerRepository.java**
   - Add: `List<Answer> findByQuestionIdOrderByScoreDesc(UUID questionId)`
   - Add: `boolean existsByQuestionIdAndAnswerKey(UUID questionId, String answerKey)`
 
@@ -358,7 +358,7 @@ Jack Grealish,28
 
 ### Backend (Spring Boot)
 ```
-backend/src/main/java/com/football501/
+backend/src/main/java/com/trivia501/
 ├── controller/
 │   ├── AdminCategoryController.java (NEW)
 │   ├── AdminQuestionController.java (NEW)

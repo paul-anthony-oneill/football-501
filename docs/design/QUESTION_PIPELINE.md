@@ -2,7 +2,7 @@
 
 *Last updated: 2026-05-26*
 
-This document describes the full lifecycle of a question in Football 501 — from template definition through answer materialisation and in-game use. It covers all question types currently implemented and explains how to add new ones.
+This document describes the full lifecycle of a question in Trivia 501 — from template definition through answer materialisation and in-game use. It covers all question types currently implemented and explains how to add new ones.
 
 ---
 

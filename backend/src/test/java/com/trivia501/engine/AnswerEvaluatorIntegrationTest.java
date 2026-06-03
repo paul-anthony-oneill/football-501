@@ -1,0 +1,246 @@
+package com.trivia501.engine;
+
+import com.trivia501.config.JpaConfig;
+import com.trivia501.model.Answer;
+import com.trivia501.model.Category;
+import com.trivia501.model.Question;
+import com.trivia501.repository.AnswerRepository;
+import com.trivia501.repository.CategoryRepository;
+import com.trivia501.repository.QuestionRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@ActiveProfiles("test")
+@Import({AnswerEvaluator.class, ScoringService.class, JpaConfig.class})
+@Testcontainers(disabledWithoutDocker = true)
+@DisplayName("Answer Evaluator Integration Tests")
+class AnswerEvaluatorIntegrationTest {
+
+    @Container
+    @SuppressWarnings("rawtypes")
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17")
+        .withInitScript("db/init-test-trgm.sql");
+
+    @DynamicPropertySource
+    static void overrideDataSource(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        registry.add("spring.jpa.properties.hibernate.dialect",
+                     () -> "org.hibernate.dialect.PostgreSQLDialect");
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+        registry.add("spring.flyway.enabled", () -> "false");
+    }
+
+    @Autowired
+    private AnswerEvaluator evaluator;
+
+    @Autowired
+    private AnswerRepository answerRepository;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+    private UUID questionId;
+
+    @BeforeEach
+    void setUp() {
+        Category category = categoryRepository.save(Category.builder()
+            .name("Integration Test Category")
+            .slug("int-test-category")
+            .build());
+
+        Question question = questionRepository.save(Question.builder()
+            .categoryId(category.getId())
+            .questionText("Test Question")
+            .metricKey("points")
+            .config(Map.of())
+            .status(Question.STATUS_ACTIVE)
+            .build());
+
+        this.questionId = question.getId();
+        createTestAnswers();
+    }
+
+    @Test
+    @DisplayName("Full game flow: Exact Match -> Invalid -> Exact Match -> Bust -> Duplicate")
+    void testFullGameFlow() {
+        List<UUID> usedAnswers = new ArrayList<>();
+        int currentScore = 501;
+
+        // 1. Exact Match: "Answer A" (35)
+        AnswerResult turn1 = evaluator.evaluateAnswer(questionId, "Answer A", null, currentScore, usedAnswers);
+        assertThat(turn1.isValid()).isTrue();
+        assertThat(turn1.getNewTotal()).isEqualTo(466); // 501 - 35
+        usedAnswers.add(turn1.getAnswerId());
+        currentScore = turn1.getNewTotal();
+
+        // 2. Truly unknown answer: "Zxqw Unknown9999" → INVALID
+        AnswerResult turn2 = evaluator.evaluateAnswer(questionId, "Zxqw Unknown9999", null, currentScore, usedAnswers);
+        assertThat(turn2.isValid()).isFalse();
+        assertThat(turn2.getReason()).isEqualTo("Answer not found");
+
+        // 3. Exact Match case-insensitive: "answer b" matches "Answer B" (28)
+        AnswerResult turn3 = evaluator.evaluateAnswer(questionId, "answer b", null, currentScore, usedAnswers);
+        assertThat(turn3.isValid()).isTrue();
+        assertThat(turn3.getDisplayText()).isEqualTo("Answer B");
+        assertThat(turn3.getNewTotal()).isEqualTo(438); // 466 - 28
+        usedAnswers.add(turn3.getAnswerId());
+        currentScore = turn3.getNewTotal();
+
+        // 4. Invalid Darts Score: "Answer E" (179) -> Bust
+        AnswerResult turn4 = evaluator.evaluateAnswer(questionId, "Answer E", null, currentScore, usedAnswers);
+        assertThat(turn4.isValid()).isTrue();
+        assertThat(turn4.isBust()).isTrue();
+        assertThat(turn4.getReason()).isEqualTo("Invalid darts score");
+        assertThat(turn4.getNewTotal()).isEqualTo(438); // Unchanged
+        usedAnswers.add(turn4.getAnswerId());
+
+        // 5. Duplicate Answer: "Answer A" -> Invalid
+        AnswerResult turn5 = evaluator.evaluateAnswer(questionId, "Answer A", null, currentScore, usedAnswers);
+        assertThat(turn5.isValid()).isFalse();
+        assertThat(turn5.getReason()).isEqualTo("Answer already used");
+    }
+
+    @Test
+    @DisplayName("Real game flow using actual database questions and answers")
+    void testRealGameFlow() {
+        Optional<Category> premierLeagueOpt = categoryRepository.findBySlug("premier-league");
+        if (premierLeagueOpt.isEmpty()) {
+            System.out.println("Skipping test: No Premier League category found. Run scraper to populate data.");
+            return;
+        }
+
+        Category premierLeague = premierLeagueOpt.get();
+        List<Question> questions = questionRepository.findActiveByCategoryId(premierLeague.getId());
+        if (questions.isEmpty()) {
+            System.out.println("Skipping test: No active questions found for Premier League.");
+            return;
+        }
+
+        Question randomQuestion = questions.get(0);
+        List<Answer> availableAnswers = answerRepository.findTopNByQuestionIdOrderByScoreDesc(
+            randomQuestion.getId(), 50
+        ).stream()
+            .filter(a -> a.getScore() >= 1 && a.getScore() <= 180 && a.getIsValidDarts())
+            .toList();
+
+        if (availableAnswers.size() < 3) {
+            System.out.println("Skipping test: Not enough valid answers found.");
+            return;
+        }
+
+        List<UUID> usedAnswers = new ArrayList<>();
+        int currentScore = 501;
+
+        Answer answer1 = availableAnswers.get(0);
+        AnswerResult turn1 = evaluator.evaluateAnswer(
+            randomQuestion.getId(),
+            answer1.getDisplayText(),
+            null,
+            currentScore,
+            usedAnswers
+        );
+
+        assertThat(turn1.isValid()).isTrue();
+        assertThat(turn1.isBust()).isFalse();
+        assertThat(turn1.getDisplayText()).isEqualTo(answer1.getDisplayText());
+        assertThat(turn1.getScore()).isEqualTo(answer1.getScore());
+        assertThat(turn1.getNewTotal()).isEqualTo(currentScore - answer1.getScore());
+
+        usedAnswers.add(turn1.getAnswerId());
+        currentScore = turn1.getNewTotal();
+
+        Answer answer2 = availableAnswers.get(1);
+        AnswerResult turn2 = evaluator.evaluateAnswer(
+            randomQuestion.getId(),
+            answer2.getDisplayText(),
+            null,
+            currentScore,
+            usedAnswers
+        );
+
+        assertThat(turn2.isValid()).isTrue();
+        assertThat(turn2.isBust()).isFalse();
+        assertThat(turn2.getScore()).isEqualTo(answer2.getScore());
+        assertThat(turn2.getNewTotal()).isEqualTo(currentScore - answer2.getScore());
+
+        usedAnswers.add(turn2.getAnswerId());
+        currentScore = turn2.getNewTotal();
+
+        AnswerResult turn3 = evaluator.evaluateAnswer(
+            randomQuestion.getId(),
+            answer1.getDisplayText(),
+            null,
+            currentScore,
+            usedAnswers
+        );
+
+        assertThat(turn3.isValid()).isFalse();
+        assertThat(turn3.getReason()).isEqualTo("Answer already used");
+
+        Answer answer3 = availableAnswers.get(2);
+        String lowercaseName = answer3.getDisplayText().toLowerCase();
+        AnswerResult turn4 = evaluator.evaluateAnswer(
+            randomQuestion.getId(),
+            lowercaseName,
+            null,
+            currentScore,
+            usedAnswers
+        );
+
+        assertThat(turn4.isValid()).isTrue();
+        assertThat(turn4.getDisplayText()).isEqualTo(answer3.getDisplayText());
+        assertThat(turn4.getNewTotal()).isEqualTo(currentScore - answer3.getScore());
+
+        System.out.println("Real game flow test passed with actual database data!");
+        System.out.println("   Question: " + randomQuestion.getQuestionText());
+        System.out.println("   Answers tested: " + answer1.getDisplayText() + ", " + answer2.getDisplayText() + ", " + answer3.getDisplayText());
+    }
+
+    private void createTestAnswers() {
+        List<Answer> answers = List.of(
+            createAnswer("Answer A", 35, true),
+            createAnswer("Answer B", 28, true),
+            createAnswer("Answer E", 179, false)
+        );
+        answerRepository.saveAll(answers);
+        answerRepository.flush();
+    }
+
+    private Answer createAnswer(String text, int score, boolean validDarts) {
+        return Answer.builder()
+            .questionId(questionId)
+            .displayText(text)
+            .answerKey(text.toLowerCase())
+            .score(score)
+            .isValidDarts(validDarts)
+            .isBust(false)
+            .build();
+    }
+}

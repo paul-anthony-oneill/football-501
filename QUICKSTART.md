@@ -1,4 +1,4 @@
-# Football 501 - Quick Start Guide
+# Trivia 501 - Quick Start Guide
 
 ## 🚀 Get the Game Running
 
@@ -9,14 +9,14 @@
 
 ### 1. Start the Database
 
-Make sure PostgreSQL is running with the `football501` database:
+Make sure PostgreSQL is running with the `trivia501` database:
 
 ```bash
 # If using Docker:
 docker run -d \
-  --name football501-postgres \
-  -e POSTGRES_DB=football501 \
-  -e POSTGRES_USER=football501 \
+  --name trivia501-postgres \
+  -e POSTGRES_DB=trivia501 \
+  -e POSTGRES_USER=trivia501 \
   -e POSTGRES_PASSWORD=dev_password \
   -p 5432:5432 \
   postgres:15
@@ -141,4 +141,4 @@ Python Scraper (API-Football)
 
 ---
 
-**Enjoy playing Football 501!** ⚽
+**Enjoy playing Trivia 501!** ⚽

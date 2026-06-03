@@ -17,7 +17,7 @@ These features are not being built yet. They are documented now so that:
 
 ## Core Design Principle (Important)
 
-> The interesting difficulty in Football 501 is **strategic**, not just knowledge-based.
+> The interesting difficulty in Trivia 501 is **strategic**, not just knowledge-based.
 
 Knowing that Thierry Henry scored 30 goals in a season is trivia. Knowing *when* to play him — holding him back for the exact score you need, or burning him early to deny your opponent — is the game.
 

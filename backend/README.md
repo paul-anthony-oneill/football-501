@@ -1,6 +1,6 @@
-# Football 501 Backend
+# Trivia 501 Backend
 
-Spring Boot backend service for Football 501 game.
+Spring Boot backend service for Trivia 501 game.
 
 ## Tech Stack
 
@@ -15,14 +15,14 @@ Spring Boot backend service for Football 501 game.
 ```
 backend/
 ├── src/
-│   ├── main/java/com/football501/
+│   ├── main/java/com/trivia501/
 │   │   ├── engine/           # Core game logic (TDD starting point)
 │   │   ├── model/            # Domain models
 │   │   ├── repository/       # Data access layer
 │   │   ├── service/          # Business logic
 │   │   ├── api/              # REST controllers
 │   │   └── websocket/        # WebSocket handlers
-│   └── test/java/com/football501/
+│   └── test/java/com/trivia501/
 │       ├── engine/           # Engine unit tests
 │       ├── service/          # Service unit tests
 │       └── integration/      # Integration tests
@@ -67,13 +67,13 @@ Application will start on `http://localhost:8080`
 ## Testing Strategy
 
 ### Unit Tests
-- **Location**: `src/test/java/com/football501/engine/`
+- **Location**: `src/test/java/com/trivia501/engine/`
 - **Framework**: JUnit 5
 - **Scope**: Pure logic tests (no Spring context)
 - **Example**: `DartsValidatorTest`, `GameEngineTest`
 
 ### Integration Tests
-- **Location**: `src/test/java/com/football501/integration/`
+- **Location**: `src/test/java/com/trivia501/integration/`
 - **Framework**: Spring Boot Test + TestContainers
 - **Scope**: Database operations, API endpoints
 - **Example**: `TransfermarktImportTest`, `GameApiTest`
@@ -97,8 +97,8 @@ Application will start on `http://localhost:8080`
 # Database
 export DB_HOST=localhost
 export DB_PORT=5432
-export DB_NAME=football501
-export DB_USER=football501
+export DB_NAME=trivia501
+export DB_USER=trivia501
 export DB_PASSWORD=your_password
 
 # Data import
@@ -110,9 +110,9 @@ export DATA_PATH=../data/transfermarkt
 ```bash
 # Using Docker
 docker run -d \
-  --name football501-postgres \
-  -e POSTGRES_DB=football501 \
-  -e POSTGRES_USER=football501 \
+  --name trivia501-postgres \
+  -e POSTGRES_DB=trivia501 \
+  -e POSTGRES_USER=trivia501 \
   -e POSTGRES_PASSWORD=dev_password \
   -p 5432:5432 \
   postgres:15

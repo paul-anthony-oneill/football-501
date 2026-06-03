@@ -207,7 +207,7 @@ let stompClient: Client;
 
 export function connectToGame(gameId: string, token: string) {
   stompClient = new Client({
-    brokerURL: `wss://api.football501.com/ws?token=${token}`,
+    brokerURL: `wss://api.trivia501.com/ws?token=${token}`,
     onConnect: () => wsConnected.set(true),
     onDisconnect: () => wsConnected.set(false),
   });

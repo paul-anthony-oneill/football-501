@@ -1,7 +1,7 @@
 import Sidebar from "@/components/admin/Sidebar";
 
 export const metadata = {
-  title: "Admin — Football 501",
+  title: "Admin — Trivia 501",
 };
 
 export default function AdminLayout({

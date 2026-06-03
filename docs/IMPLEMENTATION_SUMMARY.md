@@ -1,4 +1,4 @@
-# Football 501 - Scraping Service Implementation Summary
+# Trivia 501 - Scraping Service Implementation Summary
 
 **Date**: 2026-01-18
 **Status**: ✅ **COMPLETE** - Phase 2 (Python Microservice)
@@ -8,7 +8,7 @@
 
 ## What Was Implemented
 
-We've built a complete **Python microservice** for the Football 501 scraping service. This service runs independently from Spring Boot and populates the PostgreSQL database with player statistics.
+We've built a complete **Python microservice** for the Trivia 501 scraping service. This service runs independently from Spring Boot and populates the PostgreSQL database with player statistics.
 
 ---
 
@@ -28,7 +28,7 @@ We've built a complete **Python microservice** for the Football 501 scraping ser
   - Data validation
   - Team/league/goalkeeper scraping methods
 - **`data_transformer.py`**: Schema transformer
-  - Converts FBref data to Football 501 format
+  - Converts FBref data to Trivia 501 format
   - Darts score validation
   - Combined statistics calculation
   - Nationality filtering
@@ -97,7 +97,7 @@ We've built a complete **Python microservice** for the Football 501 scraping ser
 
 ### ✅ Data Transformation
 - Flattens multi-level DataFrame columns
-- Converts to Football 501 database schema
+- Converts to Trivia 501 database schema
 - Validates darts scores (163, 166, 169, etc.)
 - Detects bust scores (> 180)
 - Handles numeric type conversion
@@ -139,7 +139,7 @@ We've built a complete **Python microservice** for the Football 501 scraping ser
 ## 📊 Project Structure
 
 ```
-football-501-scraper/
+trivia-501-scraper/
 ├── api/
 │   ├── __init__.py                   ✅ 10 lines
 │   └── main.py                       ✅ 350 lines - FastAPI app
@@ -186,7 +186,7 @@ TOTAL: 16 files, ~2,750 lines of code
 ┌─────────────────────────────────────────────────────────────┐
 │  Core Components                                            │
 │  ├── FBrefScraper (wraps ScraperFC)                        │
-│  ├── DataTransformer (FBref → Football 501)                │
+│  ├── DataTransformer (FBref → Trivia 501)                │
 │  ├── DatabaseManager (PostgreSQL CRUD)                     │
 │  └── QuestionPopulator (orchestrates scraping)             │
 └────────────┬────────────────────────────────────────────────┘
@@ -249,7 +249,7 @@ db.update_scrape_job(job.id, 'success', rows_inserted=25)
 ### To Run Tests
 
 ```bash
-cd football-501-scraper
+cd trivia-501-scraper
 pytest tests/
 ```
 
@@ -461,7 +461,7 @@ expansion_leagues = [
 
 ## 📚 Documentation Created
 
-1. **`football-501-scraper/README.md`** - Service documentation
+1. **`trivia-501-scraper/README.md`** - Service documentation
 2. **`docs/design/SCRAPING_SERVICE_OPERATIONS.md`** - Operations guide
 3. **`docs/SCRAPING_SERVICE_SUMMARY.md`** - Quick reference
 4. **`docs/IMPLEMENTATION_SUMMARY.md`** (this file) - Implementation log
@@ -502,7 +502,7 @@ expansion_leagues = [
 ## 🎯 Success Criteria Met
 
 - ✅ Scrapes FBref data successfully
-- ✅ Transforms to Football 501 schema
+- ✅ Transforms to Trivia 501 schema
 - ✅ Writes to PostgreSQL database
 - ✅ Provides REST API for admin
 - ✅ Schedules automated updates

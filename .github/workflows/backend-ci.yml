@@ -31,9 +31,9 @@ jobs:
         env:
           DB_HOST: localhost
           DB_PORT: "5432"
-          DB_NAME: football501
-          DB_USER: football501
-          DB_PASSWORD: football501
+          DB_NAME: trivia501
+          DB_USER: trivia501
+          DB_PASSWORD: trivia501
 
   # Deploy to Fly.io on merge to master
   deploy:

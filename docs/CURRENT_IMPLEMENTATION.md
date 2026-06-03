@@ -5,7 +5,7 @@
 
 ## What We've Built So Far
 
-Football 501 is like a game of darts, but instead of throwing darts, you name football players. This document explains how everything works right now in simple terms.
+Trivia 501 is like a game of darts, but instead of throwing darts, you name football players. This document explains how everything works right now in simple terms.
 
 ---
 
@@ -84,7 +84,7 @@ The backend is like the game referee. It knows all the rules and makes sure no o
 
 #### Security Layer — The Bouncer
 
-**Location:** `backend/src/main/java/com/football501/security/`
+**Location:** `backend/src/main/java/com/trivia501/security/`
 
 **`SecurityConfig.java`**  
 Wires Spring Security for the whole application. Key behaviours:
@@ -109,7 +109,7 @@ Injects a fixed authenticated principal (`DEV_PLAYER_ID = "00000000-0000-0000-00
 
 #### Controller Layer — The Reception Desk
 
-**Location:** `backend/src/main/java/com/football501/controller/`
+**Location:** `backend/src/main/java/com/trivia501/controller/`
 
 **`PracticeGameController.java`**  
 Handles the single-player game flow. Player identity is derived from `Principal.getName()` (injected by Spring Security) — never from a request parameter. This prevents identity spoofing.
@@ -123,7 +123,7 @@ All carry `@PreAuthorize("hasRole('ADMIN')")` at class level.
 
 #### Exception Layer — Standardised Error Responses
 
-**Location:** `backend/src/main/java/com/football501/exception/GlobalExceptionHandler.java`
+**Location:** `backend/src/main/java/com/trivia501/exception/GlobalExceptionHandler.java`
 
 A `@RestControllerAdvice` that handles all exceptions for every REST controller in one place. Ensures consistent JSON error format:
 
@@ -167,7 +167,7 @@ Now accumulates zone counts during answer materialisation, auto-excludes questio
 
 #### Game Engine Layer — The Smart Rules
 
-**Location:** `backend/src/main/java/com/football501/engine/`
+**Location:** `backend/src/main/java/com/trivia501/engine/`
 
 **`GameStateMachine.java`**  
 The state-machine coordinator introduced in Phase 3. Owns all turn-transition rules:
@@ -198,7 +198,7 @@ Knows which scores are impossible in real darts (e.g., 179 is a bust).
 
 #### Mapper Layer — DTO Conversion
 
-**Location:** `backend/src/main/java/com/football501/mapper/`
+**Location:** `backend/src/main/java/com/trivia501/mapper/`
 
 MapStruct mappers introduced in Phase 5 to replace manual `.builder()...build()` DTO mapping:
 
@@ -220,25 +220,25 @@ Activates Spring Data JPA auditing. All model classes carry `@EntityListeners(Au
 
 #### Data Model — Key Constants
 
-**`EntityType.java`** (`com.football501.model`)  
+**`EntityType.java`** (`com.trivia501.model`)  
 String constants for the `entity_type` column. Always use these instead of bare literals:
 - `EntityType.FOOTBALLER` = `"footballer"`
 - `EntityType.CITY` = `"city"`
 - `EntityType.COUNTRY` = `"country"`
 - `EntityType.COACH` = `"coach"`
 
-**`CategorySlug.java`** (`com.football501.model`)  
+**`CategorySlug.java`** (`com.trivia501.model`)  
 - `CategorySlug.FOOTBALL` = `"football"` — the default game category slug
 
 ---
 
 ### Data Pipeline (Python) — The Librarian
 
-**Location:** `football-501-scraper/`
+**Location:** `trivia-501-scraper/`
 
 This part of the system fetches real-world data to make the game possible.
 
-**The Scraper:** `football-501-scraper/scrape_current_season.py`  
+**The Scraper:** `trivia-501-scraper/scrape_current_season.py`  
 Uses `ScraperFC` to pull live data from FBref.com. Updates stats in the `career_stats` JSONB array without touching historical data.
 
 **Question & Answer Generator:**
@@ -339,7 +339,7 @@ The old integer `difficulty` field (1/2/3 scale) is deprecated. Questions now ca
 
 ### Phase 5 — Cleanup (commit 93b3fe2)
 - MapStruct: `AnswerMapper`, `CategoryMapper` — replace manual `.builder()...build()` mapping
-- `GlobalExceptionHandler.java` — `@RestControllerAdvice` in `com.football501.exception`; removed local `@ExceptionHandler` from `AdminAnswerController` and `PracticeGameController`
+- `GlobalExceptionHandler.java` — `@RestControllerAdvice` in `com.trivia501.exception`; removed local `@ExceptionHandler` from `AdminAnswerController` and `PracticeGameController`
 - `EntityType.java`, `CategorySlug.java` — constants classes replacing hardcoded strings
 - `frontend/` (SvelteKit directory) — deleted entirely
 

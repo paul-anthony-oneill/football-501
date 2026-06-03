@@ -1,4 +1,4 @@
-# Football 501 - Game Rules & Mechanics
+# Trivia 501 - Game Rules & Mechanics
 
 **Version**: 1.0
 **Last Updated**: 2026-01-17
@@ -23,7 +23,7 @@
 
 ## Game Overview
 
-Football 501 is a two-player competitive trivia game that combines football knowledge with darts 501 scoring mechanics.
+Trivia 501 is a two-player competitive trivia game that combines football knowledge with darts 501 scoring mechanics.
 
 ### Objective
 
@@ -60,7 +60,7 @@ Be the first player to reduce your score from **501 to exactly 0** (or within th
 
 ## Valid Darts Scores
 
-Not all numerical scores are valid in traditional 501 darts. Football 501 follows the same rules.
+Not all numerical scores are valid in traditional 501 darts. Trivia 501 follows the same rules.
 
 ### Valid Scores (1-180)
 

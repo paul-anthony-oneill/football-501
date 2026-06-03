@@ -253,11 +253,11 @@ Step 4: Question goes live
 ```yaml
 services:
   scraper:
-    image: football501-scraper:latest
+    image: trivia501-scraper:latest
     ports:
       - "8001:8001"
     environment:
-      - DATABASE_URL=postgresql://localhost:5432/football501
+      - DATABASE_URL=postgresql://localhost:5432/trivia501
 
   postgres:
     image: postgres:15
@@ -265,11 +265,11 @@ services:
       - "5432:5432"
 
   backend:
-    image: football501-backend:latest
+    image: trivia501-backend:latest
     ports:
       - "8080:8080"
     environment:
-      - DATABASE_URL=postgresql://localhost:5432/football501
+      - DATABASE_URL=postgresql://localhost:5432/trivia501
 ```
 
 ### Production (Cloud)

@@ -139,7 +139,7 @@ Good coverage but no checkout answers — correctly penalised.
 All tunable parameters live in a single class. Changing any value and running the recalibration endpoint is the complete cost of a formula adjustment.
 
 ```java
-// backend/src/main/java/com/football501/engine/DifficultyConstants.java
+// backend/src/main/java/com/trivia501/engine/DifficultyConstants.java
 
 public static final int    CHECKOUT_SCORE_MIN       = 1;
 public static final int    CHECKOUT_SCORE_MAX        = 19;
@@ -356,7 +356,7 @@ ALTER TABLE questions
 
 ### Step 2 — `DifficultyConstants.java`
 
-**File**: `backend/src/main/java/com/football501/engine/DifficultyConstants.java`
+**File**: `backend/src/main/java/com/trivia501/engine/DifficultyConstants.java`
 
 A `final` class with a private constructor. All constants are `public static final`. No Spring annotations — this is a pure Java constants holder. See constants listing in the Formula Constants section above, including the two new viability constants `MIN_SCORE_POOL` and `MIN_ANSWER_COUNT`.
 
@@ -364,7 +364,7 @@ A `final` class with a private constructor. All constants are `public static fin
 
 ### Step 3 — `DifficultyCalculator.java`
 
-**File**: `backend/src/main/java/com/football501/engine/DifficultyCalculator.java`
+**File**: `backend/src/main/java/com/trivia501/engine/DifficultyCalculator.java`
 
 A `final` utility class with a private constructor and a single `public static double calculate(int highValue, int midRange, int checkout, int totalValid)` method. No Spring annotations — pure function, trivially unit-testable.
 
@@ -396,7 +396,7 @@ private static double saturate(int count, double threshold) {
 
 ### Step 4 — `Question.java` updates
 
-**File**: `backend/src/main/java/com/football501/model/Question.java`
+**File**: `backend/src/main/java/com/trivia501/model/Question.java`
 
 Add nine new Lombok-mapped fields (all with `@Builder.Default` where appropriate). Do not remove the existing `difficulty` field. Add a `@Transient boolean isViable()` convenience method.
 
@@ -419,7 +419,7 @@ public boolean isViable() { return singleQuestionViable; }
 
 ### Step 5 — `QuestionMaterializerService` update
 
-**File**: `backend/src/main/java/com/football501/service/QuestionMaterializerService.java`
+**File**: `backend/src/main/java/com/trivia501/service/QuestionMaterializerService.java`
 
 Modify `upsertAnswers()` to accumulate zone counts during the existing answer iteration loop. After all answers are processed: compute difficulty, evaluate viability, and if non-viable auto-exclude the question before saving.
 
@@ -494,7 +494,7 @@ private String buildViabilityReason(int scorePool, int validCount) {
 
 ### Step 6 — `DifficultyRecalibrationService.java`
 
-**File**: `backend/src/main/java/com/football501/service/DifficultyRecalibrationService.java`
+**File**: `backend/src/main/java/com/trivia501/service/DifficultyRecalibrationService.java`
 
 A Spring `@Service` that bulk-recalculates `difficulty_score` for all unlocked questions using stored counts. Does not touch the `answers` table. Also re-evaluates viability on each question so that threshold changes (e.g. raising `MIN_ANSWER_COUNT` from 15 to 20) propagate correctly.
 
@@ -541,7 +541,7 @@ public record RecalibrationResult(int total, int updated, int reExcluded) {}
 
 ### Step 7 — `QuestionRepository` updates
 
-**File**: `backend/src/main/java/com/football501/repository/QuestionRepository.java`
+**File**: `backend/src/main/java/com/trivia501/repository/QuestionRepository.java`
 
 Add the following methods alongside the existing ones. Do not remove `findByCategoryIdAndDifficultyAndStatus` — it may still be referenced by callers using the old integer field.
 
@@ -575,7 +575,7 @@ List<Question> findByStatus(String status);  // for listing excluded questions i
 
 ### Step 8 — Admin endpoints
 
-**File**: `backend/src/main/java/com/football501/controller/AdminQuestionController.java`
+**File**: `backend/src/main/java/com/trivia501/controller/AdminQuestionController.java`
 
 Add to the existing controller:
 
@@ -689,7 +689,7 @@ ORDER BY exclusion_rate_pct DESC;
 
 ### Step 10 — Tests
 
-**File**: `backend/src/test/java/com/football501/engine/DifficultyCalculatorTest.java`
+**File**: `backend/src/test/java/com/trivia501/engine/DifficultyCalculatorTest.java`
 
 | Test case | Inputs (hv, mid, co, total) | Expected |
 |---|---|---|
@@ -703,7 +703,7 @@ ORDER BY exclusion_rate_pct DESC;
 | Score never exceeds 10 | (0, 0, 0, 0) | ≤ 10.0 |
 | Score never below 0 | (30, 50, 15, 500) | ≥ 0.0 |
 
-**File**: `backend/src/test/java/com/football501/service/QuestionMaterializerServiceTest.java`
+**File**: `backend/src/test/java/com/trivia501/service/QuestionMaterializerServiceTest.java`
 
 Update existing tests and add:
 

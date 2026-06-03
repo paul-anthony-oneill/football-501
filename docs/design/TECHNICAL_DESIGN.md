@@ -1,4 +1,4 @@
-# Football 501 - Technical Design Document
+# Trivia 501 - Technical Design Document
 
 **Version**: 1.0
 **Last Updated**: 2026-01-17
@@ -24,7 +24,7 @@
 
 ## System Overview
 
-Football 501 is a full-stack web application with real-time multiplayer capabilities. The system follows a client-server architecture with WebSocket support for live match updates.
+Trivia 501 is a full-stack web application with real-time multiplayer capabilities. The system follows a client-server architecture with WebSocket support for live match updates.
 
 ### High-Level Architecture
 
@@ -403,7 +403,7 @@ CREATE INDEX idx_queue_user ON matchmaking_queue(user_id);
 
 ### REST API Endpoints
 
-**Base URL**: `https://api.football501.com/v1` (🔄 IN PROGRESS - domain TBD)
+**Base URL**: `https://api.trivia501.com/v1` (🔄 IN PROGRESS - domain TBD)
 
 #### Authentication Endpoints
 
@@ -495,13 +495,13 @@ GET    /admin/stats                   # System statistics
 
 ### WebSocket Protocol
 
-**Endpoint**: `wss://api.football501.com/ws`
+**Endpoint**: `wss://api.trivia501.com/ws`
 
 #### Connection
 
 ```javascript
 // Client connects with auth token
-const ws = new WebSocket('wss://api.football501.com/ws?token={JWT_TOKEN}');
+const ws = new WebSocket('wss://api.trivia501.com/ws?token={JWT_TOKEN}');
 ```
 
 #### Message Format

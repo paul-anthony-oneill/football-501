@@ -10,7 +10,7 @@
 
 Spring Security is fully wired and active but operates in a **permissive dev-mode posture** that keeps local development frictionless. The plumbing is in place and the annotations are enforced; what's missing is a real identity provider.
 
-The two key classes live in `backend/src/main/java/com/football501/security/`:
+The two key classes live in `backend/src/main/java/com/trivia501/security/`:
 
 | Class | Role |
 |---|---|

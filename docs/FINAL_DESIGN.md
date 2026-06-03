@@ -1,6 +1,6 @@
 # Final Design - The Complete Vision
 
-## What Football 501 Will Become
+## What Trivia 501 Will Become
 
 This document explains the **complete system** - everything we're building, not just what exists now.
 
@@ -436,14 +436,14 @@ player_profiles:
 
 **Connection:**
 ```
-Frontend → wss://api.football501.com/ws?token={JWT_TOKEN}
+Frontend → wss://api.trivia501.com/ws?token={JWT_TOKEN}
 ```
 
 **Authentication:**
 ```javascript
 // On connect
 const token = localStorage.getItem('auth_token');
-const ws = new WebSocket(`wss://api.football501.com/ws?token=${token}`);
+const ws = new WebSocket(`wss://api.trivia501.com/ws?token=${token}`);
 ```
 
 **Message Format (STOMP Protocol):**

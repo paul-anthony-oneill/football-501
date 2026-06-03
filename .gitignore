@@ -13,8 +13,8 @@ venv/
 .venv
 pip-log.txt
 pip-delete-this-directory.txt
-football-501-scraper/error_logs/
-football-501-scraper/output/
+trivia-501-scraper/error_logs/
+trivia-501-scraper/output/
 
 # Java / Maven
 target/
@@ -37,8 +37,8 @@ hs_err_pid*
 *.iml
 
 # Scraper runtime artifacts
-football-501-scraper/error_logs/
-football-501-scraper/output/
+trivia-501-scraper/error_logs/
+trivia-501-scraper/output/
 
 # Logs
 *.log

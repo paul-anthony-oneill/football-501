@@ -1,0 +1,42 @@
+# Trivia 501 Scraping Service - Docker Compose
+
+version: '3.8'
+
+services:
+  scraper:
+    build: .
+    container_name: trivia501-scraper
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://trivia501:dev_password@postgres:5432/trivia501
+      - FBREF_WAIT_TIME=7
+      - ENABLE_SCHEDULER=true
+      - CURRENT_SEASON=2025-2026
+      - LOG_LEVEL=INFO
+    depends_on:
+      - postgres
+    volumes:
+      - ./logs:/var/log
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+    container_name: trivia501-postgres
+    environment:
+      - POSTGRES_DB=trivia501
+      - POSTGRES_USER=trivia501
+      - POSTGRES_PASSWORD=dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trivia501"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

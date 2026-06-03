@@ -1,6 +1,6 @@
 # ScraperFC Proof of Concept
 
-This directory contains a proof-of-concept script to validate ScraperFC integration with Football 501.
+This directory contains a proof-of-concept script to validate ScraperFC integration with Trivia 501.
 
 ## Quick Start
 
@@ -19,7 +19,7 @@ python poc_scraperfc.py
 **Expected Output**:
 
 - ✅ Successfully scrapes EPL 2023-24 player statistics
-- ✅ Demonstrates all Football 501 question types
+- ✅ Demonstrates all Trivia 501 question types
 - ✅ Validates data quality for game engine
 - ⏱️ Takes ~30-45 seconds (due to FBref rate limiting)
 
@@ -65,4 +65,4 @@ pip install ScraperFC
 
 - ScraperFC Docs: https://scraperfc.readthedocs.io
 - Integration Plan: `../../docs/design/SCRAPERFC_INTEGRATION.md`
-- Football 501 Rules: `../../CLAUDE.md`
+- Trivia 501 Rules: `../../CLAUDE.md`

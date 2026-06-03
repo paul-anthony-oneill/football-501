@@ -20,7 +20,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="px-6 py-5 border-b border-[var(--color-outline)] flex items-center gap-2">
         <h2 className="m-0 text-xl text-[var(--color-primary)] font-extrabold">
-          Football 501
+          Trivia 501
         </h2>
         <span className="bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)] text-[0.65rem] uppercase font-extrabold tracking-[0.5px] px-2 py-[0.2rem] rounded-[var(--radius-xs)]">
           Admin

@@ -26,7 +26,7 @@ This document describes the Football-501 Spring Boot test suite, explains how to
 
 ### Tier 3 — Unit tests
 
-Located in `src/test/java/com/football501/`:
+Located in `src/test/java/com/trivia501/`:
 
 | Class | Tests |
 |-------|-------|
@@ -42,14 +42,14 @@ These use `@ExtendWith(MockitoExtension.class)`. No Spring context, no database,
 
 ### Tier 1 — Integration tests (H2)
 
-Located in `src/test/java/com/football501/controller/`:
+Located in `src/test/java/com/trivia501/controller/`:
 
 | Class | Tests | What it covers |
 |-------|-------|----------------|
 | `PracticeGameIntegrationTest` | 8 | Start game, submit answers, duplicate detection, score deduction, cumulative scoring |
 | `AdminAnswerIntegrationTest` | 7 | Admin CRUD, bulk create with duplicate-skipping, reported created/skipped counts |
 
-Also in `src/test/java/com/football501/`:
+Also in `src/test/java/com/trivia501/`:
 
 | Class | Tests | What it covers |
 |-------|-------|----------------|
@@ -60,7 +60,7 @@ These all extend `BaseTest` (except `AnswerRepositoryTest` and `AnswerEvaluatorI
 
 ### Tier 2 — Container tests (PostgreSQL)
 
-Located in `src/test/java/com/football501/engine/`:
+Located in `src/test/java/com/trivia501/engine/`:
 
 | Class | Tests | What it covers |
 |-------|-------|----------------|

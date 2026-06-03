@@ -2,7 +2,7 @@
 
 ## Current Status: ✅ System is Using Real Player Data
 
-The Football 501 application is **already configured** and **actively using** real player statistics scraped from FBRef.
+The Trivia 501 application is **already configured** and **actively using** real player statistics scraped from FBRef.
 
 ---
 
@@ -13,7 +13,7 @@ The Football 501 application is **already configured** and **actively using** re
 **Answers Table:**
 ```
 Total Answers: 11,843
-Source: Python scraper (football-501-scraper/)
+Source: Python scraper (trivia-501-scraper/)
 ```
 
 **Sample Question:** Manchester City - Premier League Goals
@@ -42,7 +42,7 @@ Source: Python scraper (football-501-scraper/)
 
 ### 3. How Scraping Works
 
-The Python scraper (`football-501-scraper/`) performs the following:
+The Python scraper (`trivia-501-scraper/`) performs the following:
 
 ```
 1. Scrape FBRef.com
@@ -94,7 +94,7 @@ Erling Haaland Total = 27 + 36 + ... = 105 goals
 
 **Repository Query:**
 ```java
-// backend/src/main/java/com/football501/repository/AnswerRepository.java
+// backend/src/main/java/com/trivia501/repository/AnswerRepository.java
 @Query("""
     SELECT a FROM Answer a
     WHERE a.questionId = :questionId
@@ -108,7 +108,7 @@ Optional<Answer> findByQuestionIdAndAnswerKey(
 
 **Usage in AnswerEvaluator:**
 ```java
-// backend/src/main/java/com/football501/engine/AnswerEvaluator.java
+// backend/src/main/java/com/trivia501/engine/AnswerEvaluator.java
 String normalizedInput = normalizeInput("Haaland"); // "haaland"
 
 Optional<Answer> match = answerRepository
@@ -165,7 +165,7 @@ This test **only works** if the database has real scraped data!
 ### 1. Check Database Directly
 
 ```bash
-cd football-501-scraper
+cd trivia-501-scraper
 python check_answers.py
 ```
 
@@ -182,7 +182,7 @@ Sample questions with answer counts:
 ### 2. View Sample Real Data
 
 ```bash
-cd football-501-scraper
+cd trivia-501-scraper
 python test_real_data.py
 ```
 
@@ -234,7 +234,7 @@ Visit http://localhost:5173 and try submitting "Haaland" - you'll get **105 poin
 └─────────────────────────────────────────┘
                     ↓
 ┌─────────────────────────────────────────┐
-│      Python Scraper (football-501-      │
+│      Python Scraper (trivia-501-      │
 │             scraper/)                    │
 │  - Scrapes player data                  │
 │  - Stores in JSONB                      │

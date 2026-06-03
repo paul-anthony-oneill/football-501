@@ -19,7 +19,7 @@
 
 ## Overview
 
-During a Football 501 turn the player types a name into an input field. After four characters the client fetches autocomplete suggestions from the backend and displays a dropdown. The player selects a name to fill the field and then submits.
+During a Trivia 501 turn the player types a name into an input field. After four characters the client fetches autocomplete suggestions from the backend and displays a dropdown. The player selects a name to fill the field and then submits.
 
 **The security constraint**: autocomplete must not reveal valid answers. If the suggestion list were built from the `answers` table for the active question, a player could enumerate all valid answers before committing. To prevent this, the system maintains a separate `entities` table that holds all known names of a given type — not just those that are valid for the current question. A name appearing in the dropdown tells the player nothing about whether it scores any points.
 
@@ -92,7 +92,7 @@ When an admin creates or bulk-imports answers through the admin UI, `AdminAnswer
 
 No manual step is needed when answers are added through the normal admin workflow.
 
-**EntityType constants**: callers pass the entity type as a `String`. Always use the constants in `com.football501.model.EntityType` rather than bare string literals:
+**EntityType constants**: callers pass the entity type as a `String`. Always use the constants in `com.trivia501.model.EntityType` rather than bare string literals:
 
 ```java
 entitySearchService.upsertEntity(displayText, EntityType.FOOTBALLER, hint);
@@ -213,7 +213,7 @@ Because both sides use the same algorithm, a name registered in Java and then se
 
 The divergence between Java's `stripAccents()` and PostgreSQL's `unaccent()` would be silent — a search would simply return no results. To prevent this, an integration test pins the contract against a real PostgreSQL 17 container:
 
-**File**: `backend/src/test/java/com/football501/EntitySearchNormalizationContainerTest.java`
+**File**: `backend/src/test/java/com/trivia501/EntitySearchNormalizationContainerTest.java`
 
 The test:
 1. Inserts an accented name (e.g. `"Agüero"`) via `EntitySearchService.upsertEntity()`
@@ -291,10 +291,10 @@ The `EntitySearch` component is the single place in the codebase that knows abou
 | Concept | Path |
 |---------|------|
 | Flyway migration (table + indexes) | `backend/src/main/resources/db/migration/V5__add_player_names_autocomplete.sql` |
-| JPA model | `backend/src/main/java/com/football501/model/NamedEntity.java` |
-| Repository (search + bulk upsert) | `backend/src/main/java/com/football501/repository/NamedEntityRepository.java` |
-| Service (search + upsert + backfill) | `backend/src/main/java/com/football501/service/EntitySearchService.java` |
-| EntityType constants | `backend/src/main/java/com/football501/model/EntityType.java` |
-| REST controller | `backend/src/main/java/com/football501/controller/EntityController.java` |
+| JPA model | `backend/src/main/java/com/trivia501/model/NamedEntity.java` |
+| Repository (search + bulk upsert) | `backend/src/main/java/com/trivia501/repository/NamedEntityRepository.java` |
+| Service (search + upsert + backfill) | `backend/src/main/java/com/trivia501/service/EntitySearchService.java` |
+| EntityType constants | `backend/src/main/java/com/trivia501/model/EntityType.java` |
+| REST controller | `backend/src/main/java/com/trivia501/controller/EntityController.java` |
 | Frontend component | `frontend-react/src/components/game/EntitySearch.tsx` |
-| Normalization contract test | `backend/src/test/java/com/football501/EntitySearchNormalizationContainerTest.java` |
+| Normalization contract test | `backend/src/test/java/com/trivia501/EntitySearchNormalizationContainerTest.java` |

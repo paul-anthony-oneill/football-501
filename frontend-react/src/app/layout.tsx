@@ -31,7 +31,7 @@ const vt323 = VT323({
 });
 
 export const metadata: Metadata = {
-  title: "Football 501",
+  title: "Trivia 501",
   description: "Competitive football trivia — darts 501 scoring mechanics",
   manifest: "/manifest.json",
 };

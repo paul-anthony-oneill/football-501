@@ -1,4 +1,4 @@
-# Football 501 — Scraping Service Operations Guide
+# Trivia 501 — Scraping Service Operations Guide
 
 **Version**: 2.0 (post-V9 schema)
 **Date**: 2026-05-25
@@ -21,7 +21,7 @@
 
 ## Overview
 
-The Football 501 scraping layer is a set of **Python scripts** that run directly against
+The Trivia 501 scraping layer is a set of **Python scripts** that run directly against
 PostgreSQL. There is no long-running FastAPI microservice — scripts are invoked on-demand
 (initial backfill) or on a schedule (weekly current-season update).
 
@@ -51,7 +51,7 @@ promotion of a draft question.
                             │  HTML → pandas DataFrame
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Python Scripts  (football-501-scraper/)                    │
+│  Python Scripts  (trivia-501-scraper/)                    │
 │                                                             │
 │  scrape_historical.py    — all past seasons (one-off)       │
 │  scrape_current_season.py — current season (weekly)         │
@@ -94,7 +94,7 @@ promotion of a draft question.
 
 ## Script Reference
 
-All scripts live in `football-501-scraper/`.
+All scripts live in `trivia-501-scraper/`.
 
 ### `scrape_historical.py`
 
@@ -359,7 +359,7 @@ answers  ←  AnswerEvaluator (fuzzy match, darts validation)
 
 ```bash
 # Database
-DATABASE_URL=postgresql://football501:password@localhost:5432/football501
+DATABASE_URL=postgresql://trivia501:password@localhost:5432/trivia501
 
 # FBref
 FBREF_WAIT_TIME=7        # seconds between requests (do not reduce below 7)
@@ -442,4 +442,4 @@ LIMIT 50;
 
 ---
 
-*See also: `DATABASE_DESIGN.md` for the full schema; `football-501-scraper/README.md` for setup and quick-start.*
+*See also: `DATABASE_DESIGN.md` for the full schema; `trivia-501-scraper/README.md` for setup and quick-start.*

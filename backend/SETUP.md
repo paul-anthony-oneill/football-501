@@ -7,8 +7,8 @@ backend/
 ├── .mvn/wrapper/              # Maven wrapper for builds
 ├── src/
 │   ├── main/
-│   │   ├── java/com/football501/
-│   │   │   ├── Football501Application.java   # Main Spring Boot app
+│   │   ├── java/com/trivia501/
+│   │   │   ├── Trivia501Application.java   # Main Spring Boot app
 │   │   │   ├── engine/                        # Core game logic (TDD start)
 │   │   │   ├── model/                         # Domain models
 │   │   │   ├── repository/                    # Data access
@@ -20,9 +20,9 @@ backend/
 │   │       ├── application.yml                # Main config
 │   │       └── db/migration/                  # Flyway migrations
 │   └── test/
-│       ├── java/com/football501/
+│       ├── java/com/trivia501/
 │       │   ├── BaseTest.java                  # Base integration test
-│       │   ├── Football501ApplicationTest.java # Smoke test
+│       │   ├── Trivia501ApplicationTest.java # Smoke test
 │       │   ├── engine/                        # Engine unit tests (TDD start)
 │       │   ├── service/                       # Service tests
 │       │   ├── repository/                    # Repository tests
@@ -80,7 +80,7 @@ cd backend
 ./mvnw.cmd clean compile
 
 # Run smoke test
-./mvnw.cmd test -Dtest=Football501ApplicationTest
+./mvnw.cmd test -Dtest=Trivia501ApplicationTest
 ```
 
 ### 2. Start TDD Implementation
@@ -116,9 +116,9 @@ If you want to run against real PostgreSQL instead of H2:
 ```bash
 # Using Docker
 docker run -d \
-  --name football501-postgres \
-  -e POSTGRES_DB=football501 \
-  -e POSTGRES_USER=football501 \
+  --name trivia501-postgres \
+  -e POSTGRES_DB=trivia501 \
+  -e POSTGRES_USER=trivia501 \
   -e POSTGRES_PASSWORD=dev_password \
   -p 5432:5432 \
   postgres:15
@@ -126,8 +126,8 @@ docker run -d \
 # Set environment variables
 set DB_HOST=localhost
 set DB_PORT=5432
-set DB_NAME=football501
-set DB_USER=football501
+set DB_NAME=trivia501
+set DB_USER=trivia501
 set DB_PASSWORD=dev_password
 ```
 

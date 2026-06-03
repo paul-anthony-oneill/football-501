@@ -20,17 +20,17 @@ If you need to work offline or test schema changes in isolation:
 
 ```bash
 docker run -d --name f501-pg \
-  -e POSTGRES_DB=football501 \
-  -e POSTGRES_USER=football501 \
+  -e POSTGRES_DB=trivia501 \
+  -e POSTGRES_USER=trivia501 \
   -e POSTGRES_PASSWORD=dev_password \
   -p 5432:5432 postgres:15
 
-docker exec f501-pg psql -U football501 -d football501 \
+docker exec f501-pg psql -U trivia501 -d trivia501 \
   -c "CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS unaccent;"
 
 # Override the defaults to point at localhost
-export DB_URL="jdbc:postgresql://localhost:5432/football501"
-export DB_USERNAME="football501"
+export DB_URL="jdbc:postgresql://localhost:5432/trivia501"
+export DB_USERNAME="trivia501"
 export DB_PASSWORD="dev_password"
 ```
 
@@ -117,7 +117,7 @@ fly deploy
 | `DB_PASSWORD` | (from Supabase dashboard → Database → Connection string) | No — must be set |
 | `SUPABASE_JWT_ISSUER` | `https://nnzwructancxzexbcvdz.supabase.co/auth/v1` | No (JWT auth only active in prod) |
 | `SUPABASE_JWT_SECRET` | (from Supabase dashboard → Settings → API → JWT Secret) | No (JWT auth only active in prod) |
-| `FOOTBALL501_FRONTEND_ORIGIN` | `https://football501.vercel.app` | No (CORS allows localhost by default) |
+| `FOOTBALL501_FRONTEND_ORIGIN` | `https://trivia501.vercel.app` | No (CORS allows localhost by default) |
 | `PORT` | `8080` | Yes (8080) |
 
 ### Frontend (set in Vercel dashboard → Environment)
@@ -146,7 +146,7 @@ No staging server yet — test locally before pushing.
 To populate the database with questions and answers:
 
 ```bash
-cd football-501-scraper
+cd trivia-501-scraper
 pip install -r requirements.txt
 
 # Set the DB connection

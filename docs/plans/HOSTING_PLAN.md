@@ -1,4 +1,4 @@
-# Football 501 — Deployment Plan (MVP)
+# Trivia 501 — Deployment Plan (MVP)
 
 > Generated from `docs/plans/HOSTING_BRIEF.md` — this is the concrete deployment roadmap.
 

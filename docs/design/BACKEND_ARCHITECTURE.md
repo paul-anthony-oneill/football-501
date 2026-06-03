@@ -1,6 +1,6 @@
 # Backend Architecture — Mermaid Diagrams
 
-> Generated from source analysis of `backend/src/main/java/com/football501/`.  
+> Generated from source analysis of `backend/src/main/java/com/trivia501/`.  
 > Spring Boot 4.x · Java 25 · PostgreSQL 15 · Flyway 12  
 > Last updated: 2026-05-27 (reflects audit fix Phases 1–5)
 
@@ -35,7 +35,7 @@ graph TB
         TEMPLATES["question_templates"]
     end
 
-    subgraph SCRAPER["Python Microservice\n(football-501-scraper/)"]
+    subgraph SCRAPER["Python Microservice\n(trivia-501-scraper/)"]
         SC["ScraperFC\n(FBref data)"]
     end
 
@@ -612,7 +612,7 @@ public class MyEntity {
 
 ## 11. Error Response Convention
 
-All REST error responses are produced by `GlobalExceptionHandler` (`com.football501.exception`). Do not add local `@ExceptionHandler` methods to individual controllers.
+All REST error responses are produced by `GlobalExceptionHandler` (`com.trivia501.exception`). Do not add local `@ExceptionHandler` methods to individual controllers.
 
 **Standard error shape:**
 ```json
