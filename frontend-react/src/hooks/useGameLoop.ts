@@ -209,6 +209,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
       .catch(() => {
         clearSavedGameState();
         setGameStatus("NOT_STARTED");
+        addToast("Your previous game session has expired.", "error");
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

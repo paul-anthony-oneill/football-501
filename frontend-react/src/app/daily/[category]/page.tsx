@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api/client";
+import { useToast } from "@/context/ToastContext";
 
 interface CategoryStatus {
   categorySlug: string;
@@ -21,6 +22,7 @@ export default function DailyCategoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const { addToast } = useToast();
 
   useEffect(() => {
     apiFetch(`/api/daily-challenge/${encodeURIComponent(categorySlug)}`)
@@ -62,7 +64,7 @@ export default function DailyCategoryPage() {
       }));
       router.push("/");
     } catch (err) {
-      alert((err as Error).message || "Error starting daily challenge");
+      addToast((err as Error).message || "Error starting daily challenge", "error");
     } finally {
       setStarting(false);
     }

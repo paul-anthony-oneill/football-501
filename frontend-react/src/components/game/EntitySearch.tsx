@@ -157,6 +157,7 @@ export default function EntitySearch({
         autoComplete="off"
         disabled={disabled}
         className={className}
+        aria-label="Search player name"
       />
 
       {/* Hint shown while typing 1–3 characters */}

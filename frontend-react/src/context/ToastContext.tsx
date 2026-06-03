@@ -32,11 +32,11 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 // ─── Individual Toast component ───────────────────────────────────────────────
 
 function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
-  // Auto-dismiss after 3 s
   useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
+    const duration = toast.type === "error" ? 8000 : 3000;
+    const timer = setTimeout(onClose, duration);
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, [onClose, toast.type]);
 
   const icon = toast.type === "success" ? "✅" : toast.type === "error" ? "❌" : "ℹ️";
 
@@ -59,7 +59,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
       className={`animate-slide-down flex items-center gap-4 min-w-80 max-w-[450px] rounded-xl border border-white/10 border-l-[6px] px-6 py-4 text-white shadow-[var(--shadow-3)] ${bg} ${borderColor}`}
       role="alert"
     >
-      <span className="text-xl">{icon}</span>
+      <span className="text-xl" aria-hidden="true">{icon}</span>
       <span className="flex-1 text-[0.95rem] font-semibold">{toast.message}</span>
       <button
         onClick={onClose}

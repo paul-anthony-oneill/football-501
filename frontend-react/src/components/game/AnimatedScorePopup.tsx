@@ -15,10 +15,16 @@ export default function AnimatedScorePopup({
   result,
   onComplete,
 }: AnimatedScorePopupProps) {
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
   const [display, setDisplay] = useState(0);
-  const [phase, setPhase] = useState<Phase>(
-    result === "INVALID" ? "invalid" : "counting",
-  );
+  const [phase, setPhase] = useState<Phase>(() => {
+    if (result === "INVALID") return "invalid";
+    if (prefersReducedMotion) return "showing";
+    return "counting";
+  });
   const frameRef = useRef<number | null>(null);
 
   const target = scoreValue;

@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import EntitySearch from '../EntitySearch';
+import HowToPlayPanel from '../HowToPlayPanel';
 import LoginButton from '@/components/auth/LoginButton';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 interface StagedAnswer {
   name: string;
@@ -70,6 +72,13 @@ export default function MatchView({
   sharing = false,
 }: MatchViewProps) {
   const [staged, setStaged] = useState<StagedAnswer | null>(null);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   function handleStage(name: string, entityId?: string) {
     setStaged({ name, entityId });
@@ -82,16 +91,22 @@ export default function MatchView({
   }
 
   return (
-    <div className="game theme-teletext min-h-screen flex flex-col font-vt323 text-lg bg-black text-white relative">
+    <div className="game theme-teletext min-h-screen flex flex-col font-vt323 text-lg bg-black text-white relative"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && staged && !disabled) {
+          handleThrowDart();
+        }
+      }}
+    >
       {/* Teletext Header Status Line */}
       <div className="bg-white text-black px-6 py-0.5 flex justify-between tracking-widest">
-        <span>P302 GAME IN PROGRESS</span>
-        <span>20:45</span>
+        <span>P302 {isWin ? 'GAME COMPLETE' : 'GAME IN PROGRESS'}</span>
+        <span>{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
       </div>
 
       {/* Game Header */}
       <header className="game-top flex items-center justify-between px-8 py-4.5 border-b-2 border-white">
-        <button onClick={onExit} className="btn-ghost text-tele-cyan border-2 border-tele-cyan px-5 py-2 hover:bg-white hover:text-black transition-colors">
+        <button onClick={() => setShowExitConfirm(true)} className="btn-ghost text-tele-cyan border-2 border-tele-cyan px-5 py-2 hover:bg-white hover:text-black transition-colors">
           ESC_EXIT
         </button>
         <div className="game-cat text-center">
@@ -225,13 +240,16 @@ export default function MatchView({
               </div>
             ) : (
               moves.map((move, i) => (
-                <div key={i} className={`hist-row grid grid-cols-[28px_1fr_auto_60px] gap-3 items-baseline py-2.5 border-b border-[#444] border-dashed ${move.result === 'BUST' ? 'hist-bust' : ''}`}>
+                <div key={i} className={`hist-row grid grid-cols-[28px_1fr_auto_70px_60px] gap-3 items-baseline py-2.5 border-b border-[#444] border-dashed ${move.result === 'BUST' ? 'hist-bust' : ''}`}>
                   <span className="hist-i text-[#888] text-[18px]">{(moves.length - i).toString().padStart(2, '0')}</span>
                   <span className={`hist-name text-[18px] uppercase ${move.result === 'BUST' ? 'text-[#888] line-through' : move.result === 'INVALID' ? 'text-tele-danger' : 'text-white'}`}>
                     {move.matchedAnswer || move.answer}
                   </span>
                   <span className={`hist-val text-[22px] font-bold ${move.result === 'BUST' ? 'text-tele-danger' : move.result === 'INVALID' ? 'text-[#888]' : 'text-tele-green'}`}>
                     {move.result === 'INVALID' ? '✗' : move.scoreValue}
+                  </span>
+                  <span className={`hist-badge text-[14px] tracking-wider ${move.result === 'VALID' ? 'text-tele-green' : move.result === 'BUST' ? 'text-tele-danger' : 'text-[#888]'}`}>
+                    {move.result === 'VALID' ? '✓ OK' : move.result === 'BUST' ? 'BUST' : 'INVALID'}
                   </span>
                   <span className="hist-rem text-tele-accent text-[22px] text-right font-bold">
                     {move.scoreAfter}
@@ -244,6 +262,10 @@ export default function MatchView({
           <div className="hist-foot mt-4 pt-3 border-t-2 border-white flex justify-between items-baseline text-tele-cyan text-[18px] uppercase">
             <span>TURN COUNT</span>
             <span className="text-tele-accent font-bold">{turnCount.toString().padStart(2, '0')}</span>
+          </div>
+
+          <div className="mt-4">
+            <HowToPlayPanel variant="teletext" />
           </div>
         </aside>
       </main>
@@ -283,7 +305,7 @@ export default function MatchView({
               PLAY AGAIN
             </button>
             <button
-              onClick={onExit}
+              onClick={() => setShowExitConfirm(true)}
               className="text-[#666] text-[20px] hover:text-white transition-colors tracking-widest"
             >
               EXIT TO LOBBY
@@ -291,6 +313,18 @@ export default function MatchView({
           </div>
         </div>
       )}
+
+      {/* ── Exit Confirmation Dialog ─────────────────────────────────────────── */}
+      <ConfirmDialog
+        open={showExitConfirm}
+        title="Exit Game?"
+        message="Are you sure you want to exit? Your progress in this game will be lost."
+        confirmText="Exit"
+        cancelText="Stay"
+        type="danger"
+        onConfirm={() => { setShowExitConfirm(false); onExit(); }}
+        onCancel={() => setShowExitConfirm(false)}
+      />
     </div>
   );
 }

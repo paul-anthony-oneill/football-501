@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDailyChallenge, type CategoryChallenge } from "@/hooks/useDailyChallenge";
 import { apiFetch } from "@/lib/api/client";
+import { useToast } from "@/context/ToastContext";
 
 export default function DailyPage() {
   const router = useRouter();
   const { challenges, loading, error, date } = useDailyChallenge();
+  const { addToast } = useToast();
   const [starting, setStarting] = useState<string | null>(null);
 
   const handlePlay = async (slug: string, label: string) => {
@@ -31,7 +33,7 @@ export default function DailyPage() {
       }));
       router.push("/");
     } catch (err) {
-      alert((err as Error).message || "Error starting daily challenge");
+      addToast((err as Error).message || "Error starting daily challenge", "error");
     } finally {
       setStarting(null);
     }
