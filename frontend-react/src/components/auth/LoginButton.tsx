@@ -1,14 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginButton() {
   const { user, loading, backendConfirmed, signInWithGoogle, signOut } = useAuth();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
 
-  if (!mounted || loading) {
+  if (loading) {
     return (
       <button className="h-auth-btn font-plex text-[11px] tracking-wider uppercase px-4 py-2 opacity-50" disabled>
         Loading…

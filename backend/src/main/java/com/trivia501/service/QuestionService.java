@@ -1,5 +1,6 @@
 package com.trivia501.service;
 
+import com.trivia501.dto.FootballFilter;
 import com.trivia501.model.Category;
 import com.trivia501.model.Question;
 import com.trivia501.repository.AnswerRepository;
@@ -151,5 +152,78 @@ public class QuestionService {
     @Transactional(readOnly = true)
     public long getAnswerCount(UUID questionId) {
         return answerRepository.countByQuestionId(questionId);
+    }
+
+    /**
+     * Select a question using a structured {@link FootballFilter}.
+     *
+     * <p>Lookup strategy per scope:
+     * <ul>
+     *   <li>{@code club}              — exact match on league + club + statType (statType null = random stat)</li>
+     *   <li>{@code league}            — exact match on league + statType (statType null = random stat)</li>
+     *   <li>{@code random_club_level} — random club question; league narrows to one league if supplied</li>
+     *   <li>{@code random_league_level} — random league-scope question from any league</li>
+     *   <li>{@code random_any}        — random from all football template questions</li>
+     * </ul>
+     *
+     * @param filter the football question filter
+     * @return matching question, or empty if none is available yet
+     */
+    @Transactional(readOnly = true)
+    public Optional<Question> selectQuestionByFilter(FootballFilter filter) {
+        String scope    = filter.getScope();
+        String league   = filter.getLeague();
+        String club     = filter.getClub();
+        String statType = filter.getStatType();
+
+        log.debug("Football filter lookup: scope={}, league={}, club={}, stat={}", scope, league, club, statType);
+
+        Optional<Question> result = switch (scope) {
+            case "club" -> {
+                if (statType != null) {
+                    yield questionRepository.findFootballClubQuestion(league, club, statType);
+                } else {
+                    yield questionRepository.findRandomFootballClubQuestion(league, club);
+                }
+            }
+            case "league" -> {
+                if (statType != null) {
+                    Optional<Question> exact = questionRepository.findFootballLeagueQuestion(league, statType);
+                    // Fall back to any club question in that league — league-scope questions don't exist yet
+                    yield exact.isPresent() ? exact
+                        : league != null ? questionRepository.findRandomFootballClubInLeague(league)
+                        : questionRepository.findRandomFootballAnyQuestion();
+                } else {
+                    Optional<Question> any = questionRepository.findRandomFootballLeagueQuestion();
+                    yield any.isPresent() ? any
+                        : league != null ? questionRepository.findRandomFootballClubInLeague(league)
+                        : questionRepository.findRandomFootballAnyQuestion();
+                }
+            }
+            case "random_club_level" -> league != null
+                ? questionRepository.findRandomFootballClubInLeague(league)
+                : questionRepository.findRandomFootballAnyQuestion();
+            case "random_league_level" -> {
+                // League-scope questions (q_scope='league') don't exist yet; fall back to any football question
+                Optional<Question> leagueQ = questionRepository.findRandomFootballLeagueQuestion();
+                yield leagueQ.isPresent() ? leagueQ : questionRepository.findRandomFootballAnyQuestion();
+            }
+            default -> questionRepository.findRandomFootballAnyQuestion(); // random_any + fallback
+        };
+
+        if (result.isEmpty()) {
+            log.warn("No football question matched filter: scope={}, league={}, club={}, stat={}",
+                scope, league, club, statType);
+        }
+        return result;
+    }
+
+    /**
+     * Return distinct club slugs that have active questions for a given league.
+     * Used by the frontend's "Choose Your Board" club picker.
+     */
+    @Transactional(readOnly = true)
+    public List<String> getClubsForLeague(String leagueSlug) {
+        return questionRepository.findDistinctClubsByLeague(leagueSlug);
     }
 }
