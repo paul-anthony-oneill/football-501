@@ -126,4 +126,19 @@ public final class DifficultyConstants {
      * a few turns; the game stalls and becomes a memory test.
      */
     public static final int MIN_ANSWER_COUNT = 15;
+
+    // ── Daily challenge eligibility ───────────────────────────────────────────
+    // A question is eligible for daily challenges only if its difficulty score
+    // falls within [DAILY_MIN_DIFFICULTY, DAILY_MAX_DIFFICULTY] AND it is viable.
+    // Recalibration automatically updates suitable_for_daily from these bounds.
+
+    /** Minimum difficulty score for daily challenge eligibility (inclusive). */
+    public static final double DAILY_MIN_DIFFICULTY = 0.0;
+
+    /**
+     * Maximum difficulty score for daily challenge eligibility (inclusive).
+     * Capped at 3.5 so daily challenges stay in the easy-to-moderate range.
+     * Scores above this are reserved for standard ranked play.
+     */
+    public static final double DAILY_MAX_DIFFICULTY = 3.5;
 }

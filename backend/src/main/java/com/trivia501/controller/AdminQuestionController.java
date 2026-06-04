@@ -131,10 +131,11 @@ public class AdminQuestionController {
      */
     @PostMapping("/bulk-activate")
     public ResponseEntity<Map<String, Object>> bulkActivate(
-            @RequestParam(defaultValue = "100") int limit) {
+            @RequestParam(defaultValue = "100") int limit,
+            @RequestParam(required = false) UUID templateId) {
         int clampedLimit = Math.min(limit, 500);
-        log.info("Admin triggered bulk-activate (limit={})", clampedLimit);
-        Map<String, Object> result = adminQuestionService.bulkActivateDraft(clampedLimit);
+        log.info("Admin triggered bulk-activate (limit={}, templateId={})", clampedLimit, templateId);
+        Map<String, Object> result = adminQuestionService.bulkActivateDraft(clampedLimit, templateId);
         return ResponseEntity.ok(result);
     }
 
@@ -164,9 +165,10 @@ public class AdminQuestionController {
         DifficultyRecalibrationService.RecalibrationResult result =
             adminQuestionService.recalculateDifficulty();
         return ResponseEntity.ok(Map.of(
-            "total",      result.total(),
-            "updated",    result.updated(),
-            "reExcluded", result.reExcluded()
+            "total",                   result.total(),
+            "updated",                 result.updated(),
+            "reExcluded",              result.reExcluded(),
+            "dailyEligibilityChanged", result.dailyEligibilityChanged()
         ));
     }
 

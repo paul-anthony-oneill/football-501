@@ -1,5 +1,6 @@
 package com.trivia501.service;
 
+import com.trivia501.engine.DifficultyConstants;
 import com.trivia501.model.Category;
 import com.trivia501.model.DailyChallenge;
 import com.trivia501.model.Game;
@@ -23,8 +24,6 @@ import java.util.concurrent.ThreadLocalRandom;
 public class DailyChallengeService {
 
     private static final int[] STARTING_SCORES = {501, 401, 351, 301, 251, 201, 167, 125, 101};
-    private static final double DAILY_MIN_DIFFICULTY = 0.0;
-    private static final double DAILY_MAX_DIFFICULTY = 5.5; // easy/medium only
 
     private final DailyChallengeRepository challengeRepository;
     private final QuestionRepository questionRepository;
@@ -133,13 +132,13 @@ public class DailyChallengeService {
     private DailyChallenge createChallenge(UUID categoryId) {
         int score = pickStartingScore();
         Optional<Question> questionOpt = questionRepository.findRandomDailyQuestion(
-                categoryId, score, DAILY_MIN_DIFFICULTY, DAILY_MAX_DIFFICULTY);
+                categoryId, score, DifficultyConstants.DAILY_MIN_DIFFICULTY, DifficultyConstants.DAILY_MAX_DIFFICULTY);
 
         // Fallback: if no question found for the chosen score, try all scores
         if (questionOpt.isEmpty()) {
             for (int fallbackScore : STARTING_SCORES) {
                 questionOpt = questionRepository.findRandomDailyQuestion(
-                        categoryId, fallbackScore, DAILY_MIN_DIFFICULTY, DAILY_MAX_DIFFICULTY);
+                        categoryId, fallbackScore, DifficultyConstants.DAILY_MIN_DIFFICULTY, DifficultyConstants.DAILY_MAX_DIFFICULTY);
                 if (questionOpt.isPresent()) {
                     score = fallbackScore;
                     break;

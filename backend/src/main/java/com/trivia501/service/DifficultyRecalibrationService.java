@@ -50,8 +50,9 @@ public class DifficultyRecalibrationService {
     @Transactional
     public RecalibrationResult recalculateAll() {
         List<Question> questions = questionRepository.findByDifficultyLockedFalse();
-        int updated    = 0;
-        int reExcluded = 0;
+        int updated              = 0;
+        int reExcluded           = 0;
+        int dailyEligibilityChanged = 0;
 
         for (Question q : questions) {
             double newScore = DifficultyCalculator.calculate(
@@ -64,12 +65,18 @@ public class DifficultyRecalibrationService {
             boolean nowViable = q.getTotalScorePool()  >= DifficultyConstants.MIN_SCORE_POOL
                              && q.getTotalValidCount() >= DifficultyConstants.MIN_ANSWER_COUNT;
 
-            boolean scoreChanged    = Math.abs(newScore - q.getDifficultyScore()) > 0.005;
-            boolean viabilityChanged = nowViable != q.isSingleQuestionViable();
+            boolean nowSuitableForDaily = nowViable
+                && newScore >= DifficultyConstants.DAILY_MIN_DIFFICULTY
+                && newScore <= DifficultyConstants.DAILY_MAX_DIFFICULTY;
 
-            if (scoreChanged || viabilityChanged) {
+            boolean scoreChanged         = Math.abs(newScore - q.getDifficultyScore()) > 0.005;
+            boolean viabilityChanged     = nowViable != q.isSingleQuestionViable();
+            boolean dailyChanged         = nowSuitableForDaily != q.isSuitableForDaily();
+
+            if (scoreChanged || viabilityChanged || dailyChanged) {
                 q.setDifficultyScore(newScore);
                 q.setSingleQuestionViable(nowViable);
+                q.setSuitableForDaily(nowSuitableForDaily);
 
                 if (!nowViable) {
                     String reason = buildViabilityReason(q.getTotalScorePool(), q.getTotalValidCount());
@@ -83,14 +90,20 @@ public class DifficultyRecalibrationService {
                     q.setViabilityExclusionReason(null);
                 }
 
+                if (dailyChanged) {
+                    dailyEligibilityChanged++;
+                    log.debug("Question {} suitable_for_daily → {} (score={})",
+                        q.getId(), nowSuitableForDaily, newScore);
+                }
+
                 questionRepository.save(q);
                 updated++;
             }
         }
 
-        log.info("Recalibration complete — total={} updated={} reExcluded={}",
-            questions.size(), updated, reExcluded);
-        return new RecalibrationResult(questions.size(), updated, reExcluded);
+        log.info("Recalibration complete — total={} updated={} reExcluded={} dailyEligibilityChanged={}",
+            questions.size(), updated, reExcluded, dailyEligibilityChanged);
+        return new RecalibrationResult(questions.size(), updated, reExcluded, dailyEligibilityChanged);
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
@@ -113,10 +126,10 @@ public class DifficultyRecalibrationService {
     /**
      * Summary returned from {@link #recalculateAll()}.
      *
-     * @param total      total questions processed (unlocked)
-     * @param updated    questions whose difficulty score or viability changed
-     * @param reExcluded questions newly set to {@code status = 'excluded'} because
-     *                   they no longer pass viability checks after threshold changes
+     * @param total                  total questions processed (unlocked)
+     * @param updated                questions whose difficulty score, viability, or daily eligibility changed
+     * @param reExcluded             questions newly set to {@code status = 'excluded'}
+     * @param dailyEligibilityChanged questions whose {@code suitable_for_daily} flag changed
      */
-    public record RecalibrationResult(int total, int updated, int reExcluded) {}
+    public record RecalibrationResult(int total, int updated, int reExcluded, int dailyEligibilityChanged) {}
 }

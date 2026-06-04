@@ -94,6 +94,9 @@ public class QuestionResponse {
      */
     private boolean difficultyLocked;
 
+    /** Whether this question is eligible to appear in daily challenges. Derived automatically during recalibration. */
+    private boolean suitableForDaily;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
