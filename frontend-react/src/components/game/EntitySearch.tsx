@@ -181,7 +181,7 @@ export default function EntitySearch({
               <button
                 onMouseDown={(e) => { e.preventDefault(); selectEntity(entity); }}
                 data-active={activeIndex === idx ? "1" : "0"}
-                className={`ta-opt w-full text-left grid grid-cols-[1fr_auto] gap-4 items-center px-5.5 py-3 bg-transparent border-0 border-b border-white border-dashed last:border-b-0 cursor-pointer transition-colors ${
+                className={`ta-opt w-full text-left grid grid-cols-[1fr_auto] gap-4 items-center px-5.5 py-3 bg-transparent border-0 border-b border-white border-dashed last:border-b-0 cursor-pointer transition-colors active:bg-[#00008c] ${
                   activeIndex === idx ? 'bg-[#00008c]' : 'hover:bg-[#00008c]'
                 }`}
               >

@@ -1,5 +1,6 @@
 package com.trivia501.controller;
 
+import com.trivia501.dto.AnswerDebugResponse;
 import com.trivia501.dto.DailyChallengeShareResponse;
 import com.trivia501.dto.DailyChallengeStatusResponse;
 import com.trivia501.dto.GameHints;
@@ -8,6 +9,7 @@ import com.trivia501.dto.MoveDto;
 import com.trivia501.dto.SubmitAnswerRequest;
 import com.trivia501.dto.SubmitAnswerResponse;
 import com.trivia501.model.*;
+import com.trivia501.repository.AnswerRepository;
 import com.trivia501.repository.CategoryRepository;
 import com.trivia501.service.DailyChallengeService;
 import com.trivia501.service.GameHintsService;
@@ -38,6 +40,7 @@ public class DailyChallengeController {
     private final GameHintsService gameHintsService;
     private final CategoryRepository categoryRepository;
     private final com.trivia501.service.PlayerProfileService playerProfileService;
+    private final AnswerRepository answerRepository;
 
     public DailyChallengeController(
             DailyChallengeService dailyChallengeService,
@@ -46,7 +49,8 @@ public class DailyChallengeController {
             QuestionService questionService,
             GameHintsService gameHintsService,
             CategoryRepository categoryRepository,
-            com.trivia501.service.PlayerProfileService playerProfileService
+            com.trivia501.service.PlayerProfileService playerProfileService,
+            AnswerRepository answerRepository
     ) {
         this.dailyChallengeService = dailyChallengeService;
         this.gameService = gameService;
@@ -55,6 +59,7 @@ public class DailyChallengeController {
         this.gameHintsService = gameHintsService;
         this.categoryRepository = categoryRepository;
         this.playerProfileService = playerProfileService;
+        this.answerRepository = answerRepository;
     }
 
     /**
@@ -282,6 +287,28 @@ public class DailyChallengeController {
                 .isWin(isWin)
                 .moveEmojis(emojis)
                 .build());
+    }
+
+    /**
+     * Debug endpoint: returns all answers for the game's question.
+     */
+    @GetMapping("/games/{gameId}/answers")
+    public ResponseEntity<List<AnswerDebugResponse>> getGameAnswers(
+        @PathVariable UUID gameId,
+        Principal principal
+    ) {
+        UUID playerId = playerIdFrom(principal);
+        Game game = gameService.getGameById(gameId).orElse(null);
+        if (game == null) return ResponseEntity.notFound().build();
+
+        return ResponseEntity.ok(
+            answerRepository.findByQuestionIdOrderByScoreDesc(game.getQuestionId())
+                .stream()
+                .map(a -> new AnswerDebugResponse(
+                    a.getId(), a.getDisplayText(), a.getScore(),
+                    a.getIsValidDarts(), a.getIsBust()))
+                .toList()
+        );
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

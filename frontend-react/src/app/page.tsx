@@ -264,6 +264,8 @@ export default function GamePage() {
         flashVersion={flashVersion}
         onShare={gameType === "daily-challenge" ? handleShare : undefined}
         sharing={sharing}
+        gameId={gameId}
+        debugGameType={gameType}
       />
       {popup && (
         <AnimatedScorePopup

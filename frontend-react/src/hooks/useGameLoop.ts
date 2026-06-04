@@ -96,6 +96,8 @@ export interface GameLoopState {
   gameType: GameType;
   /** The active game ID, null when no game is active. */
   gameId: string | null;
+  /** The current question ID, used by debug tools to fetch all answers. */
+  questionId: string | null;
 }
 
 export interface GameLoopActions {
@@ -143,6 +145,8 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
   // Internal game ID used to address subsequent move submissions
   const [gameId, setGameId] = useState<string | null>(null);
+  // Question ID for debug tooling
+  const [questionId, setQuestionId] = useState<string | null>(null);
 
   /** Returns the API base path for the current game type. */
   function apiBase(): string {
@@ -180,6 +184,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
       })
       .then((game) => {
         setGameId(game.gameId);
+        setQuestionId(game.questionId ?? null);
         setScore(game.currentScore);
         setQuestion(game.questionText);
         setTurnCount(game.turnCount ?? 0);
@@ -247,6 +252,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
       const game = await res.json();
       setGameId(game.gameId);
+      setQuestionId(game.questionId ?? null);
       setScore(game.currentScore);
       setQuestion(game.questionText);
       setTurnCount(0);
@@ -291,6 +297,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
       const game = await res.json();
       setGameId(game.gameId);
+      setQuestionId(game.questionId ?? null);
       setScore(game.currentScore);
       setQuestion(game.questionText);
       setTurnCount(0);
@@ -383,6 +390,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
     clearSavedGameState();
     setGameStatus("NOT_STARTED");
     setGameId(null);
+    setQuestionId(null);
     document.body.classList.remove("theme-teletext");
     document.body.classList.add("theme-home");
   }
@@ -404,6 +412,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
     popup,
     gameType,
     gameId,
+    questionId,
     onPopupComplete: handlePopupComplete,
     startNewGame,
     startDailyChallenge,

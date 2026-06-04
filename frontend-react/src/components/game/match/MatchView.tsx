@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import EntitySearch from '../EntitySearch';
 import HowToPlayPanel from '../HowToPlayPanel';
+import DebugPanel from '../DebugPanel';
 import LoginButton from '@/components/auth/LoginButton';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
@@ -51,6 +52,10 @@ interface MatchViewProps {
   onShare?: () => void;
   /** True while a share copy operation is in progress. */
   sharing?: boolean;
+  /** Current game ID, used by DebugPanel to fetch all answers. */
+  gameId?: string | null;
+  /** Current game type, used by DebugPanel to route API calls. */
+  debugGameType?: "solo" | "daily-challenge";
 }
 
 export default function MatchView({
@@ -70,6 +75,8 @@ export default function MatchView({
   flashVersion = 0,
   onShare,
   sharing = false,
+  gameId = null,
+  debugGameType = "solo",
 }: MatchViewProps) {
   const [staged, setStaged] = useState<StagedAnswer | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -221,7 +228,7 @@ export default function MatchView({
             <button
               onClick={handleThrowDart}
               disabled={!staged || disabled}
-              className="throw-btn border-2 border-tele-danger text-tele-danger px-6 py-3 text-[28px] tracking-widest font-vt323 transition-colors hover:bg-tele-danger hover:text-black disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-tele-danger"
+              className="throw-btn border-2 border-tele-danger text-tele-danger px-6 py-3 text-[28px] tracking-widest font-vt323 transition-all duration-150 hover:bg-white hover:text-black hover:border-white disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-tele-danger disabled:hover:border-tele-danger"
             >
               THROW DART →
             </button>
@@ -325,6 +332,9 @@ export default function MatchView({
         onConfirm={() => { setShowExitConfirm(false); onExit(); }}
         onCancel={() => setShowExitConfirm(false)}
       />
+
+      {/* ── Debug Panel (Ctrl+Shift+D) ────────────────────────────────────────── */}
+      <DebugPanel gameId={gameId} gameType={debugGameType} />
     </div>
   );
 }
