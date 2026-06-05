@@ -1,5 +1,6 @@
 package com.trivia501.controller;
 
+import com.trivia501.dto.EntityCacheEntry;
 import com.trivia501.dto.PlayerSearchResponse;
 import com.trivia501.model.EntityType;
 import com.trivia501.service.EntitySearchService;
@@ -51,6 +52,17 @@ public class EntityController {
      * @param query at least 4 characters; may contain or omit accents
      * @return up to 10 matching entity display names
      */
+    /**
+     * Returns the full entity list for a given type, for client-side caching.
+     * Called once per game session per entity type; the client filters locally
+     * on every keystroke after that, eliminating per-keystroke API calls.
+     */
+    @GetMapping("/all")
+    public ResponseEntity<List<EntityCacheEntry>> all(
+            @RequestParam(defaultValue = DEFAULT_ENTITY_TYPE) String type) {
+        return ResponseEntity.ok(entitySearchService.getAll(type));
+    }
+
     @GetMapping("/search")
     public ResponseEntity<List<PlayerSearchResponse>> search(
             @RequestParam(defaultValue = DEFAULT_ENTITY_TYPE) String type,

@@ -20,4 +20,9 @@ public class StartSoloGameRequest {
     private String categorySlug;
 
     private Integer difficulty;
+
+    private Integer startingScore;
+
+    /** Optional football-specific question filter. When present, overrides random question selection. */
+    private FootballFilter footballFilter;
 }

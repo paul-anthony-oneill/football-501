@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getFlagEmoji, formatNationality } from "@/utils/country";
-import { apiFetch } from "@/lib/api/client";
+import {
+  loadEntityCache,
+  getEntityCacheSync,
+  searchEntities,
+  type CachedEntity,
+} from "@/lib/api/entityCache";
 
 interface EntitySuggestion {
   id: string;
   name: string;
-  /** Hint shown alongside the name (e.g. country code rendered as a flag emoji). */
   nationality: string;
 }
 
@@ -28,17 +32,9 @@ interface EntitySearchProps {
 /**
  * Autocomplete input for named-entity answers.
  *
- * - Fires after 4 characters to avoid overly broad early results.
- * - Shows "Keep typing…" hint at 1–3 characters so the player knows
- *   suggestions are coming.
- * - Clicking a suggestion, or pressing Enter (snaps to first if none highlighted),
- *   calls onSelect and clears the input. Submission is handled by the parent.
- * - Accent-insensitive: typing "aguero" surfaces "Sergio Agüero".
- *
- * The search hits GET /api/entities/search?type={entityType}&query={query},
- * which queries the global `entities` table — NOT the `answers` table for
- * the current question.  A name appearing in the dropdown tells the player
- * nothing about whether it is a valid answer.
+ * Loads all entities for the active type once on mount and filters client-side
+ * on every keystroke — no per-keystroke API calls, no rate-limit pressure.
+ * Falls back to an async fetch path while the cache is still loading.
  */
 export default function EntitySearch({
   entityType = "footballer",
@@ -56,27 +52,24 @@ export default function EntitySearch({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const fetchSuggestions = useCallback(
-    async (query: string) => {
-      setLoading(true);
-      try {
-        const res = await apiFetch(
-          `/api/entities/search?type=${encodeURIComponent(entityType)}&query=${encodeURIComponent(query)}`
-        );
-        if (res.ok) {
-          const data: EntitySuggestion[] = await res.json();
-          setSuggestions(data);
-          setShowSuggestions(data.length > 0);
-          setActiveIndex(-1);
-        }
-      } catch (err) {
-        console.error("Error fetching entity suggestions:", err);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [entityType]
-  );
+  // Warm the cache as soon as the component mounts so it's ready before typing starts.
+  useEffect(() => {
+    loadEntityCache(entityType);
+  }, [entityType]);
+
+  function applyResults(results: CachedEntity[]) {
+    setSuggestions(results.map((e) => ({ id: e.id, name: e.name, nationality: e.nationality ?? "" })));
+    setShowSuggestions(results.length > 0);
+    setNoMatch(results.length === 0);
+    setActiveIndex(-1);
+    setLoading(false);
+  }
+
+  async function fetchSuggestionsAsync(query: string) {
+    setLoading(true);
+    const entities = await loadEntityCache(entityType);
+    applyResults(searchEntities(entities, query));
+  }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
@@ -91,16 +84,19 @@ export default function EntitySearch({
       return;
     }
 
-    debounceRef.current = setTimeout(() => {
-      fetchSuggestions(val);
-    }, 300);
+    // Synchronous path — cache already loaded, no debounce needed
+    const cached = getEntityCacheSync(entityType);
+    if (cached) {
+      applyResults(searchEntities(cached, val));
+      return;
+    }
+
+    // Async path — first load still in flight, debounce to avoid hammering
+    debounceRef.current = setTimeout(() => fetchSuggestionsAsync(val), 300);
   }
 
-  // Cleanup debounce timer on unmount
   useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, []);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -108,14 +104,11 @@ export default function EntitySearch({
       e.preventDefault();
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (showSuggestions && suggestions.length > 0) {
-        // Snap to first item if nothing is highlighted, then select
         const idx = activeIndex >= 0 ? activeIndex : 0;
-        selectEntity(suggestions[idx]);
+        selectSuggestion(suggestions[idx]);
       } else if (!showSuggestions && value.trim().length >= 4) {
-        // Typed something but no suggestions came back
         setNoMatch(true);
       }
-      // If <4 chars, the "Keep typing" hint already guides the user — do nothing
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       if (!showSuggestions && suggestions.length > 0) setShowSuggestions(true);
@@ -128,7 +121,7 @@ export default function EntitySearch({
     }
   }
 
-  function selectEntity(entity: EntitySuggestion) {
+  function selectSuggestion(entity: EntitySuggestion) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setValue("");
     setSuggestions([]);
@@ -140,7 +133,6 @@ export default function EntitySearch({
   }
 
   function handleBlur() {
-    // Delay so a mousedown on a suggestion fires before the blur hides the list.
     setTimeout(() => setShowSuggestions(false), 200);
   }
 
@@ -160,15 +152,19 @@ export default function EntitySearch({
         aria-label="Search player name"
       />
 
-      {/* Hint shown while typing 1–3 characters */}
       {value.length > 0 && value.length < 4 && (
         <p className="mt-1 text-xs text-tele-cyan px-1 opacity-80">
           Keep typing for suggestions…
         </p>
       )}
 
-      {/* No-match hint — shown when ≥4 chars typed but no results */}
-      {noMatch && value.length >= 4 && (
+      {loading && value.length >= 4 && (
+        <p className="mt-1 text-xs text-tele-cyan px-1 opacity-80">
+          Loading…
+        </p>
+      )}
+
+      {noMatch && !loading && value.length >= 4 && (
         <p className="mt-1 text-xs text-tele-danger px-1">
           No match — try a different spelling
         </p>
@@ -179,10 +175,10 @@ export default function EntitySearch({
           {suggestions.map((entity, idx) => (
             <li key={entity.id}>
               <button
-                onMouseDown={(e) => { e.preventDefault(); selectEntity(entity); }}
+                onMouseDown={(e) => { e.preventDefault(); selectSuggestion(entity); }}
                 data-active={activeIndex === idx ? "1" : "0"}
                 className={`ta-opt w-full text-left grid grid-cols-[1fr_auto] gap-4 items-center px-5.5 py-3 bg-transparent border-0 border-b border-white border-dashed last:border-b-0 cursor-pointer transition-colors active:bg-[#00008c] ${
-                  activeIndex === idx ? 'bg-[#00008c]' : 'hover:bg-[#00008c]'
+                  activeIndex === idx ? "bg-[#00008c]" : "hover:bg-[#00008c]"
                 }`}
               >
                 <span className="ta-opt-name text-white text-[22px] tracking-wide overflow-hidden text-ellipsis whitespace-nowrap">

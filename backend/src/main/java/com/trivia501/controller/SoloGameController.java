@@ -1,6 +1,7 @@
 package com.trivia501.controller;
 
 import com.trivia501.dto.AnswerDebugResponse;
+import com.trivia501.dto.FootballFilter;
 import com.trivia501.dto.GameHints;
 import com.trivia501.dto.GameStateResponse;
 import com.trivia501.dto.MoveDto;
@@ -120,7 +121,19 @@ public class SoloGameController {
             request.getDifficulty()
         );
 
-        MatchService.GameStartRecord startRecord = matchService.startNextGame(match);
+        int startingScore = request.getStartingScore() != null ? request.getStartingScore() : 501;
+
+        // If a football filter is supplied, resolve it to a specific question now.
+        // startNextGame uses this pre-selected question instead of picking randomly.
+        FootballFilter filter = request.getFootballFilter();
+        if (filter != null && filter.getScope() != null) {
+            log.debug("Football filter supplied: scope={}, league={}, club={}, stat={}",
+                filter.getScope(), filter.getLeague(), filter.getClub(), filter.getStatType());
+        }
+
+        MatchService.GameStartRecord startRecord = filter != null && filter.getScope() != null
+            ? matchService.startNextGameWithFilter(match, startingScore, filter)
+            : matchService.startNextGame(match, startingScore);
         Game game = startRecord.game();
         Question question = startRecord.question();
 

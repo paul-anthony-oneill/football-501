@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/context/ToastContext";
 import { useAnimatedScore } from "@/hooks/useAnimatedScore";
 import { apiFetch } from "@/lib/api/client";
+import type { FootballFilter } from "@/lib/api/footballApi";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,7 +105,7 @@ export interface GameLoopActions {
   /** The current game type (solo or daily-challenge). */
   gameType: GameType;
   /** Start a new solo game for the given category slug. */
-  startNewGame: (categorySlug: string, label: string) => Promise<void>;
+  startNewGame: (categorySlug: string, label: string, targetScore?: number, footballFilter?: FootballFilter) => Promise<void>;
   /** Start a daily challenge game for the given category slug. */
   startDailyChallenge: (categorySlug: string, label: string) => Promise<void>;
   /** Submit an answer for the current game turn. */
@@ -227,7 +228,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
     apiFetch(`${apiBase()}/games/${gameId}/abandon`, { method: "POST" }).catch(() => {});
   }
 
-  async function startNewGame(categorySlug: string, label: string) {
+  async function startNewGame(categorySlug: string, label: string, targetScore?: number, footballFilter?: FootballFilter) {
     setGameType("solo");
     await abandonCurrentGame();
     clearSavedGameState();
@@ -235,7 +236,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
       const res = await apiFetch(`${apiBase()}/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categorySlug }),
+        body: JSON.stringify({ categorySlug, startingScore: targetScore, footballFilter }),
       });
 
       if (!res.ok) {

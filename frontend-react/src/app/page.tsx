@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import LobbyView from "@/components/game/lobby/LobbyView";
 import MatchView from "@/components/game/match/MatchView";
@@ -9,22 +9,12 @@ import { useGameLoop, getSavedLabel } from "@/hooks/useGameLoop";
 import { useDailyChallenge } from "@/hooks/useDailyChallenge";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
-import { CATEGORIES } from "@/lib/questionHierarchy";
 import { apiFetch } from "@/lib/api/client";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface LobbyCategory {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  theme?: string;
-}
+import type { FootballFilter } from "@/lib/api/footballApi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Extract the top-level category slug from a hierarchical path like "football:premier-league:goals:man-city" */
+/** Extract the top-level category slug from a hierarchical path like "football:premier-league" */
 function rootSlug(pathSlug: string): string {
   return pathSlug.split(":")[0] ?? pathSlug;
 }
@@ -86,19 +76,6 @@ export default function GamePage() {
   // Share state
   const [sharing, setSharing] = useState(false);
 
-  // Flatten the static hierarchy for the lobby card grid
-  const lobbyCategories: LobbyCategory[] = useMemo(
-    () =>
-      CATEGORIES.map((c) => ({
-        id: c.id,
-        name: c.name,
-        slug: c.id,
-        description: c.description,
-        theme: c.theme,
-      })),
-    [],
-  );
-
   // Lobby state — default player name from Google profile when signed in
   const [playerName, setPlayerName] = useState(
     () => user?.user_metadata?.full_name || "GUEST_PLAYER",
@@ -111,7 +88,6 @@ export default function GamePage() {
     }
   }, [user]);
 
-  const [gameMode, setGameMode] = useState<"solo" | "ranked">("solo");
   // Track the last selection so we can replay and display in MatchView.
   // On mount, try to recover the label from a saved game (refresh recovery).
   const [lastSlug, setLastSlug] = useState(() => getSavedLabel() ?? "football");
@@ -122,13 +98,10 @@ export default function GamePage() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
-  const handleStartGame = async (slug: string, label: string) => {
+  const handleStartGame = async (slug: string, label: string, targetScore: number, footballFilter?: FootballFilter) => {
     setLastSlug(slug);
     setLastLabel(label);
-    // For now we pass the root category slug to the backend, which matches
-    // the flat /api/categories structure. The full hierarchical path is
-    // preserved in lastSlug/lastLabel for when the backend supports it.
-    await startNewGame(rootSlug(slug), label);
+    await startNewGame(rootSlug(slug), label, targetScore, footballFilter);
   };
 
   const handleStartTestGame = async () => {
@@ -227,14 +200,11 @@ export default function GamePage() {
       <>
         {authRedirect}
         <LobbyView
-          categories={lobbyCategories}
           onStartGame={handleStartGame}
           onStartDailyChallenge={handleStartDailyChallenge}
           onStartTestGame={handleStartTestGame}
           playerName={playerName}
           onPlayerNameChange={setPlayerName}
-          gameMode={gameMode}
-          onGameModeChange={setGameMode}
           dailyChallenges={dailyChallenges}
           dailyLoading={dailyLoading}
         />

@@ -189,6 +189,29 @@ public class Question {
     @Builder.Default
     private boolean suitableForDaily = false;
 
+    // ── Football template columns (V24) ───────────────────────────────────────
+    // Populated by the Python materialiser for structured football questions.
+    // NULL on all non-football and hand-curated questions.
+
+    /** "league" or "club". NULL for non-football/hand-curated questions. */
+    @Column(name = "q_scope", length = 20)
+    private String qScope;
+
+    /** League slug, e.g. "premier-league". */
+    @Column(name = "q_league", length = 50)
+    private String qLeague;
+
+    /** Club slug, e.g. "arsenal". NULL for league-scope questions. */
+    @Column(name = "q_club", length = 50)
+    private String qClub;
+
+    /**
+     * Stat type slug. One of: goals | assists | appearances |
+     * goals_assists | goals_appearances | assists_appearances | goals_assists_appearances.
+     */
+    @Column(name = "q_stat", length = 50)
+    private String qStat;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

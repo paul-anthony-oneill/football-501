@@ -194,9 +194,9 @@ public class QuestionService {
                         : league != null ? questionRepository.findRandomFootballClubInLeague(league)
                         : questionRepository.findRandomFootballAnyQuestion();
                 } else {
-                    Optional<Question> any = questionRepository.findRandomFootballLeagueQuestion();
-                    yield any.isPresent() ? any
-                        : league != null ? questionRepository.findRandomFootballClubInLeague(league)
+                    yield league != null
+                        ? questionRepository.findRandomFootballLeagueQuestionInLeague(league)
+                            .or(() -> questionRepository.findRandomFootballClubInLeague(league))
                         : questionRepository.findRandomFootballAnyQuestion();
                 }
             }

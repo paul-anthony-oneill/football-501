@@ -218,6 +218,104 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
         @Param("maxScore")      double maxScore
     );
 
+    // ── Football template lookups (V24 columns) ───────────────────────────────
+
+    /** Exact club-scope question lookup. Returns the one canonical question for this combination. */
+    @Query("""
+        SELECT q FROM Question q
+        WHERE q.qScope  = 'club'
+          AND q.qLeague = :league
+          AND q.qClub   = :club
+          AND q.qStat   = :statType
+          AND q.status  = 'active'
+        """)
+    Optional<Question> findFootballClubQuestion(
+        @Param("league")   String league,
+        @Param("club")     String club,
+        @Param("statType") String statType
+    );
+
+    /** Exact league-scope question lookup (no club). */
+    @Query("""
+        SELECT q FROM Question q
+        WHERE q.qScope  = 'league'
+          AND q.qLeague = :league
+          AND q.qStat   = :statType
+          AND q.status  = 'active'
+        """)
+    Optional<Question> findFootballLeagueQuestion(
+        @Param("league")   String league,
+        @Param("statType") String statType
+    );
+
+    /** Random club-scope question for a specific club (any stat type). */
+    @Query("""
+        SELECT q FROM Question q
+        WHERE q.qScope  = 'club'
+          AND q.qLeague = :league
+          AND q.qClub   = :club
+          AND q.status  = 'active'
+        ORDER BY function('random')
+        LIMIT 1
+        """)
+    Optional<Question> findRandomFootballClubQuestion(
+        @Param("league") String league,
+        @Param("club")   String club
+    );
+
+    /** Random club-scope question from any club in a given league. */
+    @Query("""
+        SELECT q FROM Question q
+        WHERE q.qScope  = 'club'
+          AND q.qLeague = :league
+          AND q.status  = 'active'
+        ORDER BY function('random')
+        LIMIT 1
+        """)
+    Optional<Question> findRandomFootballClubInLeague(@Param("league") String league);
+
+    /** Random league-scope question for a specific league (any stat). */
+    @Query("""
+        SELECT q FROM Question q
+        WHERE q.qScope  = 'league'
+          AND q.qLeague = :league
+          AND q.status  = 'active'
+        ORDER BY function('random')
+        LIMIT 1
+        """)
+    Optional<Question> findRandomFootballLeagueQuestionInLeague(@Param("league") String league);
+
+    /** Random league-scope question (any league, any stat). */
+    @Query("""
+        SELECT q FROM Question q
+        WHERE q.qScope = 'league'
+          AND q.status = 'active'
+        ORDER BY function('random')
+        LIMIT 1
+        """)
+    Optional<Question> findRandomFootballLeagueQuestion();
+
+    /** Random from all football template questions (club or league scope, any stat). */
+    @Query("""
+        SELECT q FROM Question q
+        WHERE q.qScope IS NOT NULL
+          AND q.status = 'active'
+        ORDER BY function('random')
+        LIMIT 1
+        """)
+    Optional<Question> findRandomFootballAnyQuestion();
+
+    /** Returns distinct club slugs that have at least one active question for the given league. */
+    @Query(value = """
+        SELECT DISTINCT q_club FROM questions
+        WHERE q_scope  = 'club'
+          AND q_league = :league
+          AND status   = 'active'
+          AND q_club   IS NOT NULL
+        ORDER BY q_club
+        """, nativeQuery = true)
+    List<String> findDistinctClubsByLeague(@Param("league") String league);
+
     // ── Counts ────────────────────────────────────────────────────────────────
 
     boolean existsByCategoryIdAndSuitableForDailyTrueAndStatus(UUID categoryId, String status);
@@ -233,4 +331,7 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
      * @param status     lifecycle status string (e.g. {@code "draft"}, {@code "active"})
      */
     long countByTemplateIdAndStatus(UUID templateId, String status);
+
+    org.springframework.data.domain.Page<Question> findByTemplateIdAndStatus(
+        UUID templateId, String status, org.springframework.data.domain.Pageable pageable);
 }
