@@ -1,6 +1,6 @@
 # Trivia 501 — Backlog & Future Work
 
-**Last updated**: 2026-06-01  
+**Last updated**: 2026-06-04 (V28 migration)  
 **Purpose**: Living document capturing all deferred work, stretch goals, and improvement ideas regardless of size or urgency. Update this whenever a decision is made to defer something, or when a backlog item is completed or abandoned.
 
 ---
@@ -14,6 +14,16 @@
 | **P2 — Stretch Goal** | Designed and documented; not being built until core is stable |
 | **Guardrail** | Small cheap schema/code decision to make now so a future item stays open |
 | **Parked** | Explicitly deferred; revisit when the reason for deferral no longer applies |
+
+---
+
+## Recently Completed
+
+| Item | Migration/PR | Notes |
+|---|---|---|
+| Clean per-season football questions from DB | V28 | Deleted all `football.team_competition_season_metric` questions + answers + dependent rows; deactivated V11 templates. |
+| Fix league-level question metadata | V28 | Backfilled `q_scope='league'`, `q_league`, `q_stat` on V12 `player_competition_metric_since` questions so `findRandomFootballLeagueQuestion()` can surface them. Set `q_scope='career'` on career questions. |
+| Add league-scope Appearances, Goals+Appearances, Assists+Appearances questions | V30 | Seeded 3 new `player_competition_metric_since` templates; created one question per tier-1 domestic league; materialized answers and difficulty metrics inline. |
 
 ---
 
@@ -142,6 +152,12 @@ Fully designed but not being implemented until the core game is stable and has r
 | **Tournament/League** | Low | Brackets or league tables over multiple games. |
 | **Expert Challenge** | Low | Questions with `difficulty_score > 8.5` excluded from standard play; surfaced here. |
 
+### Football: league-scope questions for "Random League Question" option
+- **What**: All current football questions are `q_scope = 'club'` (tied to a specific team). A "league-scope" question would ask about the whole league (e.g. "Top scorers in the Premier League since 2000" — valid answers are any player from any club in that league). The lobby had a "Random League Question" option that fell back to club questions when none existed, causing confusion. The option has been replaced with a single "Random Question" entry that uses `scope: random_any` until league-scope questions are added.
+- **Why deferred**: Requires a new question template (`football.competition_metric_since` without a `team_id` param), a new materializer variant that aggregates across all teams in a competition, and new DB migrations to seed these questions.
+- **When to pick up**: After the core game loop is stable and the scraper service is running. The lobby entry in `FootballScreen` can be restored with `scope: "random_league_level"` once `findRandomFootballLeagueQuestion()` returns results.
+- **Files**: `LobbyView.tsx` (FootballScreen), `QuestionService.java:206-209`, `QuestionRepository.java:278-285`, `FootballFilter.java`, `V24__add_football_question_template_columns.sql`.
+
 ---
 
 ## Admin & Data
@@ -182,5 +198,7 @@ Items that only become relevant once the game has real traffic.
 | Game UI reads question from game state | bf2f57a | `useGameLoop` sets question from API response; `MatchView` receives it as a prop — not hardcoded |
 | Autocomplete: cancel debounce on submit, auto-submit on selection, fix focus on click | (current) | `selectEntity` clears debounce + calls `onSelect`; Enter path cancels stale timer; `onMouseDown` uses `preventDefault` to keep focus on input |
 | Daily Challenge mode (Wordle-style) | (current) | One challenge per category per day, variable starting scores (101–501), emoji-grid sharing, lazy creation + midnight cron. V19 schema + V20 data backfill. No leaderboards/replay enforcement — trust-based. |
+| Lobby redesign: target score toggle + category flow | (current) | Two-column layout; 501/301/101/RND toggle drives `startingScore` POST param; Football 2-step (Random / Select League → 5 leagues); other categories 1-click start. `questionHierarchy.ts` and `CategoryPopup.tsx` are now unused — deferred cleanup. |
+| Football question hierarchy + structured filter | (current) | V24 migration (q_scope/q_league/q_club/q_stat + unique index); FootballFilter DTO; 6 new repo query methods; QuestionService.selectQuestionByFilter; FootballController GET /api/football/clubs; SecurityConfig /api/football/** permitAll; LobbyView 4-screen navStack (root→football→league→club) with slide animations + DB-driven club list + stat type picker (7 stat types). V25 backfill migration for q_* columns on existing questions. V26 seeds 4 combined-stat templates. FootballTeamCompetitionMetricSinceMaterializer extended with goals_assists/goals_appearances/assists_appearances/goals_assists_appearances. QuestionGeneratorService now populates q_* columns on new draft questions. |
 | Guardrails: `game_mode` on matches, `suitable_for_daily` on questions | (current) | V19 migration. `game_mode` defaults to `'STANDARD'`; `suitable_for_daily` backfilled for viable easy/medium questions. |
 | Geography + Film category seed data (CSV-based Java migrations) | (current) | V21/V22: Replaced ~12K lines of hardcoded SQL INSERTs with CSV data files (`db/data/*.csv`) loaded by `BaseJavaMigration` subclasses. Pattern is now standard for new category seeding. `.gitignore` updated: `!**/db/data/*.csv`. |
