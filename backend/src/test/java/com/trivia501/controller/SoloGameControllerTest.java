@@ -5,6 +5,7 @@ import com.trivia501.dto.StartSoloGameRequest;
 import com.trivia501.dto.SubmitAnswerRequest;
 import com.trivia501.model.*;
 import com.trivia501.security.DevModeAuthFilter;
+import com.trivia501.repository.AnswerRepository;
 import com.trivia501.service.GameHintsService;
 import com.trivia501.service.GameService;
 import com.trivia501.service.MatchService;
@@ -79,6 +80,9 @@ class SoloGameControllerTest {
      * {@code JpaMetamodelMappingContext} bean that Spring Data JPA auditing
      * requires must be provided as a mock.
      */
+    @MockitoBean
+    private AnswerRepository answerRepository;
+
     @MockitoBean
     private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
@@ -163,7 +167,7 @@ class SoloGameControllerTest {
         when(matchService.createMatch(eq(playerId), isNull(), eq(categoryId),
             eq(Match.MatchType.CASUAL), eq(Match.MatchFormat.BEST_OF_1), isNull()))
             .thenReturn(match);
-        when(matchService.startNextGame(match))
+        when(matchService.startNextGame(match, 501))
             .thenReturn(new MatchService.GameStartRecord(game, question));
         when(gameHintsService.computeHintsFromCache(eq(questionId), eq(List.of()), eq(501))).thenReturn(STUB_HINTS);
 
@@ -385,7 +389,7 @@ class SoloGameControllerTest {
         when(matchService.createMatch(eq(playerId), isNull(), eq(categoryId),
             eq(Match.MatchType.CASUAL), eq(Match.MatchFormat.BEST_OF_1), isNull()))
             .thenReturn(match);
-        when(matchService.startNextGame(match))
+        when(matchService.startNextGame(match, 501))
             .thenReturn(new MatchService.GameStartRecord(game, question));
         when(gameHintsService.computeHintsFromCache(eq(questionId), eq(List.of()), eq(501))).thenReturn(STUB_HINTS);
 

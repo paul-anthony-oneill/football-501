@@ -33,7 +33,6 @@ const STAT_TYPES = [
 ] as const;
 
 const OTHER_CATEGORIES = [
-  { id: "music",     name: "Music",     description: "Album sales, charts & awards",       color: "#f43f5e" },
   { id: "film",      name: "Film",      description: "Worldwide box office hits",           color: "#f59e0b" },
   { id: "geography", name: "Geography", description: "Populations, capitals & world facts", color: "#3b82f6" },
 ];
