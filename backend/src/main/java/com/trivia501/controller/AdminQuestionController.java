@@ -4,6 +4,7 @@ import com.trivia501.dto.admin.CreateQuestionRequest;
 import com.trivia501.dto.admin.DifficultyLockRequest;
 import com.trivia501.dto.admin.QuestionListResponse;
 import com.trivia501.dto.admin.QuestionResponse;
+import com.trivia501.dto.admin.SuitableForDailyRequest;
 import com.trivia501.dto.admin.UpdateQuestionRequest;
 import com.trivia501.dto.admin.UpdateStatusRequest;
 import com.trivia501.service.DifficultyRecalibrationService;
@@ -183,6 +184,14 @@ public class AdminQuestionController {
      * <p>Useful when the formula computes an incorrect score for a specific question
      * (e.g. an unusual stat distribution) and you want to pin a manual value.
      */
+    @PatchMapping("/{id}/suitable-for-daily")
+    public ResponseEntity<QuestionResponse> updateSuitableForDaily(
+            @PathVariable UUID id,
+            @Valid @RequestBody SuitableForDailyRequest request) {
+        log.info("Admin set suitableForDaily={} for question {}", request.getSuitable(), id);
+        return ResponseEntity.ok(adminQuestionService.updateSuitableForDaily(id, request.getSuitable()));
+    }
+
     @PatchMapping("/{id}/difficulty-lock")
     public ResponseEntity<QuestionResponse> lockDifficulty(
             @PathVariable UUID id,

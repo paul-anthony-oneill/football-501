@@ -350,6 +350,16 @@ public class AdminQuestionService {
         return mapToResponse(saved);
     }
 
+    @Transactional
+    public QuestionResponse updateSuitableForDaily(UUID id, boolean suitable) {
+        Question question = questionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Question not found with id: " + id));
+        question.setSuitableForDaily(suitable);
+        Question saved = questionRepository.save(question);
+        log.info("Question {} suitableForDaily → {}", id, suitable);
+        return mapToResponse(saved);
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private QuestionResponse mapToResponse(Question question) {

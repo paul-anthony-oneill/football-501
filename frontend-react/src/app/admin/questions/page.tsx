@@ -13,17 +13,29 @@ import { useToast } from "@/context/ToastContext";
 type QuestionRow = Question & { difficultyLabel: string; statusLabel: string };
 
 const statusBadgeClass: Record<QuestionStatus, string> = {
-  draft:   "bg-[rgba(156,163,175,0.15)] text-[#9ca3af] border-[#9ca3af]",
-  active:  "bg-[rgba(74,222,128,0.1)]  text-[#4ade80] border-[#4ade80]",
-  retired: "bg-[rgba(239,68,68,0.1)]   text-[#ef4444] border-[#ef4444]",
+  draft:    "bg-[rgba(156,163,175,0.15)] text-[#9ca3af] border-[#9ca3af]",
+  active:   "bg-[rgba(74,222,128,0.1)]  text-[#4ade80] border-[#4ade80]",
+  retired:  "bg-[rgba(239,68,68,0.1)]   text-[#ef4444] border-[#ef4444]",
+  excluded: "bg-[rgba(251,191,36,0.1)]  text-[#fbbf24] border-[#fbbf24]",
 };
 
+/** Next status to transition to and the button label, given current status. */
+function statusAction(status: QuestionStatus): { label: string; next: QuestionStatus; color: string } | null {
+  switch (status) {
+    case "draft":    return { label: "Activate", next: "active",  color: "#4ade80" };
+    case "active":   return { label: "Retire",   next: "retired", color: "#f97316" };
+    case "retired":  return { label: "Restore",  next: "active",  color: "#60a5fa" };
+    case "excluded": return null;
+  }
+}
+
 const columns = [
-  { key: "questionText",  label: "Question" },
-  { key: "categoryName",  label: "Category" },
+  { key: "questionText",    label: "Question" },
+  { key: "categoryName",    label: "Category" },
   { key: "difficultyLabel", label: "Difficulty" },
-  { key: "answerCount",   label: "Answers" },
-  { key: "statusLabel",   label: "Status" },
+  { key: "answerCount",     label: "Answers" },
+  { key: "statusLabel",     label: "Status" },
+  { key: "suitableForDaily", label: "Daily" },
 ];
 
 const statusOptions = [
@@ -31,6 +43,7 @@ const statusOptions = [
   { value: "draft",    label: "Draft" },
   { value: "active",   label: "Active" },
   { value: "retired",  label: "Retired" },
+  { value: "excluded", label: "Excluded" },
 ];
 
 function difficultyLabel(d: number) {
@@ -52,6 +65,9 @@ export default function QuestionsPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const pageSize = 10;
 
+  // Tracks which question ID has an in-flight mutation (status or daily toggle).
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
   // Filters (held in state; applied only on "Apply Filters")
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
@@ -65,7 +81,7 @@ export default function QuestionsPage() {
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
 
   // Bulk activate
-  const [bulkLimit, setBulkLimit]         = useState(200);
+  const [bulkLimit, setBulkLimit]           = useState(200);
   const [bulkActivating, setBulkActivating] = useState(false);
   const [lastBulkResult, setLastBulkResult] = useState<BulkActivateResult | null>(null);
 
@@ -74,8 +90,8 @@ export default function QuestionsPage() {
       setLoading(true);
       try {
         const res = await adminApi.listQuestions(
-          catId    || undefined,
-          status   || undefined,
+          catId  || undefined,
+          status || undefined,
           page,
           pageSize
         );
@@ -96,14 +112,12 @@ export default function QuestionsPage() {
     [addToast]
   );
 
-  // Load categories once
   useEffect(() => {
     adminApi.listCategories().then(setCategories).catch((err) => {
       addToast((err as Error).message, "error");
     });
   }, [addToast]);
 
-  // Initial load
   useEffect(() => {
     loadQuestions(0, "", "");
   }, [loadQuestions]);
@@ -118,6 +132,38 @@ export default function QuestionsPage() {
   function handlePageChange(page: number) {
     setCurrentPage(page);
     loadQuestions(page, appliedCategory, appliedStatus);
+  }
+
+  async function handleStatusToggle(question: QuestionRow) {
+    const action = statusAction(question.status);
+    if (!action || pendingId) return;
+    setPendingId(question.id);
+    try {
+      await adminApi.updateQuestionStatus(question.id, { status: action.next });
+      addToast(`Question ${action.label.toLowerCase()}d`, "success");
+      loadQuestions(currentPage, appliedCategory, appliedStatus);
+    } catch (err) {
+      addToast((err as Error).message, "error");
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  async function handleDailyToggle(question: QuestionRow) {
+    if (pendingId) return;
+    setPendingId(question.id);
+    try {
+      await adminApi.updateSuitableForDaily(question.id, !question.suitableForDaily);
+      addToast(
+        question.suitableForDaily ? "Removed from daily pool" : "Added to daily pool",
+        "success"
+      );
+      loadQuestions(currentPage, appliedCategory, appliedStatus);
+    } catch (err) {
+      addToast((err as Error).message, "error");
+    } finally {
+      setPendingId(null);
+    }
   }
 
   async function handleBulkActivate() {
@@ -177,7 +223,7 @@ export default function QuestionsPage() {
             <p className="m-0 mt-1 text-xs text-[var(--color-on-surface-variant)]">
               Promotes draft → active and materialises answers from{" "}
               <code className="bg-[#1a1a1a] px-1 rounded">player_season_stints</code>.
-              Run repeatedly until all 11k questions are active.
+              Run repeatedly until all questions are active.
               {lastBulkResult && (
                 <span className="ml-2 text-[var(--color-primary)]">
                   Last run: {lastBulkResult.activated} activated ·{" "}
@@ -215,7 +261,7 @@ export default function QuestionsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4 mb-8 bg-[#2a2a2a] p-4 rounded-lg items-end">
+      <div className="flex gap-4 mb-6 bg-[#2a2a2a] p-4 rounded-lg items-end">
         <div className="flex-1 max-w-[200px]">
           <Select
             label="Category"
@@ -243,8 +289,8 @@ export default function QuestionsPage() {
       </div>
 
       {/* Status legend */}
-      <div className="flex gap-3 mb-4">
-        {(["draft", "active", "retired"] as QuestionStatus[]).map((s) => (
+      <div className="flex gap-3 mb-4 flex-wrap items-center">
+        {(["draft", "active", "retired", "excluded"] as QuestionStatus[]).map((s) => (
           <span
             key={s}
             className={`px-2 py-0.5 rounded text-[0.75rem] font-medium border ${statusBadgeClass[s]}`}
@@ -252,8 +298,8 @@ export default function QuestionsPage() {
             {statusLabel(s)}
           </span>
         ))}
-        <span className="text-[#6b7280] text-[0.75rem] self-center">
-          — new questions start as Draft
+        <span className="text-[#6b7280] text-[0.75rem]">
+          · Daily column: whether question is in the daily challenge pool
         </span>
       </div>
 
@@ -265,24 +311,71 @@ export default function QuestionsPage() {
         pageSize={pageSize}
         currentPage={currentPage}
         onPageChange={handlePageChange}
-        renderActions={(item) => (
-          <>
-            <button
-              onClick={() => router.push(`/admin/questions/${item.id}`)}
-              title="Edit"
-              className="w-10 h-10 flex items-center justify-center bg-[var(--color-surface-variant)] rounded-[var(--radius-sm)] hover:bg-[var(--color-primary-container)] transition-colors"
-            >
-              ✏️
-            </button>
-            <button
-              onClick={() => { setSelectedQuestion(item); setShowDelete(true); }}
-              title="Delete"
-              className="w-10 h-10 flex items-center justify-center bg-[var(--color-surface-variant)] rounded-[var(--radius-sm)] hover:bg-[var(--color-error-container)] transition-colors"
-            >
-              🗑️
-            </button>
-          </>
-        )}
+        renderCell={(key, item) => {
+          if (key === "statusLabel") {
+            return (
+              <span
+                className={`px-2 py-0.5 rounded text-[0.75rem] font-medium border ${statusBadgeClass[item.status]}`}
+              >
+                {item.statusLabel}
+              </span>
+            );
+          }
+          if (key === "suitableForDaily") {
+            return (
+              <button
+                role="switch"
+                aria-checked={item.suitableForDaily}
+                onClick={() => handleDailyToggle(item)}
+                disabled={pendingId === item.id}
+                title={item.suitableForDaily ? "Remove from daily pool" : "Add to daily pool"}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:opacity-40 ${
+                  item.suitableForDaily ? "bg-[var(--color-primary)]" : "bg-[#555]"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    item.suitableForDaily ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            );
+          }
+          return undefined;
+        }}
+        renderActions={(item) => {
+          const action = statusAction(item.status);
+          const isPending = pendingId === item.id;
+          return (
+            <>
+              {action && (
+                <button
+                  onClick={() => handleStatusToggle(item)}
+                  disabled={isPending || !!pendingId}
+                  title={`${action.label} this question`}
+                  style={{ color: action.color, borderColor: action.color }}
+                  className="px-2 py-1 text-[0.7rem] font-semibold rounded border bg-transparent cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-40 whitespace-nowrap"
+                >
+                  {isPending ? "…" : action.label}
+                </button>
+              )}
+              <button
+                onClick={() => router.push(`/admin/questions/${item.id}`)}
+                title="Edit answers & details"
+                className="w-10 h-10 flex items-center justify-center bg-[var(--color-surface-variant)] rounded-[var(--radius-sm)] hover:bg-[var(--color-primary-container)] transition-colors"
+              >
+                ✏️
+              </button>
+              <button
+                onClick={() => { setSelectedQuestion(item); setShowDelete(true); }}
+                title="Delete"
+                className="w-10 h-10 flex items-center justify-center bg-[var(--color-surface-variant)] rounded-[var(--radius-sm)] hover:bg-[var(--color-error-container)] transition-colors"
+              >
+                🗑️
+              </button>
+            </>
+          );
+        }}
       />
 
       <ConfirmDialog

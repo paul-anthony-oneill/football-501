@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 interface Column {
   key: string;
   label: string;
@@ -13,7 +15,12 @@ interface DataTableProps<T extends { id: string }> {
   pageSize?: number;
   currentPage?: number;
   /** Render custom action buttons per row. Receives the row item. */
-  renderActions?: (item: T) => React.ReactNode;
+  renderActions?: (item: T) => ReactNode;
+  /**
+   * Override cell rendering for specific columns.
+   * Return `undefined` to fall back to default string rendering for that cell.
+   */
+  renderCell?: (key: string, item: T) => ReactNode;
   onPageChange?: (page: number) => void;
 }
 
@@ -25,6 +32,7 @@ export default function DataTable<T extends { id: string }>({
   pageSize = 10,
   currentPage = 0,
   renderActions,
+  renderCell,
   onPageChange,
 }: DataTableProps<T>) {
   const totalPages = Math.max(1, Math.ceil(totalElements / pageSize));
@@ -82,11 +90,16 @@ export default function DataTable<T extends { id: string }>({
                 key={item.id}
                 className="border-b border-[var(--color-outline)] hover:bg-[var(--color-surface-variant)]/20 transition-colors"
               >
-                {columns.map((col) => (
-                  <td key={col.key} className="p-4">
-                    {String((item as Record<string, unknown>)[col.key] ?? "")}
-                  </td>
-                ))}
+                {columns.map((col) => {
+                  const custom = renderCell?.(col.key, item);
+                  return (
+                    <td key={col.key} className="p-4">
+                      {custom !== undefined
+                        ? custom
+                        : String((item as Record<string, unknown>)[col.key] ?? "")}
+                    </td>
+                  );
+                })}
                 {showActions && (
                   <td className="p-4">
                     <div className="flex gap-2 justify-end">

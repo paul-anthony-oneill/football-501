@@ -34,6 +34,12 @@ const statusConfig: Record<
     nextStatus:  "active",
     actionLabel: "Re-activate",
   },
+  excluded: {
+    label:       "Excluded",
+    badgeClass:  "bg-[rgba(251,191,36,0.1)] text-[#fbbf24] border-[#fbbf24]",
+    nextStatus:  "draft",
+    actionLabel: "Reset to Draft",
+  },
 };
 
 // ─── Viability helpers ────────────────────────────────────────────────────────

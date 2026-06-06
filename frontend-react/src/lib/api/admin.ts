@@ -140,6 +140,13 @@ class AdminApiClient {
     });
   }
 
+  async updateSuitableForDaily(id: string, suitable: boolean): Promise<Question> {
+    return this.request<Question>(`/questions/${id}/suitable-for-daily`, {
+      method: "PATCH",
+      body: JSON.stringify({ suitable }),
+    });
+  }
+
   async deleteQuestion(id: string): Promise<void> {
     return this.request<void>(`/questions/${id}`, { method: "DELETE" });
   }
