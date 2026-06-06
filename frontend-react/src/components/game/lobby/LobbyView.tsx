@@ -131,7 +131,15 @@ export default function LobbyView({
             The Trivia Darts Championship
           </span>
         </div>
-        <LoginButton />
+        <div className="flex items-center gap-3">
+          <a
+            href="/admin"
+            className="font-plex text-[10px] tracking-widest text-[#6f6a62] uppercase hover:text-[#18171a] transition-colors"
+          >
+            Admin
+          </a>
+          <LoginButton />
+        </div>
       </header>
 
       {/* Two-column layout */}
