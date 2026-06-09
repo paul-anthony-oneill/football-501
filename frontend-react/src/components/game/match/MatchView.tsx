@@ -19,6 +19,7 @@ interface Move {
   scoreAfter: number;
   matchedAnswer?: string;
   scoreValue?: number;
+  reason?: string;
 }
 
 interface GameHints {
@@ -55,7 +56,7 @@ interface MatchViewProps {
   /** Current game ID, used by DebugPanel to fetch all answers. */
   gameId?: string | null;
   /** Current game type, used by DebugPanel to route API calls. */
-  debugGameType?: "solo" | "daily-challenge";
+  debugGameType?: "freeplay" | "daily-challenge";
 }
 
 export default function MatchView({
@@ -76,7 +77,7 @@ export default function MatchView({
   onShare,
   sharing = false,
   gameId = null,
-  debugGameType = "solo",
+  debugGameType = "freeplay",
 }: MatchViewProps) {
   const [staged, setStaged] = useState<StagedAnswer | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -247,20 +248,27 @@ export default function MatchView({
               </div>
             ) : (
               moves.map((move, i) => (
-                <div key={i} className={`hist-row grid grid-cols-[28px_1fr_auto_70px_60px] gap-3 items-baseline py-2.5 border-b border-[#444] border-dashed ${move.result === 'BUST' ? 'hist-bust' : ''}`}>
-                  <span className="hist-i text-[#888] text-[18px]">{(moves.length - i).toString().padStart(2, '0')}</span>
-                  <span className={`hist-name text-[18px] uppercase ${move.result === 'BUST' ? 'text-[#888] line-through' : move.result === 'INVALID' ? 'text-tele-danger' : 'text-white'}`}>
-                    {move.matchedAnswer || move.answer}
-                  </span>
-                  <span className={`hist-val text-[22px] font-bold ${move.result === 'BUST' ? 'text-tele-danger' : move.result === 'INVALID' ? 'text-[#888]' : 'text-tele-green'}`}>
-                    {move.result === 'INVALID' ? '✗' : move.scoreValue}
-                  </span>
-                  <span className={`hist-badge text-[14px] tracking-wider ${move.result === 'VALID' ? 'text-tele-green' : move.result === 'BUST' ? 'text-tele-danger' : 'text-[#888]'}`}>
-                    {move.result === 'VALID' ? '✓ OK' : move.result === 'BUST' ? 'BUST' : 'INVALID'}
-                  </span>
-                  <span className="hist-rem text-tele-accent text-[22px] text-right font-bold">
-                    {move.scoreAfter}
-                  </span>
+                <div key={i} className={`hist-row py-2.5 border-b border-[#444] border-dashed ${move.result === 'BUST' ? 'hist-bust' : ''}`}>
+                  <div className={`grid grid-cols-[28px_1fr_auto_70px_60px] gap-3 items-baseline`}>
+                    <span className="hist-i text-[#888] text-[18px]">{(moves.length - i).toString().padStart(2, '0')}</span>
+                    <span className={`hist-name text-[18px] uppercase ${move.result === 'BUST' ? 'text-[#888] line-through' : move.result === 'INVALID' ? 'text-tele-danger' : 'text-white'}`}>
+                      {move.matchedAnswer || move.answer}
+                    </span>
+                    <span className={`hist-val text-[22px] font-bold ${move.result === 'BUST' ? 'text-tele-danger' : move.result === 'INVALID' ? 'text-[#888]' : 'text-tele-green'}`}>
+                      {move.result === 'INVALID' ? '✗' : move.scoreValue}
+                    </span>
+                    <span className={`hist-badge text-[14px] tracking-wider ${move.result === 'VALID' ? 'text-tele-green' : move.result === 'BUST' ? 'text-tele-danger' : 'text-[#888]'}`}>
+                      {move.result === 'VALID' ? '✓ OK' : move.result === 'BUST' ? 'BUST' : 'INVALID'}
+                    </span>
+                    <span className="hist-rem text-tele-accent text-[22px] text-right font-bold">
+                      {move.scoreAfter}
+                    </span>
+                  </div>
+                  {move.reason && (move.result === 'BUST' || move.result === 'INVALID') && (
+                    <div className="mt-1 ml-[28px] text-[14px] text-[#888] tracking-wide uppercase">
+                      {move.reason}
+                    </div>
+                  )}
                 </div>
               ))
             )}

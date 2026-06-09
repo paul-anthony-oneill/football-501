@@ -5,7 +5,7 @@ import com.trivia501.dto.FootballFilter;
 import com.trivia501.dto.GameHints;
 import com.trivia501.dto.GameStateResponse;
 import com.trivia501.dto.MoveDto;
-import com.trivia501.dto.StartSoloGameRequest;
+import com.trivia501.dto.StartFreePlayRequest;
 import com.trivia501.dto.SubmitAnswerRequest;
 import com.trivia501.dto.SubmitAnswerResponse;
 import com.trivia501.model.*;
@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * REST controller for solo (single-player) game mode.
+ * REST controller for Free Play (single-player) game mode.
  *
  * <h3>Authentication</h3>
  * Player identity is derived from the authenticated {@link Principal} rather
@@ -37,17 +37,17 @@ import java.util.UUID;
  *
  * Endpoints:
  * <ul>
- *   <li>POST /api/solo/start              — Start a new solo game</li>
- *   <li>POST /api/solo/games/{id}/submit  — Submit an answer</li>
- *   <li>POST /api/solo/games/{id}/abandon — Abandon a game</li>
- *   <li>GET  /api/solo/games/{id}         — Get current game state</li>
- *   <li>GET  /api/solo/games/active       — Get player's active game</li>
+ *   <li>POST /api/freeplay/start              — Start a new Free Play game</li>
+ *   <li>POST /api/freeplay/games/{id}/submit  — Submit an answer</li>
+ *   <li>POST /api/freeplay/games/{id}/abandon — Abandon a game</li>
+ *   <li>GET  /api/freeplay/games/{id}         — Get current game state</li>
+ *   <li>GET  /api/freeplay/games/active       — Get player's active game</li>
  * </ul>
  */
 @RestController
-@RequestMapping("/api/solo")
+@RequestMapping("/api/freeplay")
 @Slf4j
-public class SoloGameController {
+public class FreePlayController {
 
     private final MatchService matchService;
     private final GameService gameService;
@@ -58,7 +58,7 @@ public class SoloGameController {
 
     private static final String DEFAULT_CATEGORY_SLUG = CategorySlug.FOOTBALL;
 
-    public SoloGameController(
+    public FreePlayController(
         MatchService matchService,
         GameService gameService,
         QuestionService questionService,
@@ -75,7 +75,7 @@ public class SoloGameController {
     }
 
     /**
-     * Start a new solo game.
+     * Start a new Free Play game.
      *
      * <p>Player identity is read from the authenticated principal — the client
      * cannot supply or override the player ID.
@@ -88,8 +88,8 @@ public class SoloGameController {
      * @return initial game state
      */
     @PostMapping("/start")
-    public ResponseEntity<GameStateResponse> startSoloGame(
-        @Valid @RequestBody StartSoloGameRequest request,
+    public ResponseEntity<GameStateResponse> startFreePlayGame(
+        @Valid @RequestBody StartFreePlayRequest request,
         Principal principal,
         HttpServletRequest httpRequest
     ) {
@@ -100,7 +100,7 @@ public class SoloGameController {
         if (OptionalJwtFilter.AUTH_TYPE_ANON.equals(httpRequest.getAttribute(OptionalJwtFilter.AUTH_TYPE_ATTR))) {
             httpRequest.setAttribute(OptionalJwtFilter.ROTATE_ANON_ATTR, "true");
         }
-        log.debug("Starting solo game for player {}", playerId);
+        log.debug("Starting Free Play game for player {}", playerId);
 
         // Prevent orphaned-game accumulation: abandon any in-progress games
         gameService.abandonActiveGamesForPlayer(playerId);
@@ -139,7 +139,7 @@ public class SoloGameController {
 
         gameHintsService.loadScoreCache(question.getId());
 
-        log.info("Solo game started: gameId={}, playerId={}", game.getId(), playerId);
+        log.info("Free Play game started: gameId={}, playerId={}", game.getId(), playerId);
 
         return ResponseEntity.ok(buildGameStateResponse(game, question, match, List.of(), List.of()));
     }
@@ -187,7 +187,7 @@ public class SoloGameController {
             .scoreValue(move.getScoreValue())
             .scoreBefore(move.getScoreBefore())
             .scoreAfter(move.getScoreAfter())
-            .reason(determineReason(move))
+            .reason(result.reason())
             .isWin(move.getResult() == GameMove.MoveResult.CHECKOUT)
             .gameState(buildGameStateResponse(game, question, match, result.usedAnswerIds(), List.of()))
             .build();
@@ -387,15 +387,6 @@ public class SoloGameController {
             move.getMatchedDisplayText(),
             move.getScoreValue()
         );
-    }
-
-    private String determineReason(GameMove move) {
-        return switch (move.getResult()) {
-            case INVALID -> "Answer not found or already used";
-            case BUST -> "Invalid darts score or bust";
-            case CHECKOUT -> "Win!";
-            default -> null;
-        };
     }
 
 }

@@ -27,6 +27,7 @@
 | Fix league-level question metadata | V28 | Backfilled `q_scope='league'`, `q_league`, `q_stat` on V12 `player_competition_metric_since` questions so `findRandomFootballLeagueQuestion()` can surface them. Set `q_scope='career'` on career questions. |
 | Add league-scope Appearances, Goals+Appearances, Assists+Appearances questions | V30 | Seeded 3 new `player_competition_metric_since` templates; created one question per tier-1 domestic league; materialized answers and difficulty metrics inline. |
 | Remove test question from daily challenge pool | V31 | V31 migration flips `suitable_for_daily = false` on test-category questions; `DailyChallengeScheduler` skips test category by slug; `DailyChallengeService.createChallenge()` guards with explicit exception. |
+| Reframe practice mode as Free Play | — | Renamed `SoloGameController` → `FreePlayController`, `StartSoloGameRequest` → `StartFreePlayRequest`, `/api/solo` → `/api/freeplay`. All frontend `"solo"` game type → `"freeplay"`. Test files and docs updated.
 
 ---
 
@@ -43,11 +44,6 @@ These items must be complete before real players can use the game.
 - **What**: The current pool of 9 fixed scores (`{501, 401, 351, 301, 251, 201, 167, 125, 101}`) is too small — regular players quickly see repeats. Expand to a curated pool of 20–30 starting scores across the full 101–501 range, keeping enough variety that each day feels different even within the same category. The random selection should be weighted to avoid consecutive identical scores in the same category.
 - **Why deferred**: Waiting until more question data is populated so score variety is backed by genuine strategic depth (different targets make different answers viable).
 - **See**: `DailyChallengeScheduler.java`, `DailyChallengeService.java`.
-
-### Reframe practice mode as Free Play
-- **What**: The current solo game mode (called "practice" in code and UI) should be repositioned as **Free Play** — a standalone mode where players pick any category, league, club, and stat type to play on their own terms. It is not "practice for the daily" — it's a separate way to play with its own value. UI changes: rename across all labels, nav entries, and page titles. Remove any language implying it's a warm-up for the daily challenge.
-- **Why deferred**: Naming and copy changes are straightforward but need to happen alongside the lobby UI polish pass to avoid churn.
-- **See**: `frontend-react/src/components/game/lobby/LobbyView.tsx`, `SoloGameController.java`.
 
 ### Frontend test suite
 - **What**: Zero frontend tests exist. The backend has 21 test files; the React app has none. A shipped product without frontend tests looks unfinished. Minimum viable coverage: component tests for the answer input flow (type → autocomplete → select → submit → see result), integration tests for the daily challenge flow (browse → start → play → share), and smoke tests for auth (login/logout, guest path).

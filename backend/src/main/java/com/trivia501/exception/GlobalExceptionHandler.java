@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
  *
  * <p>Replaces per-controller {@code @ExceptionHandler} methods that were
  * previously duplicated across {@code AdminAnswerController} and
- * @{code SoloGameController}, ensuring a consistent JSON error format:
+ * @{code FreePlayController}, ensuring a consistent JSON error format:
  * <pre>
  *   { "error": "human-readable message" }
  * </pre>

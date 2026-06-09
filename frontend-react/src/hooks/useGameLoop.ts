@@ -15,6 +15,7 @@ export interface Move {
   scoreAfter: number;
   matchedAnswer?: string;
   scoreValue?: number;
+  reason?: string;
 }
 
 export interface GameHints {
@@ -25,7 +26,7 @@ export interface GameHints {
 }
 
 export type GameStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "RESTORING";
-export type GameType = "solo" | "daily-challenge";
+export type GameType = "freeplay" | "daily-challenge";
 
 // ─── sessionStorage helpers ────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ function loadSavedGameState(): SavedGameState | null {
       return {
         gameId: parsed.gameId,
         label: parsed.label ?? "",
-        gameType: parsed.gameType === "daily-challenge" ? "daily-challenge" : "solo",
+        gameType: parsed.gameType === "daily-challenge" ? "daily-challenge" : "freeplay",
       };
     }
   } catch { /* corrupted data */ }
@@ -93,7 +94,7 @@ export interface GameLoopState {
   flashVersion: number;
   /** Current popup shown over the game; null when hidden. */
   popup: PopupState | null;
-  /** The active game type (solo or daily-challenge). */
+  /** The active game type (freeplay or daily-challenge). */
   gameType: GameType;
   /** The active game ID, null when no game is active. */
   gameId: string | null;
@@ -102,9 +103,9 @@ export interface GameLoopState {
 }
 
 export interface GameLoopActions {
-  /** The current game type (solo or daily-challenge). */
+  /** The current game type (freeplay or daily-challenge). */
   gameType: GameType;
-  /** Start a new solo game for the given category slug. */
+  /** Start a new Free Play game for the given category slug. */
   startNewGame: (categorySlug: string, label: string, targetScore?: number, footballFilter?: FootballFilter) => Promise<void>;
   /** Start a daily challenge game for the given category slug. */
   startDailyChallenge: (categorySlug: string, label: string) => Promise<void>;
@@ -119,6 +120,7 @@ export interface GameLoopActions {
 export interface PopupState {
   scoreValue: number;
   result: "VALID" | "BUST" | "INVALID";
+  reason?: string;
 }
 
 /**
@@ -142,7 +144,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
   const [entityType, setEntityType] = useState("footballer");
   const [hints,      setHints]      = useState<GameHints | null>(null);
   const [popup,      setPopup]      = useState<PopupState | null>(null);
-  const [gameType,   setGameType]   = useState<GameType>("solo");
+  const [gameType,   setGameType]   = useState<GameType>("freeplay");
 
   // Internal game ID used to address subsequent move submissions
   const [gameId, setGameId] = useState<string | null>(null);
@@ -151,7 +153,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
   /** Returns the API base path for the current game type. */
   function apiBase(): string {
-    return gameType === "daily-challenge" ? "/api/daily-challenge" : "/api/solo";
+    return gameType === "daily-challenge" ? "/api/daily-challenge" : "/api/freeplay";
   }
 
   // Tracks whether we've already attempted a restore on this mount
@@ -172,9 +174,9 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
     const saved = loadSavedGameState();
     if (!saved) return;
 
-    const savedGameType = saved.gameType ?? "solo";
+    const savedGameType = saved.gameType ?? "freeplay";
     setGameType(savedGameType);
-    const restoreBase = savedGameType === "daily-challenge" ? "/api/daily-challenge" : "/api/solo";
+    const restoreBase = savedGameType === "daily-challenge" ? "/api/daily-challenge" : "/api/freeplay";
 
     setGameStatus("RESTORING");
 
@@ -204,6 +206,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
               scoreAfter:    (m.scoreAfter as number) ?? 0,
               matchedAnswer: (m.matchedAnswer as string) ?? undefined,
               scoreValue:    (m.scoreValue as number) ?? undefined,
+              reason:        (m.reason as string) ?? undefined,
             }));
           setMoves(restoredMoves);
         }
@@ -229,7 +232,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
   }
 
   async function startNewGame(categorySlug: string, label: string, targetScore?: number, footballFilter?: FootballFilter) {
-    setGameType("solo");
+    setGameType("freeplay");
     await abandonCurrentGame();
     clearSavedGameState();
     try {
@@ -348,6 +351,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
       setPopup({
         scoreValue: result.scoreValue ?? 0,
         result: result.result as PopupState["result"],
+        reason: (result.reason as string) ?? undefined,
       });
     } catch {
       addToast("Error validating answer", "error");
@@ -362,6 +366,8 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
     pendingResultRef.current = null;
     setPopup(null);
 
+    const reasonText = (r.reason as string) ?? undefined;
+
     const newMove: Move = {
       answer,
       result:        (r.result as string) ?? "UNKNOWN",
@@ -369,6 +375,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
       scoreAfter:    (r.scoreAfter as number) ?? score,
       matchedAnswer: (r.matchedAnswer as string) ?? undefined,
       scoreValue:    (r.scoreValue as number) ?? undefined,
+      reason:        reasonText,
     };
 
     setMoves((prev) => [newMove, ...prev]);
@@ -377,8 +384,8 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
     setHints((r.gameState as Record<string, unknown>)?.hints as GameHints | null ?? null);
 
     if      (r.result === "VALID")   addToast(`Correct! -${r.scoreValue}`, "success");
-    else if (r.result === "BUST")    addToast("BUST!", "error");
-    else if (r.result === "INVALID") addToast("Not a valid answer — try again", "error");
+    else if (r.result === "BUST")    addToast(reasonText ? `BUST — ${reasonText}` : "BUST!", "error");
+    else if (r.result === "INVALID") addToast(reasonText || "Not a valid answer — try again", "error");
 
     if (r.isWin) {
       setGameStatus("COMPLETED");

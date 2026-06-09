@@ -1,7 +1,7 @@
 package com.trivia501.controller;
 
 import com.trivia501.dto.GameHints;
-import com.trivia501.dto.StartSoloGameRequest;
+import com.trivia501.dto.StartFreePlayRequest;
 import com.trivia501.dto.SubmitAnswerRequest;
 import com.trivia501.model.*;
 import com.trivia501.security.DevModeAuthFilter;
@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Slice tests for {@link SoloGameController}.
+ * Slice tests for {@link FreePlayController}.
  *
  * <h3>Authentication</h3>
  * Class-level {@code @WithMockUser} provides a principal whose name is
@@ -46,12 +46,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code UUID.fromString(DEV_PLAYER_ID)} — the same value the real
  * {@link DevModeAuthFilter} injects during local development.
  */
-@WebMvcTest(SoloGameController.class)
+@WebMvcTest(FreePlayController.class)
 @Import(JacksonAutoConfiguration.class)
 @ActiveProfiles("test")
 @WithMockUser(username = DevModeAuthFilter.DEV_PLAYER_ID, roles = {"USER", "ADMIN"})
-@DisplayName("SoloGameController Tests")
-class SoloGameControllerTest {
+@DisplayName("FreePlayController Tests")
+class FreePlayControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -157,9 +157,9 @@ class SoloGameControllerTest {
     }
 
     @Test
-    @DisplayName("Should start solo game and return game state with hints")
-    void shouldStartSoloGame() throws Exception {
-        StartSoloGameRequest request = StartSoloGameRequest.builder()
+    @DisplayName("Should start Free Play game and return game state with hints")
+    void shouldStartFreePlay() throws Exception {
+        StartFreePlayRequest request = StartFreePlayRequest.builder()
             .categorySlug("football")
             .build();
 
@@ -171,7 +171,7 @@ class SoloGameControllerTest {
             .thenReturn(new MatchService.GameStartRecord(game, question));
         when(gameHintsService.computeHintsFromCache(eq(questionId), eq(List.of()), eq(501))).thenReturn(STUB_HINTS);
 
-        mockMvc.perform(post("/api/solo/start")
+        mockMvc.perform(post("/api/freeplay/start")
                 .principal(PRINCIPAL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -218,12 +218,12 @@ class SoloGameControllerTest {
 
         List<UUID> usedAnswerIds = List.of();
         when(gameService.processPlayerMove(eq(gameId), eq(playerId), eq("Erling Haaland"), isNull()))
-            .thenReturn(new GameService.MoveRecord(move, updatedGame, match, usedAnswerIds));
+            .thenReturn(new GameService.MoveRecord(move, updatedGame, match, usedAnswerIds, null));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(gameHintsService.computeHintsFromCache(eq(questionId), eq(usedAnswerIds), eq(465)))
             .thenReturn(STUB_HINTS);
 
-        mockMvc.perform(post("/api/solo/games/{gameId}/submit", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{gameId}/submit", gameId)
                 .principal(PRINCIPAL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -255,12 +255,12 @@ class SoloGameControllerTest {
 
         List<UUID> usedAnswerIds = List.of();
         when(gameService.processPlayerMove(eq(gameId), eq(playerId), eq("Unknown Player"), isNull()))
-            .thenReturn(new GameService.MoveRecord(move, game, match, usedAnswerIds));
+            .thenReturn(new GameService.MoveRecord(move, game, match, usedAnswerIds, null));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(gameHintsService.computeHintsFromCache(eq(questionId), eq(usedAnswerIds), eq(501)))
             .thenReturn(STUB_HINTS);
 
-        mockMvc.perform(post("/api/solo/games/{gameId}/submit", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{gameId}/submit", gameId)
                 .principal(PRINCIPAL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -294,12 +294,12 @@ class SoloGameControllerTest {
 
         List<UUID> usedAnswerIds = List.of();
         when(gameService.processPlayerMove(eq(gameId), eq(playerId), eq("Player with 35"), isNull()))
-            .thenReturn(new GameService.MoveRecord(move, completedGame, match, usedAnswerIds));
+            .thenReturn(new GameService.MoveRecord(move, completedGame, match, usedAnswerIds, null));
         when(questionService.getQuestionById(questionId)).thenReturn(Optional.of(question));
         when(gameHintsService.computeHintsFromCache(eq(questionId), eq(usedAnswerIds), eq(0)))
             .thenReturn(GameHints.builder().maxScoresLeft(0).checkoutsLeft(0).build());
 
-        mockMvc.perform(post("/api/solo/games/{gameId}/submit", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{gameId}/submit", gameId)
                 .principal(PRINCIPAL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -319,7 +319,7 @@ class SoloGameControllerTest {
         when(matchService.getMatchById(matchId)).thenReturn(Optional.of(match));
         when(gameHintsService.computeHints(eq(gameId), eq(questionId), eq(501))).thenReturn(STUB_HINTS);
 
-        mockMvc.perform(get("/api/solo/games/{gameId}", gameId)
+        mockMvc.perform(get("/api/freeplay/games/{gameId}", gameId)
                 .principal(PRINCIPAL))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.gameId").value(gameId.toString()))
@@ -337,7 +337,7 @@ class SoloGameControllerTest {
         UUID nonExistentGameId = UUID.randomUUID();
         when(gameService.getGameById(nonExistentGameId)).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/solo/games/{gameId}", nonExistentGameId)
+        mockMvc.perform(get("/api/freeplay/games/{gameId}", nonExistentGameId)
                 .principal(PRINCIPAL))
             .andExpect(status().isNotFound());
     }
@@ -345,13 +345,13 @@ class SoloGameControllerTest {
     @Test
     @DisplayName("Should return 400 when category not found")
     void shouldReturn400WhenCategoryNotFound() throws Exception {
-        StartSoloGameRequest request = StartSoloGameRequest.builder()
+        StartFreePlayRequest request = StartFreePlayRequest.builder()
             .categorySlug("invalid-category")
             .build();
 
         when(questionService.getCategoryBySlug("invalid-category")).thenReturn(Optional.empty());
 
-        mockMvc.perform(post("/api/solo/start")
+        mockMvc.perform(post("/api/freeplay/start")
                 .principal(PRINCIPAL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -363,7 +363,7 @@ class SoloGameControllerTest {
     @Test
     @DisplayName("Should abandon game and return 204 No Content")
     void shouldAbandonGame() throws Exception {
-        mockMvc.perform(post("/api/solo/games/{gameId}/abandon", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{gameId}/abandon", gameId)
                 .principal(PRINCIPAL))
             .andExpect(status().isNoContent());
     }
@@ -371,11 +371,11 @@ class SoloGameControllerTest {
     @Test
     @DisplayName("Should return 204 when abandoning twice (idempotent)")
     void shouldAbandonGameTwice() throws Exception {
-        mockMvc.perform(post("/api/solo/games/{gameId}/abandon", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{gameId}/abandon", gameId)
                 .principal(PRINCIPAL))
             .andExpect(status().isNoContent());
 
-        mockMvc.perform(post("/api/solo/games/{gameId}/abandon", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{gameId}/abandon", gameId)
                 .principal(PRINCIPAL))
             .andExpect(status().isNoContent());
     }
@@ -383,7 +383,7 @@ class SoloGameControllerTest {
     @Test
     @DisplayName("Should use default category when not specified")
     void shouldUseDefaultCategory() throws Exception {
-        StartSoloGameRequest request = StartSoloGameRequest.builder().build();
+        StartFreePlayRequest request = StartFreePlayRequest.builder().build();
 
         when(questionService.getCategoryBySlug("football")).thenReturn(Optional.of(category));
         when(matchService.createMatch(eq(playerId), isNull(), eq(categoryId),
@@ -393,7 +393,7 @@ class SoloGameControllerTest {
             .thenReturn(new MatchService.GameStartRecord(game, question));
         when(gameHintsService.computeHintsFromCache(eq(questionId), eq(List.of()), eq(501))).thenReturn(STUB_HINTS);
 
-        mockMvc.perform(post("/api/solo/start")
+        mockMvc.perform(post("/api/freeplay/start")
                 .principal(PRINCIPAL)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))

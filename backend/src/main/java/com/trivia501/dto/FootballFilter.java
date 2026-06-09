@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Optional filter for football question selection in {@link StartSoloGameRequest}.
+ * Optional filter for football question selection in {@link StartFreePlayRequest}.
  *
  * <p>Scope values:
  * <ul>

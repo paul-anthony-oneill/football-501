@@ -13,7 +13,7 @@ interface AnswerItem {
 
 interface DebugPanelProps {
   gameId: string | null;
-  gameType: "solo" | "daily-challenge";
+  gameType: "freeplay" | "daily-challenge";
 }
 
 export default function DebugPanel({ gameId, gameType }: DebugPanelProps) {
@@ -27,7 +27,7 @@ export default function DebugPanel({ gameId, gameType }: DebugPanelProps) {
     setLoading(true);
     setError(null);
     const base =
-      gameType === "daily-challenge" ? "/api/daily-challenge" : "/api/solo";
+      gameType === "daily-challenge" ? "/api/daily-challenge" : "/api/freeplay";
     apiFetch(`${base}/games/${gameId}/answers`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

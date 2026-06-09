@@ -2,7 +2,7 @@ package com.trivia501.controller;
 
 import tools.jackson.databind.ObjectMapper;
 import com.trivia501.BaseTest;
-import com.trivia501.dto.StartSoloGameRequest;
+import com.trivia501.dto.StartFreePlayRequest;
 import com.trivia501.dto.SubmitAnswerRequest;
 import com.trivia501.model.Answer;
 import com.trivia501.model.Category;
@@ -30,14 +30,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Full-stack HTTP integration tests for the solo game flow.
+ * Full-stack HTTP integration tests for the Free Play game flow.
  * Exercises: HTTP → Controller → Service → Repository → H2
  * Fuzzy matching scenarios (requiring PostgreSQL similarity()) are covered
  * separately in FuzzyMatchingContainerTest.
  */
-@DisplayName("Solo Game Integration Tests")
+@DisplayName("Free Play Integration Tests")
 @WithMockUser(username = "00000000-0000-0000-0000-000000000001", roles = {"USER", "ADMIN"})
-class SoloGameIntegrationTest extends BaseTest {
+class FreePlayIntegrationTest extends BaseTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -97,9 +97,9 @@ class SoloGameIntegrationTest extends BaseTest {
     }
 
     @Test
-    @DisplayName("POST /api/solo/start returns 200 with starting score 501")
+    @DisplayName("POST /api/freeplay/start returns 200 with starting score 501")
     void startGame_returnsGameStateWithStartingScore() throws Exception {
-        mockMvc.perform(post("/api/solo/start")
+        mockMvc.perform(post("/api/freeplay/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(startRequest())))
             .andExpect(status().isOk())
@@ -111,13 +111,13 @@ class SoloGameIntegrationTest extends BaseTest {
     }
 
     @Test
-    @DisplayName("POST /api/solo/start returns 400 for unknown category slug")
+    @DisplayName("POST /api/freeplay/start returns 400 for unknown category slug")
     void startGame_unknownCategory_returns400() throws Exception {
-        StartSoloGameRequest req = StartSoloGameRequest.builder()
+        StartFreePlayRequest req = StartFreePlayRequest.builder()
             .categorySlug("nonexistent-sport")
             .build();
 
-        mockMvc.perform(post("/api/solo/start")
+        mockMvc.perform(post("/api/freeplay/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
             .andExpect(status().isBadRequest());
@@ -128,7 +128,7 @@ class SoloGameIntegrationTest extends BaseTest {
     void submitValidAnswer_deductsScore() throws Exception {
         UUID gameId = startGame();
 
-        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{id}/submit", gameId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody(knownAnswer.getDisplayText())))
             .andExpect(status().isOk())
@@ -146,7 +146,7 @@ class SoloGameIntegrationTest extends BaseTest {
         String body = submitBody(knownAnswer.getDisplayText());
 
         // First submission is valid
-        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{id}/submit", gameId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(jsonPath("$.result").value("VALID"));
@@ -154,7 +154,7 @@ class SoloGameIntegrationTest extends BaseTest {
         int scoreAfterFirst = 501 - knownAnswer.getScore();
 
         // Second submission of the same answer is invalid — answer is in usedAnswerIds
-        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{id}/submit", gameId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(status().isOk())
@@ -168,18 +168,18 @@ class SoloGameIntegrationTest extends BaseTest {
     void submitEmptyAnswer_returnsInvalid() throws Exception {
         UUID gameId = startGame();
 
-        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{id}/submit", gameId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("   ")))
             .andExpect(status().isBadRequest());
     }
 
     @Test
-    @DisplayName("GET /api/solo/games/{id} returns current game state")
+    @DisplayName("GET /api/freeplay/games/{id} returns current game state")
     void getGameState_returnsCurrentState() throws Exception {
         UUID gameId = startGame();
 
-        mockMvc.perform(get("/api/solo/games/{id}", gameId))
+        mockMvc.perform(get("/api/freeplay/games/{id}", gameId))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.gameId").value(gameId.toString()))
             .andExpect(jsonPath("$.currentScore").value(501))
@@ -187,9 +187,9 @@ class SoloGameIntegrationTest extends BaseTest {
     }
 
     @Test
-    @DisplayName("GET /api/solo/games/{id} returns 404 for unknown game ID")
+    @DisplayName("GET /api/freeplay/games/{id} returns 404 for unknown game ID")
     void getGameState_unknownId_returns404() throws Exception {
-        mockMvc.perform(get("/api/solo/games/{id}", UUID.randomUUID()))
+        mockMvc.perform(get("/api/freeplay/games/{id}", UUID.randomUUID()))
             .andExpect(status().isNotFound());
     }
 
@@ -199,13 +199,13 @@ class SoloGameIntegrationTest extends BaseTest {
         UUID gameId = startGame();
 
         // Submit Player 0 (score 10) → 501 - 10 = 491
-        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{id}/submit", gameId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("Player 0")))
             .andExpect(jsonPath("$.scoreAfter").value(491));
 
         // Submit Player 1 (score 11) → 491 - 11 = 480
-        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{id}/submit", gameId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("Player 1")))
             .andExpect(jsonPath("$.result").value("VALID"))
@@ -215,14 +215,14 @@ class SoloGameIntegrationTest extends BaseTest {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private StartSoloGameRequest startRequest() {
-        return StartSoloGameRequest.builder()
+    private StartFreePlayRequest startRequest() {
+        return StartFreePlayRequest.builder()
             .categorySlug("football")
             .build();
     }
 
     private UUID startGame() throws Exception {
-        String body = mockMvc.perform(post("/api/solo/start")
+        String body = mockMvc.perform(post("/api/freeplay/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(startRequest())))
             .andExpect(status().isOk())
