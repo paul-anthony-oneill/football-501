@@ -8,7 +8,6 @@ import AnimatedScorePopup from "@/components/game/AnimatedScorePopup";
 import { useGameLoop, getSavedLabel } from "@/hooks/useGameLoop";
 import { useDailyChallenge } from "@/hooks/useDailyChallenge";
 import { useToast } from "@/context/ToastContext";
-import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api/client";
 import type { FootballFilter } from "@/lib/api/footballApi";
 
@@ -71,22 +70,9 @@ export default function GamePage() {
   const { challenges: dailyChallenges, loading: dailyLoading } = useDailyChallenge();
 
   const { addToast } = useToast();
-  const { user } = useAuth();
 
   // Share state
   const [sharing, setSharing] = useState(false);
-
-  // Lobby state — default player name from Google profile when signed in
-  const [playerName, setPlayerName] = useState(
-    () => user?.user_metadata?.full_name || "GUEST_PLAYER",
-  );
-
-  // Sync player name when auth state changes (sign in / sign out)
-  useEffect(() => {
-    if (user?.user_metadata?.full_name) {
-      setPlayerName(user.user_metadata.full_name);
-    }
-  }, [user]);
 
   // Track the last selection so we can replay and display in MatchView.
   // On mount, try to recover the label from a saved game (refresh recovery).
@@ -102,12 +88,6 @@ export default function GamePage() {
     setLastSlug(slug);
     setLastLabel(label);
     await startNewGame(rootSlug(slug), label, targetScore, footballFilter);
-  };
-
-  const handleStartTestGame = async () => {
-    setLastSlug("test");
-    setLastLabel("Test Mode");
-    await startNewGame("test", "Test Mode");
   };
 
   const handleStartDailyChallenge = async (categorySlug: string, label: string) => {
@@ -202,9 +182,6 @@ export default function GamePage() {
         <LobbyView
           onStartGame={handleStartGame}
           onStartDailyChallenge={handleStartDailyChallenge}
-          onStartTestGame={handleStartTestGame}
-          playerName={playerName}
-          onPlayerNameChange={setPlayerName}
           dailyChallenges={dailyChallenges}
           dailyLoading={dailyLoading}
         />
@@ -241,6 +218,7 @@ export default function GamePage() {
         <AnimatedScorePopup
           scoreValue={popup.scoreValue}
           result={popup.result}
+          reason={popup.reason}
           onComplete={onPopupComplete}
         />
       )}

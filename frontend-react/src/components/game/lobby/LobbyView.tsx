@@ -58,9 +58,6 @@ type NavScreen =
 interface LobbyViewProps {
   onStartGame: (slug: string, label: string, targetScore: number, filter?: FootballFilter) => void;
   onStartDailyChallenge: (slug: string, label: string) => void;
-  onStartTestGame: () => void;
-  playerName: string;
-  onPlayerNameChange: (name: string) => void;
   dailyChallenges: CategoryChallenge[];
   dailyLoading: boolean;
 }
@@ -70,14 +67,12 @@ interface LobbyViewProps {
 export default function LobbyView({
   onStartGame,
   onStartDailyChallenge,
-  onStartTestGame,
-  playerName,
-  onPlayerNameChange,
   dailyChallenges,
   dailyLoading,
 }: LobbyViewProps) {
   const [target, setTarget] = useState<TargetScore>(501);
   const { user, loading } = useAuth();
+  const isAdmin = !loading && user?.app_metadata?.role === "admin";
 
   // Navigation stack — last entry is the currently visible screen
   const [stack, setStack] = useState<NavScreen[]>([{ id: "root" }]);
@@ -120,24 +115,39 @@ export default function LobbyView({
     .join(" › ");
 
   return (
-    <div className="min-h-screen bg-[#f5f1e8] text-[#18171a] flex flex-col font-hanken">
+    <div className="relative min-h-screen bg-[#f5f1e8] text-[#18171a] flex flex-col font-hanken overflow-hidden">
+      {/* Dart trajectory — draws in on page load */}
+      <div className="absolute inset-0 pointer-events-none z-0" aria-hidden="true">
+        <svg viewBox="0 0 1440 900" className="absolute inset-0 w-full h-full opacity-20">
+          <path
+            d="M-100,600 C300,500 800,800 1540,100"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            className="animate-draw"
+          />
+        </svg>
+      </div>
+
       {/* Header */}
-      <header className="flex items-center justify-between px-6 md:px-10 py-4 border-b border-[rgba(24,23,26,0.1)]">
+      <header className="relative flex items-center justify-between px-6 md:px-10 py-4 border-b border-[rgba(24,23,26,0.1)]">
         <div className="flex items-center gap-4">
           <span className="font-plex text-[11px] tracking-[0.2em] bg-[#18171a] text-[#f5f1e8] px-2.5 py-1">
-            FOOTBALL 501
+            TRIVIA 501
           </span>
           <span className="font-plex text-[10px] tracking-widest text-[#6f6a62] uppercase hidden sm:block">
             The Trivia Darts Championship
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <a
-            href="/admin"
-            className="font-plex text-[10px] tracking-widest text-[#6f6a62] uppercase hover:text-[#18171a] transition-colors"
-          >
-            Admin
-          </a>
+          {isAdmin && (
+            <a
+              href="/admin"
+              className="font-plex text-[10px] tracking-widest text-[#6f6a62] uppercase hover:text-[#18171a] transition-colors"
+            >
+              Admin
+            </a>
+          )}
           <LoginButton />
         </div>
       </header>
@@ -222,32 +232,10 @@ export default function LobbyView({
             </div>
           )}
 
-          {/* Player + test mode controls */}
-          <div className="mt-auto pt-6 border-t border-[rgba(24,23,26,0.1)] flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-3 font-plex text-[11px] tracking-wider text-[#6f6a62]">
-              <span>PLAYER</span>
-              <input
-                type="text"
-                value={playerName}
-                onChange={(e) => onPlayerNameChange(e.target.value)}
-                className="bg-transparent border-0 border-b border-[#18171a] font-bricolage font-bold text-base px-1 py-0.5 text-[#18171a] outline-none focus:border-[#e84545] transition-colors w-32"
-                placeholder="GUEST_123"
-              />
-            </div>
-            {!loading && !user && (
-              <span className="font-plex text-[9px] tracking-wider text-[#6f6a62]">Sign in to save progress</span>
-            )}
-            <button
-              onClick={onStartTestGame}
-              className="ml-auto font-plex text-[10px] tracking-widest uppercase px-3 py-1.5 border border-[rgba(24,23,26,0.2)] text-[#6f6a62] rounded-full hover:border-[#18171a] hover:text-[#18171a] transition-colors"
-            >
-              Test Mode
-            </button>
-          </div>
         </div>
 
         {/* ── Right column: drill-down navigator ── */}
-        <div className="w-full md:w-96 lg:w-[440px] flex flex-col px-6 md:px-8 py-8 overflow-hidden">
+        <div className="w-full md:w-96 lg:w-[440px] flex flex-col px-6 md:px-8 py-8 overflow-hidden relative bg-[#f5f1e8]">
 
           {/* Back + breadcrumb */}
           {stack.length > 1 && (
