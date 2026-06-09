@@ -246,4 +246,21 @@ public interface AnswerRepository extends JpaRepository<Answer, UUID> {
           AND a.isBust = false
         """)
     List<Object[]> findValidNonBustAnswerScores(@Param("questionId") UUID questionId);
+
+    /**
+     * Returns true if the question has at least one valid non-bust answer
+     * whose score is ≤ {@code maxScore}. Used to gate first-move viability:
+     * if every answer exceeds the starting score, the player auto-busts on turn 1.
+     */
+    @Query("""
+        SELECT CASE WHEN COUNT(a) > 0 THEN true ELSE false END FROM Answer a
+        WHERE a.questionId = :questionId
+          AND a.isValidDarts = true
+          AND a.isBust = false
+          AND a.score <= :maxScore
+        """)
+    boolean hasViableFirstMove(
+        @Param("questionId") UUID questionId,
+        @Param("maxScore") int maxScore
+    );
 }

@@ -2,8 +2,8 @@ package com.trivia501.service;
 
 import com.trivia501.model.Category;
 import com.trivia501.model.DailyChallenge;
-import com.trivia501.model.Match;
 import com.trivia501.model.Question;
+import com.trivia501.repository.AnswerRepository;
 import com.trivia501.repository.CategoryRepository;
 import com.trivia501.repository.DailyChallengeRepository;
 import com.trivia501.repository.QuestionRepository;
@@ -24,7 +24,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,6 +31,7 @@ class DailyChallengeServiceTest {
 
     @Mock private DailyChallengeRepository challengeRepository;
     @Mock private QuestionRepository questionRepository;
+    @Mock private AnswerRepository answerRepository;
     @Mock private CategoryRepository categoryRepository;
     @Mock private MatchService matchService;
     @Mock private GameService gameService;
@@ -49,7 +49,8 @@ class DailyChallengeServiceTest {
     @BeforeEach
     void setUp() {
         service = new DailyChallengeService(
-                challengeRepository, questionRepository, categoryRepository, matchService, gameService);
+                challengeRepository, questionRepository, answerRepository,
+                categoryRepository, matchService, gameService);
     }
 
     @Test
@@ -71,8 +72,13 @@ class DailyChallengeServiceTest {
     void shouldCreateChallengeLazilyWhenNoneExists() {
         when(challengeRepository.findByChallengeDateAndCategoryId(LocalDate.now(), categoryId))
                 .thenReturn(Optional.empty());
+        when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+        when(challengeRepository.findLatestStartingScoreBefore(eq(categoryId), any(LocalDate.class)))
+                .thenReturn(Optional.empty());
         when(questionRepository.findRandomDailyQuestion(eq(categoryId), anyInt(), anyDouble(), anyDouble()))
                 .thenReturn(Optional.of(question));
+        when(answerRepository.hasViableFirstMove(eq(questionId), anyInt()))
+                .thenReturn(true);
         when(challengeRepository.save(any(DailyChallenge.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
@@ -87,6 +93,9 @@ class DailyChallengeServiceTest {
     @Test
     void shouldThrowWhenNoViableQuestionExists() {
         when(challengeRepository.findByChallengeDateAndCategoryId(LocalDate.now(), categoryId))
+                .thenReturn(Optional.empty());
+        when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+        when(challengeRepository.findLatestStartingScoreBefore(eq(categoryId), any(LocalDate.class)))
                 .thenReturn(Optional.empty());
         // No question found for any score — all fallback attempts fail
         when(questionRepository.findRandomDailyQuestion(eq(categoryId), anyInt(), anyDouble(), anyDouble()))
@@ -112,11 +121,13 @@ class DailyChallengeServiceTest {
 
     @Test
     void shouldPickValidStartingScore() {
-        int[] validScores = {501, 401, 351, 301, 251, 201, 167, 125, 101};
+        when(challengeRepository.findLatestStartingScoreBefore(eq(categoryId), any(LocalDate.class)))
+                .thenReturn(Optional.empty());
 
         for (int i = 0; i < 50; i++) {
-            int score = service.pickStartingScore();
-            assertThat(score).isIn((Object[]) java.util.Arrays.stream(validScores).boxed().toArray());
+            int score = service.pickStartingScore(categoryId);
+            assertThat(score).isIn((Object[]) java.util.Arrays.stream(
+                com.trivia501.engine.DifficultyConstants.DAILY_STARTING_SCORES).boxed().toArray());
         }
     }
 
@@ -125,8 +136,13 @@ class DailyChallengeServiceTest {
         when(categoryRepository.findBySlug("football")).thenReturn(Optional.of(category));
         when(challengeRepository.findByChallengeDateAndCategoryId(LocalDate.now(), categoryId))
                 .thenReturn(Optional.empty());
+        when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+        when(challengeRepository.findLatestStartingScoreBefore(eq(categoryId), any(LocalDate.class)))
+                .thenReturn(Optional.empty());
         when(questionRepository.findRandomDailyQuestion(eq(categoryId), anyInt(), anyDouble(), anyDouble()))
                 .thenReturn(Optional.of(question));
+        when(answerRepository.hasViableFirstMove(eq(questionId), anyInt()))
+                .thenReturn(true);
         when(challengeRepository.save(any(DailyChallenge.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 

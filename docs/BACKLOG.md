@@ -28,6 +28,7 @@
 | Add league-scope Appearances, Goals+Appearances, Assists+Appearances questions | V30 | Seeded 3 new `player_competition_metric_since` templates; created one question per tier-1 domestic league; materialized answers and difficulty metrics inline. |
 | Remove test question from daily challenge pool | V31 | V31 migration flips `suitable_for_daily = false` on test-category questions; `DailyChallengeScheduler` skips test category by slug; `DailyChallengeService.createChallenge()` guards with explicit exception. |
 | Reframe practice mode as Free Play | — | Renamed `SoloGameController` → `FreePlayController`, `StartSoloGameRequest` → `StartFreePlayRequest`, `/api/solo` → `/api/freeplay`. All frontend `"solo"` game type → `"freeplay"`. Test files and docs updated.
+| Expand daily challenge starting score pool | — | 9 → 30 curated scores (101–501); `first-move viability` guard rejects questions where every answer exceeds the starting score + 10pt checkout margin; `anti-consecutive-repeat` avoids yesterday's score per category; shared `DifficultyConstants.DAILY_STARTING_SCORES` + `pickDailyStartingScore()`. 
 
 ---
 
@@ -35,15 +36,15 @@
 
 These items must be complete before real players can use the game.
 
+### Admin link: gate behind real admin role check
+- **What**: The Admin link in the LobbyView header is currently hidden client-side using `user?.app_metadata?.role === "admin"`. This is a display-only guard — Supabase `app_metadata` must actually be set to `{"role": "admin"}` on the admin user via the Supabase dashboard or service-role API. Until that metadata is set, the link stays hidden even for real admins. Verify the field is set correctly on the production admin account before launch.
+- **Why deferred**: Admin access is backed by `@PreAuthorize("hasRole('ADMIN')")` on the backend, so the link being visible is cosmetic-only and not a security risk. The metadata provisioning step is a deployment/ops task.
+- **See**: `LobbyView.tsx` (header), `AuthContext.tsx`, Supabase dashboard → Auth → Users.
+
 ### Auth: Guest play for core experience
 - **What**: Ephemeral UUID for unauthenticated players; 24-hour inactivity timeout. The daily challenge and Free Play modes must work without requiring sign-in. Google OAuth sign-in is reserved for friend challenges, player profiles, and game history.
 - **Why deferred**: Google OAuth is wired end-to-end but the unauthenticated path needs the guest identity flow to be seamless — no modal walls, no "sign in to continue" interruptions on the core game loop.
 - **See**: `docs/SECURITY_ARCHITECTURE.md` — What Is Deferred table.
-
-### Expand daily challenge starting score pool
-- **What**: The current pool of 9 fixed scores (`{501, 401, 351, 301, 251, 201, 167, 125, 101}`) is too small — regular players quickly see repeats. Expand to a curated pool of 20–30 starting scores across the full 101–501 range, keeping enough variety that each day feels different even within the same category. The random selection should be weighted to avoid consecutive identical scores in the same category.
-- **Why deferred**: Waiting until more question data is populated so score variety is backed by genuine strategic depth (different targets make different answers viable).
-- **See**: `DailyChallengeScheduler.java`, `DailyChallengeService.java`.
 
 ### Frontend test suite
 - **What**: Zero frontend tests exist. The backend has 21 test files; the React app has none. A shipped product without frontend tests looks unfinished. Minimum viable coverage: component tests for the answer input flow (type → autocomplete → select → submit → see result), integration tests for the daily challenge flow (browse → start → play → share), and smoke tests for auth (login/logout, guest path).
