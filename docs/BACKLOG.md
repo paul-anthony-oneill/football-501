@@ -1,7 +1,9 @@
 # Trivia 501 — Backlog & Future Work
 
-**Last updated**: 2026-06-04 (V28 migration)  
+**Last updated**: 2026-06-08 (single-player pivot — multiplayer deferred indefinitely, ranking/MMR dropped, Free Play reframe, expanded daily starting scores)  
 **Purpose**: Living document capturing all deferred work, stretch goals, and improvement ideas regardless of size or urgency. Update this whenever a decision is made to defer something, or when a backlog item is completed or abandoned.
+
+**Product direction** (2026-06-08): The game is now focused on **single-player daily challenges** as the core experience — Wordle-style social trivia where everyone plays the same question with the same parameters each day and shares results with friends. A separate **Free Play** mode (formerly "practice") lets players pick any category/question to play on their own terms. Async friend challenges (play the same question and compare) are a planned social feature. The ranking/MMR/league-tier system and real-time multiplayer are deferred indefinitely.
 
 ---
 
@@ -24,6 +26,7 @@
 | Clean per-season football questions from DB | V28 | Deleted all `football.team_competition_season_metric` questions + answers + dependent rows; deactivated V11 templates. |
 | Fix league-level question metadata | V28 | Backfilled `q_scope='league'`, `q_league`, `q_stat` on V12 `player_competition_metric_since` questions so `findRandomFootballLeagueQuestion()` can surface them. Set `q_scope='career'` on career questions. |
 | Add league-scope Appearances, Goals+Appearances, Assists+Appearances questions | V30 | Seeded 3 new `player_competition_metric_since` templates; created one question per tier-1 domestic league; materialized answers and difficulty metrics inline. |
+| Remove test question from daily challenge pool | V31 | V31 migration flips `suitable_for_daily = false` on test-category questions; `DailyChallengeScheduler` skips test category by slug; `DailyChallengeService.createChallenge()` guards with explicit exception. |
 
 ---
 
@@ -31,25 +34,68 @@
 
 These items must be complete before real players can use the game.
 
-### Remove test question from daily challenge pool
-- **What**: V20 migration explicitly marks questions with `%test question%` or `%frontend%` in their text as `suitable_for_daily = true`. The `test` category has no exclusion in `DailyChallengeScheduler` or `DailyChallengeService`. Result: "Test Question: Frontend Flow Verification" appears as a real daily challenge.
-- **Fix**: (1) Remove/rewrite the second UPDATE in V20 so it doesn't mark test questions as daily-eligible. (2) Add a category exclusion (by slug `test`) in the scheduler and service so even if data leaks through, the `test` category never produces a daily challenge. (3) Add a new Flyway migration to flip `suitable_for_daily = false` on any test-category questions already in the database.
-- **Why deferred**: Acceptable in dev; would be embarrassing in production.
-- **See**: `V20__mark_daily_suitable_questions.sql` lines 12–17, `DailyChallengeScheduler.java:67`, `DailyChallengeService.java:133`.
-
-### Auth: Guest accounts
-- **What**: Ephemeral UUID for unauthenticated players; 24-hour inactivity timeout.
-- **Why deferred**: Depends on real auth being wired first.
+### Auth: Guest play for core experience
+- **What**: Ephemeral UUID for unauthenticated players; 24-hour inactivity timeout. The daily challenge and Free Play modes must work without requiring sign-in. Google OAuth sign-in is reserved for friend challenges, player profiles, and game history.
+- **Why deferred**: Google OAuth is wired end-to-end but the unauthenticated path needs the guest identity flow to be seamless — no modal walls, no "sign in to continue" interruptions on the core game loop.
 - **See**: `docs/SECURITY_ARCHITECTURE.md` — What Is Deferred table.
 
-### WebSocket: STOMP multiplayer handler
-- **What**: Real-time 1v1 match communication over WebSocket (STOMP protocol). `GameStateMachine` is already designed to receive WebSocket events.
-- **Why deferred**: Core game engine is complete; WebSocket layer not yet wired.
+### Expand daily challenge starting score pool
+- **What**: The current pool of 9 fixed scores (`{501, 401, 351, 301, 251, 201, 167, 125, 101}`) is too small — regular players quickly see repeats. Expand to a curated pool of 20–30 starting scores across the full 101–501 range, keeping enough variety that each day feels different even within the same category. The random selection should be weighted to avoid consecutive identical scores in the same category.
+- **Why deferred**: Waiting until more question data is populated so score variety is backed by genuine strategic depth (different targets make different answers viable).
+- **See**: `DailyChallengeScheduler.java`, `DailyChallengeService.java`.
+
+### Reframe practice mode as Free Play
+- **What**: The current solo game mode (called "practice" in code and UI) should be repositioned as **Free Play** — a standalone mode where players pick any category, league, club, and stat type to play on their own terms. It is not "practice for the daily" — it's a separate way to play with its own value. UI changes: rename across all labels, nav entries, and page titles. Remove any language implying it's a warm-up for the daily challenge.
+- **Why deferred**: Naming and copy changes are straightforward but need to happen alongside the lobby UI polish pass to avoid churn.
+- **See**: `frontend-react/src/components/game/lobby/LobbyView.tsx`, `SoloGameController.java`.
+
+### Frontend test suite
+- **What**: Zero frontend tests exist. The backend has 21 test files; the React app has none. A shipped product without frontend tests looks unfinished. Minimum viable coverage: component tests for the answer input flow (type → autocomplete → select → submit → see result), integration tests for the daily challenge flow (browse → start → play → share), and smoke tests for auth (login/logout, guest path).
+- **Why deferred**: Components are still being built out; writing tests against half-finished features creates rework. Stable components (EntitySearch, lobby cards, daily challenge pages) can be tested now.
+- **See**: New `__tests__/` directory under `frontend-react/`; Vitest + React Testing Library setup.
+
+### Error boundaries
+- **What**: The entire app has one `<Suspense fallback={null}>` and no React error boundaries. If a game component throws, the whole page goes white. A shipped app needs error boundaries around the game screen, lobby, daily challenge, and admin sections. Each boundary should show a recovery UI ("Something went wrong — reload this section").
+- **Why deferred**: Individual component stability is still being worked on; error boundaries are cheap to add once components settle but should land before users see the app.
+- **See**: New `ErrorBoundary.tsx` component; wrap in `MatchView.tsx`, `LobbyView.tsx`, `page.tsx` (home), admin `page.tsx`.
+
+### Data population — run the scraper against the live database
+- **What**: The Python scraper service (`trivia-501-scraper/`) has never been run against the Supabase production database. Geography and Film categories were only just activated. Question difficulty scores were computed on whatever data existed at the time — the scores are only as good as the underlying answer counts. Without a full data population pass, question pools are thin and difficulty ratings are unreliable.
+- **Why deferred**: The scraper is a separate Python microservice that needs its own deployment and scheduling infrastructure. Acceptable for dev; unacceptable for real players.
+- **See**: `trivia-501-scraper/`, `QuestionMaterializerService.java`, `DifficultyCalculator.java`.
+
+### Solo forfeit game completion
+- **What**: When a solo player forfeits via timeout, `handleGameCompletion` is never called from the real controller path (only from tests). The match stays `IN_PROGRESS` forever with a `COMPLETED` game inside it. Even if `handleGameCompletion` were called, `isMatchComplete` returns false because neither player's game-won counter increments — so the match never terminates. Needs a dedicated design pass: should a solo forfeit mark the match `ABANDONED`? Should it count as a loss?
+- **Why deferred**: Solo forfeit is a rare edge case (3 consecutive timeouts required). The `handleGameCompletion` NPE from null `winnerId` was fixed, but the broader completion flow for solo forfeits needs wiring into the real controller path.
+- **See**: `MatchService.java:141`, `GameStateMachine.java:138`, `GameService.java:139`.
+
+---
+
+## Deferred Indefinitely — Multiplayer & Competitive Ranking
+
+The following items were previously P0/P1 launch blockers but are now parked. The product focus has shifted to single-player daily challenges and Free Play. These may return as a future phase but have no timeline.
+
+### Real-time multiplayer (WebSocket STOMP)
+- **What**: 1v1 real-time match communication over WebSocket (STOMP protocol). `GameStateMachine` and `GameService` have hooks for it, but no WebSocket handler is wired. The two-player turn alternation, opponent tracking, and match completion logic in `GameStateMachine` are designed for this but only tested via solo play.
+- **Why parked**: Focus is on single-player daily challenges and Free Play. Multiplayer adds significant complexity (matchmaking, reconnection, timeout arbitration) that doesn't serve the current product direction.
+- **What stays**: `GameStateMachine` two-player logic, `MatchFormat` best-of-3/5, `player2Id` fields — these are not being removed, just not built out.
 - **See**: `docs/design/TECHNICAL_DESIGN.md`, `CLAUDE.md` — WebSocket Protocol section.
 
-### Player profiles and matchmaking queue
-- **What**: `player_profiles` table (MMR, league points, win/loss), matchmaking queue, rank display.
-- **Why deferred**: Requires auth and multiplayer to be in place first.
+### MMR, league tiers, and ranked play
+- **What**: The 9-tier × 4-subtier ranking system (Sunday League → Icon), hidden MMR, Elo-based matchmaking, and ranked/casual mode split described in the PRD.
+- **Why parked**: No multiplayer means no ranked play. Player profiles stay as a personal dashboard (stats, history, personal bests) without competitive ranking.
+- **What stays**: `player_profiles` table (V23 migration) — repurposed as a personal stats/history store. The `league_tier` and `league_subtier` columns may be dropped or left unused.
+- **See**: PRD §4.1, §4.2; `player_profiles` table.
+
+### Matchmaking queue
+- **What**: `matchmaking_queue` table, opponent finding, Elo-based pairing.
+- **Why parked**: No multiplayer.
+- **See**: `docs/design/TECHNICAL_DESIGN.md`.
+
+### Multiplayer game modes (Rapid Fire, Draft, Category Lock, Blind, Tournament)
+- **What**: All P2 stretch game modes that require two players.
+- **Why parked**: These depend on multiplayer infrastructure that is now deferred indefinitely. The design docs stay for reference; no implementation priority.
+- **See**: `docs/design/GAME_MODES_STRETCH_GOALS.md`.
 
 ---
 
@@ -72,6 +118,36 @@ These don't block the first players but should follow quickly.
 - **Why deferred**: Needs a dedicated cleanup migration; low risk to leave in place short-term.
 - **See**: `docs/design/DIFFICULTY_SCORING.md` — Remaining / Future Work.
 
+### Match history
+- **What**: Players can't see past games or results after the match ends. A personal game log showing past daily challenges (date, category, score, emoji grid), Free Play games (category, question, final score), and personal bests is expected from any game that asks people to come back daily.
+- **Why deferred**: Player profiles need to land first so history has a place to live. The `matches` and `games` tables already exist; a read endpoint and simple history page are the main work.
+- **See**: New endpoint + page; `matches` and `games` tables, `player_profiles` table (V23).
+
+### Server-side turn timer
+- **What**: The 45s→30s→15s→forfeit timer ladder is displayed client-side but not enforced server-side. For solo play this is a UX feature (adds pressure/drama) rather than a competitive integrity concern. The timer should eventually be enforced server-side so the client display is authoritative, and so Free Play optionally supports timed games for players who want the pressure.
+- **Why deferred**: Not a launch blocker without multiplayer. The client timer display works; server enforcement is a polish pass.
+- **See**: `GameStateMachine.java`, `GameService.java`.
+
+### Loading, error, and empty state consistency
+- **What**: Around 60 references to loading states exist across components but there's no consistent pattern (some use inline conditionals, some use a `LoadingOverlay`, some don't handle loading at all). Certain flows lack error handling for API failures; others don't handle the empty/zero-results case (no autocomplete matches, no leagues found, no daily challenge available, no search results on admin pages). Every user-facing component must handle all three non-happy-path states.
+- **Why deferred**: Individual feature work is still adding new components; standardising patterns now would create churn. Better to audit and fix once the component landscape stabilises.
+- **See**: Audit `frontend-react/src/components/` for missing `isLoading`, `error`, and empty-state branches. Reference: `LoadingOverlay.tsx`.
+
+### Open Graph metadata for daily challenge shares
+- **What**: Emoji-grid sharing exists and works end-to-end, but shared URLs render as raw links with no title, description, or image preview in messaging apps. The Wordle comparison sets a high bar — shared results should show a rich card with the category name, final score, and emoji grid. This is a small static metadata change with outsized social reach.
+- **Why deferred**: Share mechanics work; OG metadata is a polish layer that can be added without touching game logic.
+- **See**: `frontend-react/src/app/daily/[category]/page.tsx`, `frontend-react/src/app/layout.tsx` (add `<meta>` tags).
+
+### PWA offline capability validation
+- **What**: The manifest and service worker files exist but haven't been tested on spotty/missing connections. The PRD promises PWA installability and sub-3s load on 3G. The game can't work fully offline (server-side validation), but the app shell, lobby, and daily challenge browse pages should cache and render without network.
+- **Why deferred**: Core game mechanics are still being built; PWA optimisation matters once the shell is stable.
+- **See**: `frontend-react/public/manifest.json`, `frontend-react/public/sw.js`, `frontend-react/next.config.ts`.
+
+### Difficulty score recalibration after data population
+- **What**: Difficulty scores were backfilled from existing answer counts. Once the scraper populates more answers, scores shift — some "hard" questions become easier, some "easy" questions show their true range. Re-run the backfill after a full scraper population pass, then review daily challenge question quality with real scores.
+- **Why deferred**: Depends on data population (P0) being done first.
+- **See**: `DifficultyCalculator.java`, `backfill_difficulty_scores.sql`.
+
 ---
 
 ## Backend Hardening
@@ -83,24 +159,22 @@ Stability and correctness improvements that are not urgently needed but should b
   1. **Unique constraint** on `(game_id, matched_answer_id)` in `game_moves` — DB rejects the second insert regardless of application logic.
   2. **`@Version` optimistic locking** on the `Game` entity — a version column that increments on every save; a concurrent second transaction throws `OptimisticLockException`, which `GlobalExceptionHandler` can return as a clean error.
 - **Why deferred**: Design is still evolving; don't want an unnecessary Flyway migration that needs reversing. Current `@Transactional` wrapper prevents partial saves, so this is a hardening step, not a correctness emergency.
-- **When to pick up**: Once the game schema is stable and multiplayer is being wired. Both changes together close the race condition and the duplicate submission gap.
+- **When to pick up**: Once the game schema is stable. Both changes together close the race condition and the duplicate submission gap.
 - **Files**: `GameService.java:77`, `Game.java`, `GameMove.java`, `GlobalExceptionHandler.java`.
 
 ### Toggle on/off and customise turn timer
-- **What**: Allow players (or a match host) to disable the turn timer entirely, or set a custom duration, before a game starts. The default 45s→30s→15s→forfeit ladder would remain unchanged for standard ranked play.
-- **Why deferred**: Core timer logic isn't fully wired yet (server-side enforcement + client display are still P0 work). Customisation only makes sense once the baseline timer is solid.
-- **When to pick up**: After the turn timer P0 item is complete. Timer settings would live on the `matches` row (e.g. `timer_enabled BOOLEAN`, `turn_timer_override_seconds INTEGER`) so `GameStateMachine` can read them without changing its interface.
+- **What**: Allow players to disable the turn timer entirely or set a custom duration before starting a Free Play game. The default 45s→30s→15s→forfeit ladder would remain the default for timed games.
+- **Why deferred**: Requires server-side timer enforcement (P1) to be complete first. Customisation only makes sense once the baseline timer is solid.
+- **When to pick up**: After the server-side turn timer P1 item is complete. Timer settings would live on the `matches` row (e.g. `timer_enabled BOOLEAN`, `turn_timer_override_seconds INTEGER`) so `GameStateMachine` can read them without changing its interface.
 - **Files**: `GameStateMachine.java`, `Game.java`, `GameService.java`.
 
 ### Solo forfeit does not complete the match
-- **What**: When a solo player forfeits via timeout, `GameStateMachine.onTimeout` sets `winnerId = null` (correct — no winner in solo forfeit). But `handleGameCompletion` is never called from the solo game-over path (it's only wired in tests today). Even if it were called, `isMatchComplete` would return false because neither `player1GamesWon` nor `player2GamesWon` increments — so the match stays `IN_PROGRESS` forever with a `COMPLETED` game inside it.
-- **Why deferred**: Solo forfeit is a rare edge case (3 consecutive timeouts needed). The `handleGameCompletion` NPE from null `winnerId` was fixed 2026-05-28, but the broader completion flow for solo forfeits needs a dedicated design pass — should a solo forfeit end the match? Should it count as a "loss"? Today there's no two-player flow either, so this only affects solo.
-- **When to pick up**: When wiring `handleGameCompletion` into the real controller flow (currently it's only called from `MatchServiceTest`). At that point, decide: (a) make `handleGameCompletion` mark the match `COMPLETED` when `winnerId` is null, or (b) give solo forfeits a different status like `ABANDONED`.
+- **Status**: Promoted to P0 launch blocker (see above). This item remains here as the original analysis with full context.
 - **Files**: `MatchService.java:141`, `GameStateMachine.java:138`, `GameService.java:139`.
 
 ### Solo vs multiplayer: null-player2 design tension
-- **What**: Solo (practice) games reuse the two-player `Match`/`Game` models with `player2Id = null`. This works but creates scattered `isSolo` branching in `GameStateMachine` (4+ sites) and `GameService` (2 sites). Fields like `player2Score`, `player2GamesWon`, and `MatchFormat.BEST_OF_1` are meaningless in solo context. The `opponentOf` helper was a latent footgun (now guarded with an explicit exception, 2026-05-28). The question is whether solo should be a separate type entirely or whether the current null-based approach is pragmatic enough.
-- **Why deferred**: The modes share ~80% of their logic. Splitting now would duplicate code without a clear benefit. A better intermediate step is extracting the branching into a `TurnPolicy` strategy (SoloPolicy / TwoPlayerPolicy) that lives in one place, keeping the shared models. Revisit when: (a) a third game mode is added, (b) the branching spreads beyond `GameStateMachine` + `GameService`, or (c) solo-specific features (AI opponent, timer customization) start piling up.
+- **What**: Solo (Free Play) games reuse the two-player `Match`/`Game` models with `player2Id = null`. This works but creates scattered `isSolo` branching in `GameStateMachine` (4+ sites) and `GameService` (2 sites). Fields like `player2Score`, `player2GamesWon`, and `MatchFormat.BEST_OF_1` are meaningless in solo context. With multiplayer deferred indefinitely, the null-player2 approach carries dead weight — but ripping it out would be a large refactor for no user-facing gain.
+- **Verdict**: Keep the current null-based approach. The modes share ~80% of their logic and there's no third mode on the horizon. If the branching becomes a maintenance tax during Free Play work, extract it into a `TurnPolicy` strategy (SoloPolicy / TwoPlayerPolicy) that lives in one place.
 - **Files**: `GameStateMachine.java:67,123,253`, `GameService.java:209,284`, `MatchService.java:78,148`.
 
 ### Per-turn used-answer query grows with game length
@@ -114,43 +188,88 @@ Stability and correctness improvements that are not urgently needed but should b
 
 Small, cheap decisions to make in the core game now that keep future modes open. These are not stretch goals — they are hygiene. Reference `docs/design/GAME_MODES_STRETCH_GOALS.md` when making schema or service boundary decisions.
 
+With multiplayer deferred indefinitely, guardrails that only serve multiplayer modes are parked (see Deferred Indefinitely section above). Guardrails that serve Daily Challenge and Free Play remain active.
+
 ### Database
 
-| Guardrail | Why it matters |
-|---|---|
-| ~~Add `game_mode VARCHAR` to `matches`, default `'STANDARD'`~~ ✅ Done (V19) | Every non-standard mode needs this column. Added in V19 with Daily Challenge support. |
-| Store `question_id` on `game_moves` (not just on `games`) | Rapid Fire needs per-move question tracking. Already noted in `CLAUDE.md`. |
-| ~~Add `suitable_for_daily BOOLEAN DEFAULT false` to `questions`~~ ✅ Done (V19) | Explicit Daily Challenge pool flag. Added in V19; V20 backfills viable easy/medium questions. |
-| Add `suitable_for_game_modes JSONB` to `question_templates` | Prevents unsuitable templates being re-enabled for wrong modes in future. See `DIFFICULTY_SCORING.md`. |
+| Guardrail | Status | Why it matters |
+|---|---|---|
+| ~~Add `game_mode VARCHAR` to `matches`, default `'STANDARD'`~~ | ✅ Done (V19) | Every non-standard mode needs this column. Added in V19 with Daily Challenge support. |
+| Store `question_id` on `game_moves` (not just on `games`) | 🅿️ Parked | Rapid Fire needs per-move question tracking. Parked with multiplayer. |
+| ~~Add `suitable_for_daily BOOLEAN DEFAULT false` to `questions`~~ | ✅ Done (V19) | Explicit Daily Challenge pool flag. Added in V19; V20 backfills viable easy/medium questions. |
+| Add `suitable_for_game_modes JSONB` to `question_templates` | 🅿️ Parked | Prevents unsuitable templates being re-enabled for wrong modes in future. Parked with multiplayer. |
 
 ### Backend
 
-| Guardrail | Why it matters |
-|---|---|
-| Question draw logic in a dedicated service (`QuestionDrawService`) | Rapid Fire swaps "draw once per game" for "draw once per turn". Inline logic in game start code needs extraction. |
-| Pass `gameMode` through game engine context from the start | Mode-specific rules can't be added later without threading it back through the call stack. |
+| Guardrail | Status | Why it matters |
+|---|---|---|
+| Question draw logic in a dedicated service (`QuestionDrawService`) | 🅿️ Parked | Rapid Fire swaps "draw once per game" for "draw once per turn". Parked with multiplayer. |
+| Pass `gameMode` through game engine context from the start | Active | Already in place. Mode-specific rules for Daily/Free Play benefit from this. |
 
 ### Frontend
 
-| Guardrail | Why it matters |
-|---|---|
-| Mode label/badge component (even if only `STANDARD` renders today) | Gives the UI a place for mode display in listings, lobbies, and history when new modes ship. |
+| Guardrail | Status | Why it matters |
+|---|---|---|
+| Mode label/badge component | Active | Gives the UI a place to display "Daily Challenge" vs "Free Play" mode names in listings and history. |
 
 ---
 
-## P2 — Game Modes (Stretch Goals)
+## P2 — Stretch Goals
 
-Fully designed but not being implemented until the core game is stable and has real users. See `docs/design/GAME_MODES_STRETCH_GOALS.md` for full specs.
+Features that are designed but not being built until the core Daily Challenge + Free Play experience is stable and has real users.
 
-| Mode | Priority | Summary |
-|---|---|---|
-| ~~**Daily Challenge**~~ ✅ Done | Highest | One challenge per category per day, variable starting scores (101–501), Wordle-style emoji-grid sharing, lazy creation + midnight cron. No leaderboards/replay enforcement (trust-based). |
-| **Rapid Fire H2H** | Medium | Question changes every dart; one answer per question. Needs `question_id` on `game_moves` guardrail. |
-| **Draft Mode** | Low | Pick from 3 questions each turn. |
-| **Category Lock** | Low | Pre-agreed category for the whole match. |
-| **Blind Mode** | Low | Question hidden until your turn. |
-| **Tournament/League** | Low | Brackets or league tables over multiple games. |
-| **Expert Challenge** | Low | Questions with `difficulty_score > 8.5` excluded from standard play; surfaced here. |
+### Async friend challenges
+- **What**: Play the same daily challenge question as a friend and compare results. Not real-time — each player plays independently, then sees the other's result when both have finished. The social mechanic is: "I played today's Football daily, scored 87. Can you beat that?" Friend challenges would be surfaced via share links that deep-link into the challenge. If the recipient plays within 24 hours, the results are compared side-by-side with the same emoji-grid format.
+- **Why deferred**: Requires a friend/challenge invitation system, result comparison UI, and push notification infrastructure. Build the single-player daily loop first, get retention data, then layer in social comparison.
+- **See**: Daily challenge share links, `DailyChallengeController.java`.
+
+### Expert Challenge
+- **What**: Questions with `difficulty_score > 8.5` excluded from the standard daily pool. A separate "Expert Challenge" mode surfaces these for players who want the hardest questions.
+- **Why deferred**: The expert question pool doesn't exist yet (needs data population + difficulty recalibration). The standard daily pool must be proven to work at normal difficulty before adding a hard mode.
+- **See**: `DifficultyCalculator.java`, `DailyChallengeService.java`.
+
+### Custom game rules (per-game and per-user preferences)
+- **What**: Two complementary features:
+  1. **Per-game rule overrides** — players choose a rule preset from the Free Play lobby. Rules stored as JSONB on the `games` row.
+  2. **Per-user default preferences** — a `player_preferences` table storing preferred rule settings, auto-populated into the lobby selector.
+- **Proposed rule knobs**:
+  | Setting | Default | Description |
+  |---|---|---|
+  | Darts validation | Strict | Strict: 169, 176, etc. are invalid 3-dart checkouts → bust. Relaxed: only incorrect answers bust; any score 1–180 is valid. |
+  | Checkout zone | -10 to 0 | Widens the win window. Options: -5 ("tight"), -10 ("standard"), -20 ("forgiving"). |
+  | Max darts score | 180 | Could be raised (e.g. 200) for easier games. |
+  | Turn timer | 45s | Custom duration or disabled entirely. |
+- **Why deferred**: The core game rules are still being validated. Adding rule configurability while the base rules are in flux creates a test-matrix explosion. Defer until the strict-rules game loop has seen real play and we have feedback on whether the strict darts rules are causing confusion.
+- **Files**: `DartsValidator.java`, `ScoringService.java`, `AnswerEvaluator.java:95-106`, `ScoreResult.java`, `GameHintsService.java:35`, `GameService.java:88`, `AdminAnswerService.java:51-52,157-162`, `QuestionMaterializerService.java:223-224`, `Match.java:75`, `Game.java`.
+
+### Starting score variety for daily challenges
+- **What**: Once the expanded curated pool of 20–30 starting scores is live (P0), consider making the score selection smarter — e.g. avoiding consecutive repeats within the same category, weighting toward under-used scores, or showing a "score of the day" reveal animation. The goal is making each day feel like a genuinely different puzzle even when the question category repeats.
+- **Why deferred**: Get the expanded pool working first (P0), then iterate on the selection algorithm based on play data.
+- **See**: `DailyChallengeScheduler.java`, `DailyChallengeService.java`.
+
+### Custom game rules (per-match and per-user preferences)
+
+- **What**: Two complementary features:
+  1. **Per-game rule overrides** — players choose a rule preset from the lobby before starting a game. Rules are stored as JSONB on the `games` row and threaded through `ScoringService` + `DartsValidator` at runtime.
+  2. **Per-user default preferences** — a `player_preferences` table storing the player's preferred rule settings, auto-populated into the lobby selector. A `GET/PUT /api/player/preferences` endpoint and a small frontend settings panel.
+- **Proposed rule knobs**:
+  | Setting | Default | Description |
+  |---|---|---|
+  | Darts validation | Strict | Strict: 169, 176, etc. are invalid 3-dart checkouts → bust. Relaxed: only incorrect answers bust; any score 1–180 is valid. |
+  | Checkout zone | -10 to 0 | Widens the win window. Options: -5 ("tight"), -10 ("standard"), -20 ("forgiving"). |
+  | Max darts score | 180 | Could be raised (e.g. 200) for easier games. |
+  | Turn timer | 45s | Custom duration or disabled entirely (overlaps with Backend Hardening item above; decide which owns it). |
+- **Architecture notes** (from 2026-06-08 exploration):
+  - `DartsValidator.isValidDartsScore()` is `private static final` — would need a `GameRules`-taking overload.
+  - `ScoringService` constants `CHECKOUT_MIN = -10` / `CHECKOUT_MAX = 0` are `private static final` — would read from `GameRules` instead.
+  - `answers.isValidDarts` and `answers.isBust` are pre-computed at import time under strict rules. For relaxed-rules games, `AnswerEvaluator` must **ignore those DB flags** and recompute bust purely at runtime from `ScoringService`. This is the right place — `AnswerEvaluator` already orchestrates the scoring call.
+  - `ScoreResult.bust()` was given a `reason` parameter in the 2026-06-08 reason-surfacing pass — the reason text naturally adapts to the active rules.
+  - `GameHintsService` has a hardcoded `CHECKOUT_WINDOW = 10` that must become dynamic.
+  - `game_mode` on `matches` is already a write-only column (set by `DailyChallengeService`, never read by game logic). Adding a `rules JSONB` column on `games` is cleaner than overloading `game_mode`.
+  - There is also an existing `isBust` discrepancy: `AdminAnswerService` computes `isBust = !isValidDartsScore(score)` while `QuestionMaterializerService` uses `isBust = score > 180`. The SQL migrations align with the materializer. Adding custom rules provides a natural moment to resolve this — bake bust logic into one place (`ScoringService`) and stop persisting it on answers.
+- **Why deferred**: The core game rules are still being validated. Adding rule configurability while the base rules are in flux creates a test-matrix explosion. Defer until (a) the strict-rules game loop has seen real play, and (b) at least one more game mode is implemented so the configuration surface is better understood.
+- **When to pick up**: After Daily Challenge has real users and we have feedback on whether the strict darts rules are causing confusion. The 2026-06-08 reason-surfacing pass (showing why a move was rejected) will give us that signal — if players consistently need the reason explained, relaxed rules become higher priority.
+- **Files**: `DartsValidator.java`, `ScoringService.java`, `AnswerEvaluator.java:95-106`, `ScoreResult.java`, `GameHintsService.java:35`, `GameService.java:88`, `AdminAnswerService.java:51-52,157-162`, `QuestionMaterializerService.java:223-224`, `Match.java:75`, `Game.java`.
 
 ### Football: league-scope questions for "Random League Question" option
 - **What**: All current football questions are `q_scope = 'club'` (tied to a specific team). A "league-scope" question would ask about the whole league (e.g. "Top scorers in the Premier League since 2000" — valid answers are any player from any club in that league). The lobby had a "Random League Question" option that fell back to club questions when none existed, causing confusion. The option has been replaced with a single "Random Question" entry that uses `scope: random_any` until league-scope questions are added.

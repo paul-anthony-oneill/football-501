@@ -130,6 +130,12 @@ public class DailyChallengeService {
      * progressively lower scores until one works or the list is exhausted.
      */
     private DailyChallenge createChallenge(UUID categoryId) {
+        // Defense-in-depth: the test category must never surface as a daily challenge.
+        Category category = categoryRepository.findById(categoryId).orElse(null);
+        if (category != null && "test".equals(category.getSlug())) {
+            throw new IllegalArgumentException("No daily challenge for the test category");
+        }
+
         int score = pickStartingScore();
         Optional<Question> questionOpt = questionRepository.findRandomDailyQuestion(
                 categoryId, score, DifficultyConstants.DAILY_MIN_DIFFICULTY, DifficultyConstants.DAILY_MAX_DIFFICULTY);

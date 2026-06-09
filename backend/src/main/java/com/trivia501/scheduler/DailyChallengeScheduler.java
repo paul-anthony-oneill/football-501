@@ -65,6 +65,12 @@ public class DailyChallengeScheduler {
 
         for (Category category : categories) {
             try {
+                // The test category exists for development only — never produce a daily challenge.
+                if ("test".equals(category.getSlug())) {
+                    skipped++;
+                    continue;
+                }
+
                 // Skip if today's challenge already exists
                 if (challengeRepository.findByChallengeDateAndCategoryId(today, category.getId()).isPresent()) {
                     skipped++;
