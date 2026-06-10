@@ -37,12 +37,12 @@ public class ScoringService {
     public ScoreResult calculateScore(int currentScore, int answerScore) {
         // If already in checkout range, cannot score again
         if (currentScore < CHECKOUT_MAX) {
-            return ScoreResult.bust(currentScore);
+            return ScoreResult.bust(currentScore, "Already in checkout range");
         }
 
         // Validate answer score is a valid darts score
         if (!DartsValidator.isValidDartsScore(answerScore)) {
-            return ScoreResult.bust(currentScore);
+            return ScoreResult.bust(currentScore, answerScore + " is not a valid 3-dart checkout score");
         }
 
         // Calculate potential new score
@@ -50,7 +50,7 @@ public class ScoringService {
 
         // If new score would be below checkout minimum, it's a bust
         if (newScore < CHECKOUT_MIN) {
-            return ScoreResult.bust(currentScore);
+            return ScoreResult.bust(currentScore, "Would drop below -10 (bust)");
         }
 
         // If new score is in checkout range (-10 to 0), it's a checkout

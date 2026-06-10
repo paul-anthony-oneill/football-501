@@ -11,15 +11,17 @@ Before starting any task, check **`docs/BACKLOG.md`**. After completing or defer
 
 ## Project Overview
 
-Trivia 501 is a competitive football trivia game that combines football knowledge with darts 501 scoring mechanics. Players compete to reduce their score from 501 to exactly 0 by naming football players whose statistics match a given question.
+Trivia 501 is a daily social trivia game that combines football knowledge with darts 501 scoring mechanics. Each day, players are given a question and a target score — the goal is to reach exactly 0 by naming players whose statistics match the question. Share your emoji-grid result with friends. Free Play mode lets players pick any category and question to play on their own terms.
 
-**Current Status**: Audit Fixes Complete (Phase 5 of 5).
+**Current Status**: Single-player focus — Daily Challenge + Free Play. Multiplayer and competitive ranking are deferred indefinitely (2026-06-08).
+
+**Product direction**: Wordle-style daily social trivia with emoji-grid sharing. Real-time multiplayer, MMR, league tiers, and matchmaking are parked. Player profiles will be a personal dashboard (stats, history, streaks) rather than competitive ranking.
 
 **Tech Stack**:
 - Frontend: Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS 4 — `frontend-react/`
 - Backend: Spring Boot 4.0.6 + Java 25 + PostgreSQL 15+
 - Data Source: ScraperFC (Python Microservice)
-- Real-time: WebSocket (STOMP protocol) - *In Progress*
+- Real-time: REST API (WebSocket deferred indefinitely with multiplayer)
 
 ## Architecture
 
@@ -28,12 +30,12 @@ Trivia 501 is a competitive football trivia game that combines football knowledg
 The application follows a client-server architecture with a separate Python microservice for data scraping:
 
 ```
-PWA Client (Next.js/React) <--HTTPS + WSS--> Spring Boot Server
-                                                   |
-                                              PostgreSQL
-                                                   ^
-                                                   |
-                                       Python Scraper Service (ScraperFC)
+PWA Client (Next.js/React) <--HTTPS--> Spring Boot Server
+                                            |
+                                       PostgreSQL
+                                            ^
+                                            |
+                                Python Scraper Service (ScraperFC)
 ```
 
 **Critical Architectural Principles**:
@@ -45,10 +47,10 @@ PWA Client (Next.js/React) <--HTTPS + WSS--> Spring Boot Server
 ### Backend Module Structure
 
 The Spring Boot application is organized into modules:
-- **API Module**: REST endpoints for CRUD operations
-- **WebSocket Module**: Real-time match communication handler
-- **Game Engine Module**: Core game logic (scoring, validation, win conditions)
-- **Auth Module**: User authentication (OAuth 2.0 + guest accounts)
+- **API Module**: REST endpoints for CRUD operations and game play (Daily Challenge, Free Play)
+- **WebSocket Module**: Real-time match communication handler (deferred indefinitely with multiplayer)
+- **Game Engine Module**: Core game logic (scoring, validation, win conditions) — shared across all modes
+- **Auth Module**: User authentication (OAuth 2.0 + anonymous guest play)
 - **Scheduler Module**: Automated tasks (daily challenge generation, stats refresh)
 - **Integration Module**: External API client for API-Football
 
@@ -74,8 +76,8 @@ See `docs/design/AUTOCOMPLETE_ENTITY_DESIGN.md` for the full design document, in
 - **App Router**: Next.js 16 App Router; all pages are `"use client"` (no SSR needed — data comes from Spring Boot)
 - **State Management**: Local `useState` + React Context API (`ToastContext`); no Redux/Zustand
 - **API Proxy**: `next.config.ts` rewrites `/api/*` → `http://localhost:8080/api/*` in dev
-- **WebSocket Client**: Native WebSocket for real-time game updates
-- **Optimistic UI**: Client updates UI immediately, then syncs with server
+- **Game Loop**: `useGameLoop` hook fetches game state via REST; no WebSocket in current single-player modes
+- **Optimistic UI**: Client updates UI immediately (autocomplete, answer submission), then syncs with server response
 - **Styling**: Tailwind v4 with `@theme inline` in `globals.css` (no `tailwind.config.ts`)
 - **Entity Autocomplete**: `EntitySearch.tsx` (`frontend-react/src/components/game/EntitySearch.tsx`) is the autocomplete input component used during gameplay. It accepts an `entityType` prop — the caller reads `question.config.entity_type` and passes it through; the prop defaults to `"footballer"` for backward compatibility. The component fires a search after 4 characters are typed, shows a "Keep typing…" hint at 1–3 characters, and fills the input on selection without auto-submitting so the player can confirm.
 
@@ -83,16 +85,16 @@ See `docs/design/AUTOCOMPLETE_ENTITY_DESIGN.md` for the full design document, in
 
 ### Scoring System (Critical)
 
-1. Both players start at 501 points
-2. Players alternate naming football players matching the question
-3. Player's statistic (appearances/goals/etc.) is deducted from score
-4. **Valid Darts Scores**: Only scores achievable with 3 darts in standard 501 are valid
+1. Player starts with a target score drawn from a pool of 20–30 curated values (101–501 range, currently 9 values: {501, 401, 351, 301, 251, 201, 167, 125, 101})
+2. Player names players matching the question; each valid answer's statistic is deducted from their score
+3. **Valid Darts Scores**: Only scores achievable with 3 darts in standard 501 are valid
    - Invalid scores (163, 166, 169, 172, 173, 175, 176, 178, 179) result in **bust** (no score deducted)
-5. **Bust Rules**:
+4. **Bust Rules**:
    - Scores > 180 = bust (turn wasted)
-   - Scores below -10 = bust
-6. **Checkout Range**: -10 to 0 (inclusive) to win
-7. **Close Finish Rule**: If Player 1 checks out, Player 2 gets one final turn to get closer to 0
+   - Invalid darts scores = bust
+   - Scores below -10 = bust (overshot the checkout zone)
+5. **Checkout Range**: -10 to 0 (inclusive) to win
+6. **Game ends**: checkout, bust-out (no valid moves remain), or forfeit
 
 ### Daily Challenge Mode
 
@@ -100,7 +102,7 @@ Daily Challenges are Wordle-style: one question per category per day, same start
 
 **Key design decisions**:
 - **One challenge per category per day** — `UNIQUE(challenge_date, category_id)` on `daily_challenges` table
-- **Variable starting scores** — randomly selected from `{501, 401, 351, 301, 251, 201, 167, 125, 101}` at creation time; same question pool at different targets = different strategic experience
+- **Variable starting scores** — randomly selected from an expanded curated pool of 20–30 scores (P0: currently 9 values `{501, 401, 351, 301, 251, 201, 167, 125, 101}`); same question pool at different targets = different strategic experience
 - **No leaderboards** — too easy to cheat (look up stats); comparing with friends via share links is the social mechanic
 - **No replay enforcement** — trust-based; the `daily_challenge_results` table was intentionally omitted
 - **Lazy creation + midnight cron** — `DailyChallengeScheduler` pre-selects at 00:00 UTC; `DailyChallengeService.getTodaysChallenge()` creates lazily if the cron missed
@@ -136,9 +138,10 @@ All questions must be pre-populated with answers from API-Football:
 
 ### Turn Rules
 
-- Default turn timer: 45 seconds
-- Consecutive timeouts reduce timer (45s → 30s → 15s → forfeit)
-- Invalid answers allow instant retry (timer keeps running)
+- **Daily Challenge**: No turn timer — play at your own pace. Single attempt per category per day.
+- **Free Play**: Optional turn timer (45s default, can be disabled). Client display built; server enforcement is P1.
+- Consecutive timeouts reduce timer (45s → 30s → 15s → forfeit). Non-consecutive timeouts reset to default.
+- Invalid answers allow instant retry (timer keeps running if enabled)
 - Fuzzy matching for player names (e.g., "Aguero" matches "Agüero")
 
 ## Database Schema
@@ -146,8 +149,8 @@ All questions must be pre-populated with answers from API-Football:
 Key tables to understand:
 
 ### Core Tables
-- `users`: User accounts (guest, registered, premium)
-- `player_profiles`: Ranking data (MMR, league points, win/loss records)
+- `users`: User accounts (anonymous, registered via Google OAuth)
+- `player_profiles`: Personal stats dashboard (game history, daily challenge streaks, personal bests) — no competitive ranking
 - `questions`: Question definitions with API-Football metadata
 - `answers`: Pre-cached player statistics (NEVER queried from API during matches)
 
@@ -158,8 +161,7 @@ Key tables to understand:
 
 ### Special Tables
 - `daily_challenges`: Daily challenge questions
-- `daily_challenge_results`: Leaderboard data
-- `matchmaking_queue`: Active matchmaking queue
+- `game_moves`: Turn-by-turn history — also used for emoji-grid share generation
 
 **Critical Indexes**:
 - `answers` table uses `gin_trgm_ops` index for fuzzy player name matching
@@ -196,6 +198,8 @@ ScraperFC data maps to the `answers` table:
 
 ## WebSocket Protocol
 
+**Status**: Deferred indefinitely with multiplayer (2026-06-08). The protocol design below is retained for reference if multiplayer returns. Current single-player modes (Daily Challenge, Free Play) use REST only.
+
 ### Connection
 - Endpoint: `wss://api.trivia501.com/ws?token={JWT_TOKEN}`
 - Protocol: STOMP over WebSocket
@@ -210,7 +214,7 @@ ScraperFC data maps to the `answers` table:
 }
 ```
 
-### Critical Messages
+### Critical Messages (designed, not implemented)
 
 **Client → Server**:
 - `SUBMIT_ANSWER`: Submit player name for validation
@@ -243,8 +247,8 @@ Spring Security is fully wired (`SecurityConfig.java`, `DevModeAuthFilter.java`)
 - `/api/entities/**` and `/api/categories/**` — `permitAll` (public autocomplete and listing)
 - `/actuator/health` — `permitAll` (liveness probe)
 - `GET /api/daily-challenge/**` — `permitAll` (public browsing of daily challenges; share URLs)
-- `POST /api/daily-challenge/**` — `authenticated` (game start, submit, abandon)
-- `/api/practice/**` — `ROLE_USER` or `ROLE_ADMIN`
+- `POST /api/daily-challenge/**` — `permitAll` (game start, submit, abandon — anonymous play is the core flow)
+- `/api/practice/**` — `permitAll` (Free Play; anonymous play is the core flow)
 - `/api/admin/**` — `ROLE_ADMIN`
 - everything else — `authenticated`
 
@@ -255,27 +259,17 @@ Spring Security is fully wired (`SecurityConfig.java`, `DevModeAuthFilter.java`)
 
 ### Anti-Cheat Measures
 - All game logic validated server-side
-- Hidden MMR for fair matchmaking
-- Server-side turn timing enforcement
-- Answer validation against cached database only
+- Answer validation against cached database only (zero external API calls during gameplay)
+- Annually rotated anonymous session cookies prevent cross-game tracking
+- Daily challenge is trust-based by design — no leaderboard eliminates the incentive to cheat for rank
 
 ### Rate Limiting
 - Authenticated users: 100 req/min
 - Unauthenticated: 10 req/min per IP
-- WebSocket message rate limiting
 
 ## Ranking System
 
-### Structure
-- 9 Tiers × 4 Subtiers = 36 total ranks
-- Tiers: Sunday League → Amateur → Semi-Pro → Journeyman → Pro → International → Continental → World Class → Icon
-- Subtiers: Reserve → Rotation → Starter → Captain
-
-### Progression
-- Hidden MMR for matchmaking (Elo-based)
-- Visible League Points for rank display
-- Win vs higher MMR = more points
-- Continuous progression (no seasonal resets)
+**Status**: Dropped (2026-06-08). The 9-tier MMR/league system was designed for competitive multiplayer and has no role in a single-player daily challenge product. Player profiles will be a personal dashboard (stats, history, streaks) without competitive ranking. The `player_profiles` table (V23 migration) is repurposed as a personal stats store. The `league_tier` and `league_subtier` columns may be dropped or left unused.
 
 ## Development Workflow
 
@@ -431,10 +425,8 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 | Metric | Target |
 |--------|--------|
 | API Response Time (p95) | < 200ms |
-| WebSocket Message Latency | < 100ms |
 | PWA Load Time (3G) | < 3s |
 | Database Query Time | < 50ms |
-| Matchmaking Time | < 10s |
 
 ## Common Pitfalls to Avoid
 
@@ -443,7 +435,7 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 3. **Server-side validation required** - Client optimistic updates must be confirmed by server
 4. **Respect API rate limits** - Free tier is 100 req/day, plan batch operations carefully
 5. **Fuzzy matching complexity** - Use PostgreSQL trigram indexes (`gin_trgm_ops`) for player name matching
-6. **Close finish rule** - Player 2 always gets final turn if Player 1 checks out first
+6. **Close finish rule** — Not applicable to single-player daily challenge/Free Play; retained for multiplayer only. In solo play, the game ends when the player checks out or busts out. (Deferred indefinitely with multiplayer.)
 7. **Consecutive timeout tracking** - Non-consecutive timeouts reset the timer back to default
 8. **Never use `answers` as the autocomplete source** - It would reveal valid answers for the current question. Autocomplete must query the `entities` table only.
 9. **Always populate `entities` when adding answers** - `AdminAnswerService` does this automatically via `EntitySearchService.upsertEntity()`. If running a manual SQL backfill, see `docs/design/AUTOCOMPLETE_ENTITY_DESIGN.md`.
@@ -467,9 +459,9 @@ OAUTH_FACEBOOK_CLIENT_SECRET=
 - React Context replaces per-page Svelte store patterns with minimal overhead
 
 ### Why PostgreSQL?
-- ACID compliance for critical operations (rankings, match results)
+- ACID compliance for critical operations (game state, daily challenges)
 - Full-text search with trigram matching for fuzzy player names
-- JSON support for flexible data storage
+- JSON support for flexible data storage (question configs, custom rules)
 - Free and open-source
 
 ### Why Aggressive Caching?
@@ -508,24 +500,28 @@ Questions use a **continuous `difficulty_score` (NUMERIC 0.00–10.00)** rather 
 
 **Formula constants all live in `DifficultyConstants.java`** — never hardcode zone boundaries or weights elsewhere.
 
-## Game Modes — What's Parked & Why It Matters
+## Game Modes — What's Active & What's Parked
 
-Multiple game modes (Daily Challenge, Rapid Fire, Draft, Category Lock) are **designed but not being implemented yet**. See `docs/design/GAME_MODES_STRETCH_GOALS.md` for full details.
+**Active**: Daily Challenge (core), Free Play (secondary). Both share the same game engine (`GameStateMachine`, `ScoringService`, `AnswerEvaluator`).
 
-**Core principle to carry through all development**: The game's difficulty is strategic, not just knowledge-based. Knowing *when* to play an answer and *which score to target* is the depth — not just knowing valid names. Easy/medium questions can produce deeply competitive games.
+**Parked** (deferred indefinitely with multiplayer — 2026-06-08): Rapid Fire H2H, Draft Mode, Category Lock, Blind Mode, Tournament/League. See `docs/design/GAME_MODES_STRETCH_GOALS.md` for the original designs, retained for reference.
 
-**Architectural guardrails to apply now** (cheap decisions that keep future modes open):
-- `game_mode VARCHAR` on `matches`, default `'STANDARD'`
-- `question_id` on `game_moves` (not just on `games`) — needed for Rapid Fire's per-turn question tracking
-- `difficulty_score NUMERIC(4,2)` on `questions` (continuous 0–10 scale, not an enum — see Difficulty Scoring section above)
-- `suitable_for_daily BOOLEAN` on `questions`
-- Question draw logic must live in a dedicated service method — never inline in game start code
+**Core principle to carry through all development**: The game's difficulty is strategic, not just knowledge-based. Knowing *when* to play an answer and *which score to target* is the depth — not just knowing valid names. Easy/medium questions can produce deeply engaging games.
+
+**Active guardrails**:
+- `game_mode VARCHAR` on `matches`, default `'STANDARD'` ✅ Done (V19)
+- `suitable_for_daily BOOLEAN` on `questions` ✅ Done (V19)
+- `difficulty_score NUMERIC(4,2)` on `questions` (continuous 0–10 scale)
+- Question draw logic in a dedicated service method — never inline in game start code
+
+**Parked guardrails** (multiplayer-only, no urgency):
+- `question_id` on `game_moves` — Rapid Fire guardrail; not needed for current modes
 
 ## Current Development Phase
 
-**Phase**: Daily Challenge Mode Complete — Building MVP Features
+**Phase**: Single-Player Focus — Polishing Daily Challenge + Free Play
 
-The five-phase audit campaign is complete. Daily Challenge mode (Wordle-style) is now implemented: one challenge per category per day, variable starting scores (101–501), emoji-grid result sharing, lazy creation with midnight cron fallback. No leaderboards or replay enforcement — trust-based, designed for friends comparing results.
+The five-phase audit campaign is complete. The product is now focused on single-player daily challenges with social sharing (Wordle-style) and Free Play mode. Multiplayer, competitive ranking, and MMR have been deferred indefinitely (2026-06-08).
 
 **What was completed in the audit campaign**:
 - Phase 1: Spring Security plumbing, identity spoofing fix, `@PreAuthorize` on admin controllers
@@ -535,13 +531,27 @@ The five-phase audit campaign is complete. Daily Challenge mode (Wordle-style) i
 - Phase 5: MapStruct mappers, `GlobalExceptionHandler`, `EntityType` constants, SvelteKit frontend deleted
 
 **Recently completed**:
-- Daily Challenge mode: V19 schema (daily_challenges table, game_mode on matches, suitable_for_daily on questions), V20 data backfill, DailyChallengeService, DailyChallengeScheduler, DailyChallengeController, frontend daily cards + /daily pages + emoji-grid sharing
-- Two architectural guardrails shipped: `game_mode VARCHAR` on matches, `suitable_for_daily BOOLEAN` on questions
-- Geography + Film categories: CSV-based Java Flyway migrations (V21, V22) replacing ~12K lines of hardcoded SQL INSERTs. Seed data lives in `db/data/*.csv` files loaded by `BaseJavaMigration` subclasses. Pattern is now the standard for new category seeding.
+- Daily Challenge mode: V19 schema, V20 data backfill, DailyChallengeService, DailyChallengeScheduler, DailyChallengeController, frontend daily cards + /daily pages + emoji-grid sharing
+- Free Play mode (formerly "practice"): lobby drill-down nav (V24–V26), league question scoping (V28, V30), entity autocomplete caching, staged answer flow with THROW DART button
+- Geography + Film categories: CSV-based Java Flyway migrations (V21, V22)
+- Supabase JWT auth + Google OAuth: social login end-to-end, HTTPOnly cookie sessions
 
-**Next Steps** (remaining MVP work):
-1. Real authentication — replace `DevModeAuthFilter` with a JWT validation filter; wire OAuth 2.0 (Google social login first)
-2. Player profiles — `player_profiles` table (stats, history), personal bests from daily challenges
-3. More daily challenge categories — current data only has Football; add Rugby, Cricket, etc. when question pools exist
-4. Data population — run the Python scraper service against the live database to seed more `questions` and `answers`
-5. Run `backfill_difficulty_scores.sql` after data population to compute initial difficulty scores
+**Current P0 priorities** (see `docs/BACKLOG.md` for full details):
+1. Remove test question from daily challenge pool
+2. Guest/anonymous play for core experience (no sign-in required)
+3. Expand daily challenge starting score pool from 9 to 20–30
+4. Reframe practice mode as Free Play (rename, remove practice language)
+5. Frontend test suite
+6. Error boundaries
+7. Data population (run scraper against live DB)
+8. Solo forfeit game completion fix
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

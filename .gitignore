@@ -82,3 +82,9 @@ dist/
 # Study guide (interview prep — never commit)
 STUDY_GUIDE.md
 .vercel
+
+# Graphify (knowledge graph output — machine-generated)
+graphify-out/
+
+# Next.js build output (stray folder in backend/)
+backend/.next/

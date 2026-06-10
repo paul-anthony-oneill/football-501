@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 interface AnimatedScorePopupProps {
   scoreValue: number;
   result: "VALID" | "BUST" | "INVALID";
+  reason?: string;
   onComplete: () => void;
 }
 
@@ -13,6 +14,7 @@ type Phase = "counting" | "flashing" | "showing" | "invalid";
 export default function AnimatedScorePopup({
   scoreValue,
   result,
+  reason,
   onComplete,
 }: AnimatedScorePopupProps) {
   const prefersReducedMotion =
@@ -99,6 +101,11 @@ export default function AnimatedScorePopup({
           <div className="text-tele-danger text-[32px] tracking-widest uppercase">
             Invalid Answer
           </div>
+          {reason && (
+            <div className="text-[#888] text-[20px] uppercase tracking-wide max-w-md leading-relaxed">
+              {reason}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -120,6 +127,11 @@ export default function AnimatedScorePopup({
         {phase === "showing" && result !== "BUST" && (
           <div className="text-tele-cyan text-[24px] tracking-widest uppercase">
             Points Scored
+          </div>
+        )}
+        {phase === "showing" && result === "BUST" && reason && (
+          <div className="text-[#888] text-[20px] uppercase tracking-wide max-w-md leading-relaxed mt-2">
+            {reason}
           </div>
         )}
       </div>

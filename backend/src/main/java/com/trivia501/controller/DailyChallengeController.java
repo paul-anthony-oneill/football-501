@@ -182,7 +182,7 @@ public class DailyChallengeController {
                 .scoreValue(move.getScoreValue())
                 .scoreBefore(move.getScoreBefore())
                 .scoreAfter(move.getScoreAfter())
-                .reason(determineReason(move))
+                .reason(result.reason())
                 .isWin(move.getResult() == GameMove.MoveResult.CHECKOUT)
                 .gameState(buildGameStateResponse(game, question, match, result.usedAnswerIds(), List.of()))
                 .build();
@@ -373,12 +373,4 @@ public class DailyChallengeController {
         );
     }
 
-    private String determineReason(GameMove move) {
-        return switch (move.getResult()) {
-            case INVALID -> "Answer not found or already used";
-            case BUST -> "Invalid darts score or bust";
-            case CHECKOUT -> "Win!";
-            default -> null;
-        };
-    }
 }
