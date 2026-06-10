@@ -10,6 +10,7 @@ import { useGameLoop, getSavedLabel } from "@/hooks/useGameLoop";
 import { useDailyChallenge } from "@/hooks/useDailyChallenge";
 import { useToast } from "@/context/ToastContext";
 import { apiFetch } from "@/lib/api/client";
+import { buildShareText } from "@/utils/share";
 import type { FootballFilter } from "@/lib/api/footballApi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -105,32 +106,7 @@ export default function GamePage() {
       if (!res.ok) throw new Error("Failed to get share data");
       const data = await res.json();
 
-      // Build Wordle-style share text
-      const emojiMap: Record<string, string> = {
-        VALID: "🟩",    // 🟩
-        BUST: "🟥",     // 🟥
-        INVALID: "⬜",
-        CHECKOUT: "🎯", // 🎯
-      };
-      const emojiLine = (data.moveEmojis as string[])
-        .map((e: string) => emojiMap[e] ?? "⬜")
-        .join("");
-
-      const dateStr = data.challengeDate
-        ? new Date(data.challengeDate).toLocaleDateString("en-GB", {
-            day: "numeric", month: "short", year: "numeric",
-          })
-        : "Today";
-
-      const shareText = [
-        `⚽ FOOTBALL 501 — ${data.categoryName?.toString().toUpperCase() ?? "DAILY"}`,
-        `${dateStr} — Target: ${data.startingScore}`,
-        "",
-        emojiLine,
-        `Score: ${(data.finalScore as number) <= 0 ? "000" : String(data.finalScore).padStart(3, "0")} | ${data.turnCount} turns`,
-        "",
-        `${window.location.origin}/daily/${data.categorySlug ?? "football"}`,
-      ].join("\n");
+      const shareText = buildShareText(data, window.location.origin);
 
       // Try native share on mobile, fall back to clipboard
       if (navigator.share) {

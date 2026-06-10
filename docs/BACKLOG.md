@@ -1,6 +1,6 @@
 # Trivia 501 — Backlog & Future Work
 
-**Last updated**: 2026-06-09 (frontend test strategy: behaviour tests now, component tests deferred until design freeze)  
+**Last updated**: 2026-06-09 (frontend test suite: Phase 1 behaviour tests complete — 99 tests across 5 files; Phase 2 component/integration tests deferred until design freeze)  
 **Purpose**: Living document capturing all deferred work, stretch goals, and improvement ideas regardless of size or urgency. Update this whenever a decision is made to defer something, or when a backlog item is completed or abandoned.
 
 **Product direction** (2026-06-08): The game is now focused on **single-player daily challenges** as the core experience — Wordle-style social trivia where everyone plays the same question with the same parameters each day and shares results with friends. A separate **Free Play** mode (formerly "practice") lets players pick any category/question to play on their own terms. Async friend challenges (play the same question and compare) are a planned social feature. The ranking/MMR/league-tier system and real-time multiplayer are deferred indefinitely.
@@ -32,6 +32,7 @@
 | Auth: Guest play with 24-hour session timeout | — | `OptionalJwtFilter` already handled anonymous UUID cookie creation; added 24-hour sliding MaxAge — cookie renewed on every request so active players keep their session, abandoned sessions auto-expire after a day. No sign-in walls exist anywhere in the core game loop. |
 | Error boundaries | — | `ErrorBoundary` class component catches render errors; wrapped around lobby, game, and admin sections with per-section recovery UI + reload button. Admin sidebar lives outside the boundary so navigation survives page crashes. |
 | Solo forfeit game completion | — | Wired `handleGameCompletion` into `processPlayerMove` and `handleTimeout` (was previously only called from tests). Solo forfeit (null winner) → match ABANDONED instead of stuck IN_PROGRESS. Uses `@Lazy MatchService` to break the circular dep. |
+| Frontend test suite — Phase 1 | — | 99 behaviour tests across 5 files: share-grid emoji encoding (21 tests, exhaustive), country/flag utilities (18 tests), `apiFetch` auth injection (7 tests), `adminApi` URL construction + error handling (24 tests), `useGameLoop` state transitions + submit + popup + session restore (29 tests). Vitest + React Testing Library + jsdom configured. Extracted `buildShareText` pure utility from `page.tsx` to make share logic testable. `package.json` scripts: `npm test` (vitest run), `npm run test:watch` (vitest). TypeScript compiles clean. |
 
 ---
 
@@ -44,12 +45,9 @@ These items must be complete before real players can use the game.
 - **Why deferred**: Admin access is backed by `@PreAuthorize("hasRole('ADMIN')")` on the backend, so the link being visible is cosmetic-only and not a security risk. The metadata provisioning step is a deployment/ops task.
 - **See**: `LobbyView.tsx` (header), `AuthContext.tsx`, Supabase dashboard → Auth → Users.
 
-### Frontend test suite
-- **What**: Zero frontend tests exist. The backend has 21 test files; the React app has none.
-- **Decision (2026-06-09)**: The layout and visual design is not yet finalised. Component-level and snapshot tests written now will become churn. **Write behaviour tests only** — game loop hooks, pure utilities, API integration — then add component tests once the design stabilises.
-- **Phase 1 (now — design still in flux)**: behaviour tests for `useGameLoop` (game state transitions, answer submission, bust/checkout handling), share-grid emoji encoding (pure logic, exhaustive coverage), and the API client layer (correct endpoints called, error states handled). These are decoupled from DOM structure and will stay green through any visual redesign.
-- **Phase 2 (after design freeze)**: component tests for the answer input flow (type → autocomplete → select → submit → see result), integration tests for the daily challenge flow (browse → start → play → share), and smoke tests for auth (login/logout, guest path).
-- **See**: New `__tests__/` directory under `frontend-react/`; Vitest + React Testing Library setup.
+### Frontend test suite — Phase 2 (component & integration tests)
+- **What**: Phase 1 (behaviour tests) is complete — 99 tests covering share-grid encoding, country utilities, `apiFetch`, `adminApi`, and `useGameLoop`. Phase 2 adds component tests (answer input flow), integration tests (daily challenge browse → start → play → share), and smoke tests (auth login/logout, guest path). Deferred until visual design stabilises.
+- **See**: `__tests__/` directory under `frontend-react/`; Vitest + React Testing Library setup.
 
 ### Data population — run the scraper against the live database
 - **What**: The Python scraper service (`trivia-501-scraper/`) has never been run against the Supabase production database. Geography and Film categories were only just activated. Question difficulty scores were computed on whatever data existed at the time — the scores are only as good as the underlying answer counts. Without a full data population pass, question pools are thin and difficulty ratings are unreliable.
@@ -83,6 +81,77 @@ The following items were previously P0/P1 launch blockers but are now parked. Th
 - **What**: All P2 stretch game modes that require two players.
 - **Why parked**: These depend on multiplayer infrastructure that is now deferred indefinitely. The design docs stay for reference; no implementation priority.
 - **See**: `docs/design/GAME_MODES_STRETCH_GOALS.md`.
+
+---
+
+## Architecture & Code Quality
+
+Findings from the 2026-06-09 architectural review. Ordered by severity. None are launch blockers but the P1 items should be addressed before the codebase grows further.
+
+### BUG: `useGameLoop.startNewGame` sends to wrong API path when called from a Daily Challenge game
+- **Severity**: Bug — silent failure for "Play Again" from Daily Challenge win screen
+- **What**: `startNewGame` calls `setGameType("freeplay")` then immediately calls `apiBase()` in the same synchronous function. React state updates are async, so `apiBase()` returns the **old** `gameType` ("daily-challenge"). The game start POST goes to `/api/daily-challenge/start` (non-existent) instead of `/api/freeplay/start`. The user sees "Failed to start game" with no explanation.
+- **Fix**: Don't call `apiBase()` inside `startNewGame`. Hardcode `/api/freeplay/start` and derive the abandon path from the captured `gameType` closure variable directly, not via `apiBase()`.
+- **Files**: `frontend-react/src/hooks/useGameLoop.ts:234–270`
+
+### N+1 query + repository injected into `DailyChallengeController`
+- **Severity**: Performance bug + layering violation
+- **What**: `getStatus()` loops through all today's challenges and fires 2 DB queries per challenge (category lookup + question lookup). For 5 challenges: 11 queries per status poll. `CategoryRepository` and `AnswerRepository` are both injected directly into the controller — controllers should never hold repositories.
+- **Fix**: Move the response-assembly logic into `DailyChallengeService.getTodaysChallengesStatus()`. The service batch-fetches categories and questions by ID in 2 queries total. Remove `CategoryRepository` from the controller. Both controllers also hold `AnswerRepository` directly for the debug endpoint — move to a service method.
+- **Files**: `DailyChallengeController.java:41–43,68–90`, `FreePlayController.java:57`
+
+### Controller duplication: `DailyChallengeController` and `FreePlayController` share ~60% identical code
+- **Severity**: High — any change to game state response shape must be made twice
+- **What**: Four private helpers are verbatim copy-paste between both controllers (`playerIdFrom`, `buildGameStateResponse` ×2, `toMoveDto`). Four endpoint bodies are near-identical (`submitAnswer`, `getGameState`, `abandonGame`, `getGameAnswers`). `buildGameStateResponse` also inlines business logic (entity type extraction from config, win determination) that belongs in the service layer.
+- **Fix**: Extract `GameResponseAssembler` class holding the four helpers. Both controllers inject it. The unique endpoints stay per-controller. Move entity type resolution and win determination into `GameService` or a dedicated assembler service.
+- **Files**: `DailyChallengeController.java:316–374`, `FreePlayController.java:332–390`
+
+### `GameService` ↔ `MatchService` circular dependency resolved with `@Lazy`
+- **Severity**: High — structural smell, can cause subtle proxy issues
+- **What**: `GameService` uses `@Lazy MatchService` to avoid a Spring startup cycle. The root cause: `GameService.processPlayerMove` calls `matchService.handleGameCompletion`. This is documented in the "solo forfeit" completed item but the root cause was never fixed.
+- **Fix**: Publish a Spring `ApplicationEvent` (`GameCompletedEvent`) from `GameService` after a game ends. `MatchService` listens with `@EventListener`. This breaks the cycle without `@Lazy` and decouples the two services cleanly.
+- **Files**: `GameService.java:60`, `MatchService.java`
+
+### `abandonActiveGamesForPlayer` and `abandonStaleGames` duplicate the same loop body
+- **Severity**: Medium
+- **What**: The "set game ABANDONED + set parent match ABANDONED" logic is written verbatim twice in `GameService` (and a third time in `abandonGame`). A bug fix to one site is never applied to the others.
+- **Fix**: Extract private `abandonGameAndMatch(Game game)` helper; all three call sites delegate to it.
+- **Files**: `GameService.java:182–207,285–320`
+
+### `Move` and `GameHints` types defined twice in the frontend
+- **Severity**: Medium
+- **What**: Both interfaces are defined identically in `useGameLoop.ts` and `MatchView.tsx`. `MatchView` should import from `useGameLoop` (they're already exported there).
+- **Files**: `useGameLoop.ts:11–29`, `MatchView.tsx:16–29`
+
+### `useGameLoop` does too much — theme manipulation and session persistence mixed with game logic
+- **Severity**: Medium
+- **What**: The 430-line hook owns game state, API calls, session persistence, popup coordination, restore-on-mount, and **DOM body class manipulation** (`document.body.classList.remove/add("theme-*")`) — 3 call sites inside a game-loop hook. Theme switching belongs in `page.tsx` as a `useEffect` on `gameStatus`. Session persistence helpers (`saveGameState`, `loadSavedGameState`, `clearSavedGameState`) should be extracted to a separate utility module.
+- **Files**: `useGameLoop.ts:214,312,402`
+
+### `DailyChallengeController.getShareData()` linear-scans all challenges to find one by question ID
+- **Severity**: Medium
+- **What**: `getTodaysChallenges().stream().filter(dc -> dc.getQuestionId().equals(...))` fetches all daily challenges to find one specific row. Add `findByChallengeDateAndQuestionId()` to `DailyChallengeRepository` instead.
+- **Files**: `DailyChallengeController.java:247–250`, `DailyChallengeRepository.java`
+
+### `AnswerEvaluator.getTopAnswers` fetches all rows then limits in Java
+- **Severity**: Medium
+- **What**: `findTopAnswers()` returns the full answer list; `.stream().limit(limit)` discards the excess. The limit should be pushed into the JPQL query via `Pageable` or a `LIMIT` clause.
+- **Files**: `AnswerEvaluator.java:225–229`
+
+### `MatchView.tsx` re-renders entirely every 30s for a header clock
+- **Severity**: Medium
+- **What**: A `setInterval` on `setNow(new Date())` causes the full 348-line component tree to re-render every 30 seconds just to update a time display. Extract `<Clock />` as its own component.
+- **Files**: `MatchView.tsx:84–89`
+
+### `PlayerProfileService` referenced by FQCN in both controllers (missing import)
+- **Severity**: Low — cosmetic but signals a hidden name conflict
+- **What**: Both controllers use `com.trivia501.service.PlayerProfileService` as a fully-qualified name in the field declaration. Add the import and resolve whatever conflict caused this.
+- **Files**: `DailyChallengeController.java:42`, `FreePlayController.java:56`
+
+### `LobbyView` leagues and stat types are hardcoded; `resolveTarget("random")` pool is narrower than backend
+- **Severity**: Low
+- **What**: `LEAGUES` and `STAT_TYPES` are baked into the component. If the backend adds a league, the frontend silently omits it. Extract to `src/lib/constants/lobbyOptions.ts`. Separately: the "RND" target score button picks from `[501, 301, 101]` only; the backend pool now has 30 values. Either defer to backend for random selection or expand the client pool.
+- **Files**: `LobbyView.tsx:16–46`
 
 ---
 
