@@ -14,7 +14,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -61,6 +60,9 @@ class GameServiceTest {
     @Mock
     private PlayerProfileService playerProfileService;
 
+    @Mock
+    private MatchService matchService;
+
     /**
      * Use a real GameStateMachine (no DB dependencies) so all transition-logic
      * assertions continue to pass without per-test stubbing.
@@ -68,7 +70,6 @@ class GameServiceTest {
     @Spy
     private GameStateMachine gameStateMachine;
 
-    @InjectMocks
     private GameService gameService;
 
     private UUID matchId;
@@ -81,6 +82,11 @@ class GameServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Manual construction — @InjectMocks can't handle the @Lazy MatchService parameter
+        gameService = new GameService(
+            gameRepository, gameMoveRepository, matchRepository,
+            answerEvaluator, gameStateMachine, playerProfileService, matchService);
+
         matchId = UUID.randomUUID();
         gameId = UUID.randomUUID();
         questionId = UUID.randomUUID();

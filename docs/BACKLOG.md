@@ -30,7 +30,8 @@
 | Reframe practice mode as Free Play | — | Renamed `SoloGameController` → `FreePlayController`, `StartSoloGameRequest` → `StartFreePlayRequest`, `/api/solo` → `/api/freeplay`. All frontend `"solo"` game type → `"freeplay"`. Test files and docs updated.
 | Expand daily challenge starting score pool | — | 9 → 30 curated scores (101–501); `first-move viability` guard rejects questions where every answer exceeds the starting score + 10pt checkout margin; `anti-consecutive-repeat` avoids yesterday's score per category; shared `DifficultyConstants.DAILY_STARTING_SCORES` + `pickDailyStartingScore()`. |
 | Auth: Guest play with 24-hour session timeout | — | `OptionalJwtFilter` already handled anonymous UUID cookie creation; added 24-hour sliding MaxAge — cookie renewed on every request so active players keep their session, abandoned sessions auto-expire after a day. No sign-in walls exist anywhere in the core game loop. |
-| Error boundaries | — | `ErrorBoundary` class component catches render errors; wrapped around lobby, game, and admin sections with per-section recovery UI + reload button. One broken section no longer whitescreens the whole app. |
+| Error boundaries | — | `ErrorBoundary` class component catches render errors; wrapped around lobby, game, and admin sections with per-section recovery UI + reload button. Admin sidebar lives outside the boundary so navigation survives page crashes. |
+| Solo forfeit game completion | — | Wired `handleGameCompletion` into `processPlayerMove` and `handleTimeout` (was previously only called from tests). Solo forfeit (null winner) → match ABANDONED instead of stuck IN_PROGRESS. Uses `@Lazy MatchService` to break the circular dep. |
 
 ---
 
@@ -54,11 +55,6 @@ These items must be complete before real players can use the game.
 - **What**: The Python scraper service (`trivia-501-scraper/`) has never been run against the Supabase production database. Geography and Film categories were only just activated. Question difficulty scores were computed on whatever data existed at the time — the scores are only as good as the underlying answer counts. Without a full data population pass, question pools are thin and difficulty ratings are unreliable.
 - **Why deferred**: The scraper is a separate Python microservice that needs its own deployment and scheduling infrastructure. Acceptable for dev; unacceptable for real players.
 - **See**: `trivia-501-scraper/`, `QuestionMaterializerService.java`, `DifficultyCalculator.java`.
-
-### Solo forfeit game completion
-- **What**: When a solo player forfeits via timeout, `handleGameCompletion` is never called from the real controller path (only from tests). The match stays `IN_PROGRESS` forever with a `COMPLETED` game inside it. Even if `handleGameCompletion` were called, `isMatchComplete` returns false because neither player's game-won counter increments — so the match never terminates. Needs a dedicated design pass: should a solo forfeit mark the match `ABANDONED`? Should it count as a loss?
-- **Why deferred**: Solo forfeit is a rare edge case (3 consecutive timeouts required). The `handleGameCompletion` NPE from null `winnerId` was fixed, but the broader completion flow for solo forfeits needs wiring into the real controller path.
-- **See**: `MatchService.java:141`, `GameStateMachine.java:138`, `GameService.java:139`.
 
 ---
 

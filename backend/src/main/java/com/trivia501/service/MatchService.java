@@ -183,7 +183,13 @@ public class MatchService {
 
         // Increment win count for winner (winnerId is null for solo forfeits)
         if (completedGame.getWinnerId() == null) {
-            log.info("Game completed with no winner (solo forfeit): gameId={}", completedGame.getId());
+            // Solo forfeit — no winner means the player gave up. Mark the match
+            // as ABANDONED (not COMPLETED) since there is no opponent to declare.
+            match.setStatus(Match.MatchStatus.ABANDONED);
+            match.setCompletedAt(java.time.LocalDateTime.now());
+            matchRepository.save(match);
+            log.info("Match abandoned (solo forfeit): matchId={}, gameId={}", match.getId(), completedGame.getId());
+            return;
         } else if (completedGame.getWinnerId().equals(match.getPlayer1Id())) {
             match.setPlayer1GamesWon(match.getPlayer1GamesWon() + 1);
         } else if (match.getPlayer2Id() != null

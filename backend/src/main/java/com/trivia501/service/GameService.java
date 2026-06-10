@@ -11,6 +11,7 @@ import com.trivia501.repository.GameMoveRepository;
 import com.trivia501.repository.GameRepository;
 import com.trivia501.repository.MatchRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,7 +40,7 @@ public class GameService {
      * Result bundle returned by {@link #processPlayerMove}.
      * Carries the already-loaded entities so callers don't need to re-fetch them.
      */
-    public record MoveRecord(GameMove move, Game game, Match match, List<UUID> usedAnswerIds) {}
+    public record MoveRecord(GameMove move, Game game, Match match, List<UUID> usedAnswerIds, String reason) {}
 
     private final GameRepository gameRepository;
     private final GameMoveRepository gameMoveRepository;
@@ -47,6 +48,7 @@ public class GameService {
     private final AnswerEvaluator answerEvaluator;
     private final GameStateMachine gameStateMachine;
     private final PlayerProfileService playerProfileService;
+    private final MatchService matchService;
 
     public GameService(
             GameRepository gameRepository,
@@ -54,7 +56,8 @@ public class GameService {
             MatchRepository matchRepository,
             AnswerEvaluator answerEvaluator,
             GameStateMachine gameStateMachine,
-            PlayerProfileService playerProfileService
+            PlayerProfileService playerProfileService,
+            @Lazy MatchService matchService
     ) {
         this.gameRepository       = gameRepository;
         this.gameMoveRepository   = gameMoveRepository;
@@ -62,6 +65,7 @@ public class GameService {
         this.answerEvaluator      = answerEvaluator;
         this.gameStateMachine     = gameStateMachine;
         this.playerProfileService = playerProfileService;
+        this.matchService         = matchService;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -109,6 +113,10 @@ public class GameService {
         applyTransition(game, match, playerId, transition);
         gameRepository.save(game);
 
+        if (transition.nextGameStatus() == Game.GameStatus.COMPLETED) {
+            matchService.handleGameCompletion(game);
+        }
+
         // Record game completion for authenticated players
         if (transition.moveResult() == GameMove.MoveResult.CHECKOUT) {
             playerProfileService.recordGameCompleted(playerId, transition.scoreAfter(), true);
@@ -117,7 +125,7 @@ public class GameService {
         log.debug("Move processed: result={}, score {}→{}",
                 transition.moveResult(), currentScore, transition.scoreAfter());
 
-        return new MoveRecord(move, game, match, usedAnswerIds);
+        return new MoveRecord(move, game, match, usedAnswerIds, answerResult.getReason());
     }
 
     /**
@@ -153,6 +161,10 @@ public class GameService {
 
         applyTransition(game, match, playerId, transition);
         gameRepository.save(game);
+
+        if (transition.nextGameStatus() == Game.GameStatus.COMPLETED) {
+            matchService.handleGameCompletion(game);
+        }
     }
 
     /**
