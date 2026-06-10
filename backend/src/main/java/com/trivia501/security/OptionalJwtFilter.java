@@ -72,6 +72,13 @@ public class OptionalJwtFilter extends OncePerRequestFilter {
     public static final String ROTATE_ANON_ATTR = "X-Rotate-Anonymous-Id";
 
     private static final String ANON_COOKIE = "X-Anonymous-Id";
+
+    /** Sliding expiration for anonymous session cookies — 24 hours in seconds.
+     *  Every authenticated request extends the cookie back to 24 hours, so
+     *  regular players keep their session alive while abandoned sessions
+     *  auto-expire after a day of inactivity. */
+    private static final int ANON_COOKIE_MAX_AGE = 86400; // 24 hours
+
     private static final String BEARER_PREFIX = "Bearer ";
 
     private static final List<SimpleGrantedAuthority> ANON_AUTHORITIES = List.of(
@@ -155,7 +162,7 @@ public class OptionalJwtFilter extends OncePerRequestFilter {
             cookie.setHttpOnly(true);
             cookie.setSecure(request.isSecure());
             cookie.setAttribute("SameSite", "Lax");
-            cookie.setMaxAge(-1);
+            cookie.setMaxAge(ANON_COOKIE_MAX_AGE);
             response.addCookie(cookie);
 
             var auth = new UsernamePasswordAuthenticationToken(newId, null, ANON_AUTHORITIES);
@@ -170,15 +177,19 @@ public class OptionalJwtFilter extends OncePerRequestFilter {
 
         if (anonymousId == null) {
             anonymousId = UUID.randomUUID().toString();
-            Cookie cookie = new Cookie(ANON_COOKIE, anonymousId);
-            cookie.setPath("/");
-            cookie.setHttpOnly(true);
-            cookie.setSecure(request.isSecure());
-            cookie.setAttribute("SameSite", "Lax");
-            cookie.setMaxAge(-1); // session cookie
-            response.addCookie(cookie);
             log.trace("OptionalJwtFilter: created anonymous session {}", anonymousId);
         }
+
+        // Always re-issue the cookie with a fresh 24h MaxAge (sliding window).
+        // If the player is active they keep their session; abandoned sessions
+        // auto-expire after 24 hours of inactivity.
+        Cookie cookie = new Cookie(ANON_COOKIE, anonymousId);
+        cookie.setPath("/");
+        cookie.setHttpOnly(true);
+        cookie.setSecure(request.isSecure());
+        cookie.setAttribute("SameSite", "Lax");
+        cookie.setMaxAge(ANON_COOKIE_MAX_AGE);
+        response.addCookie(cookie);
 
         var auth = new UsernamePasswordAuthenticationToken(anonymousId, null, ANON_AUTHORITIES);
         SecurityContextHolder.getContext().setAuthentication(auth);

@@ -106,7 +106,7 @@ A `CorsConfig` bean (in `config/`) provides the `CorsConfigurationSource` that `
 |---|---|---|
 | JWT validation filter | ❌ Not built | Replaces `DevModeAuthFilter` on `prod` profile |
 | OAuth 2.0 social login | ❌ Not built | Google login first; Apple + Facebook later |
-| Guest accounts | ❌ Not built | Ephemeral UUID, 24-hour inactivity timeout |
+| Guest accounts | ✅ Implemented | `OptionalJwtFilter` creates ephemeral UUID + HTTPOnly `X-Anonymous-Id` cookie with 24h sliding expiration. Rotated on game start/complete. |
 | HTTPOnly cookie token storage | ❌ Not built | Needed once real auth exists |
 | CSRF protection | ❌ Disabled | Re-enable with SameSite cookies when JWT cookies are introduced |
 | Content Security Policy | ❌ Not built | Add in Next.js `middleware.ts` |

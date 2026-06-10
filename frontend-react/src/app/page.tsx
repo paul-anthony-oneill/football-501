@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import LobbyView from "@/components/game/lobby/LobbyView";
 import MatchView from "@/components/game/match/MatchView";
 import AnimatedScorePopup from "@/components/game/AnimatedScorePopup";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { useGameLoop, getSavedLabel } from "@/hooks/useGameLoop";
 import { useDailyChallenge } from "@/hooks/useDailyChallenge";
 import { useToast } from "@/context/ToastContext";
@@ -177,7 +178,7 @@ export default function GamePage() {
 
   if (gameStatus === "NOT_STARTED") {
     return (
-      <>
+      <ErrorBoundary section="lobby">
         {authRedirect}
         <LobbyView
           onStartGame={handleStartGame}
@@ -185,14 +186,14 @@ export default function GamePage() {
           dailyChallenges={dailyChallenges}
           dailyLoading={dailyLoading}
         />
-      </>
+      </ErrorBoundary>
     );
   }
 
   const { name: catName, sub: catSub } = categoryLabel(lastLabel);
 
   return (
-    <>
+    <ErrorBoundary section="game">
       {authRedirect}
       <MatchView
         score={score}
@@ -222,6 +223,6 @@ export default function GamePage() {
           onComplete={onPopupComplete}
         />
       )}
-    </>
+    </ErrorBoundary>
   );
 }

@@ -1,6 +1,6 @@
 # Trivia 501 — Backlog & Future Work
 
-**Last updated**: 2026-06-08 (single-player pivot — multiplayer deferred indefinitely, ranking/MMR dropped, Free Play reframe, expanded daily starting scores)  
+**Last updated**: 2026-06-09 (frontend test strategy: behaviour tests now, component tests deferred until design freeze)  
 **Purpose**: Living document capturing all deferred work, stretch goals, and improvement ideas regardless of size or urgency. Update this whenever a decision is made to defer something, or when a backlog item is completed or abandoned.
 
 **Product direction** (2026-06-08): The game is now focused on **single-player daily challenges** as the core experience — Wordle-style social trivia where everyone plays the same question with the same parameters each day and shares results with friends. A separate **Free Play** mode (formerly "practice") lets players pick any category/question to play on their own terms. Async friend challenges (play the same question and compare) are a planned social feature. The ranking/MMR/league-tier system and real-time multiplayer are deferred indefinitely.
@@ -28,7 +28,9 @@
 | Add league-scope Appearances, Goals+Appearances, Assists+Appearances questions | V30 | Seeded 3 new `player_competition_metric_since` templates; created one question per tier-1 domestic league; materialized answers and difficulty metrics inline. |
 | Remove test question from daily challenge pool | V31 | V31 migration flips `suitable_for_daily = false` on test-category questions; `DailyChallengeScheduler` skips test category by slug; `DailyChallengeService.createChallenge()` guards with explicit exception. |
 | Reframe practice mode as Free Play | — | Renamed `SoloGameController` → `FreePlayController`, `StartSoloGameRequest` → `StartFreePlayRequest`, `/api/solo` → `/api/freeplay`. All frontend `"solo"` game type → `"freeplay"`. Test files and docs updated.
-| Expand daily challenge starting score pool | — | 9 → 30 curated scores (101–501); `first-move viability` guard rejects questions where every answer exceeds the starting score + 10pt checkout margin; `anti-consecutive-repeat` avoids yesterday's score per category; shared `DifficultyConstants.DAILY_STARTING_SCORES` + `pickDailyStartingScore()`. 
+| Expand daily challenge starting score pool | — | 9 → 30 curated scores (101–501); `first-move viability` guard rejects questions where every answer exceeds the starting score + 10pt checkout margin; `anti-consecutive-repeat` avoids yesterday's score per category; shared `DifficultyConstants.DAILY_STARTING_SCORES` + `pickDailyStartingScore()`. |
+| Auth: Guest play with 24-hour session timeout | — | `OptionalJwtFilter` already handled anonymous UUID cookie creation; added 24-hour sliding MaxAge — cookie renewed on every request so active players keep their session, abandoned sessions auto-expire after a day. No sign-in walls exist anywhere in the core game loop. |
+| Error boundaries | — | `ErrorBoundary` class component catches render errors; wrapped around lobby, game, and admin sections with per-section recovery UI + reload button. One broken section no longer whitescreens the whole app. |
 
 ---
 
@@ -41,20 +43,12 @@ These items must be complete before real players can use the game.
 - **Why deferred**: Admin access is backed by `@PreAuthorize("hasRole('ADMIN')")` on the backend, so the link being visible is cosmetic-only and not a security risk. The metadata provisioning step is a deployment/ops task.
 - **See**: `LobbyView.tsx` (header), `AuthContext.tsx`, Supabase dashboard → Auth → Users.
 
-### Auth: Guest play for core experience
-- **What**: Ephemeral UUID for unauthenticated players; 24-hour inactivity timeout. The daily challenge and Free Play modes must work without requiring sign-in. Google OAuth sign-in is reserved for friend challenges, player profiles, and game history.
-- **Why deferred**: Google OAuth is wired end-to-end but the unauthenticated path needs the guest identity flow to be seamless — no modal walls, no "sign in to continue" interruptions on the core game loop.
-- **See**: `docs/SECURITY_ARCHITECTURE.md` — What Is Deferred table.
-
 ### Frontend test suite
-- **What**: Zero frontend tests exist. The backend has 21 test files; the React app has none. A shipped product without frontend tests looks unfinished. Minimum viable coverage: component tests for the answer input flow (type → autocomplete → select → submit → see result), integration tests for the daily challenge flow (browse → start → play → share), and smoke tests for auth (login/logout, guest path).
-- **Why deferred**: Components are still being built out; writing tests against half-finished features creates rework. Stable components (EntitySearch, lobby cards, daily challenge pages) can be tested now.
+- **What**: Zero frontend tests exist. The backend has 21 test files; the React app has none.
+- **Decision (2026-06-09)**: The layout and visual design is not yet finalised. Component-level and snapshot tests written now will become churn. **Write behaviour tests only** — game loop hooks, pure utilities, API integration — then add component tests once the design stabilises.
+- **Phase 1 (now — design still in flux)**: behaviour tests for `useGameLoop` (game state transitions, answer submission, bust/checkout handling), share-grid emoji encoding (pure logic, exhaustive coverage), and the API client layer (correct endpoints called, error states handled). These are decoupled from DOM structure and will stay green through any visual redesign.
+- **Phase 2 (after design freeze)**: component tests for the answer input flow (type → autocomplete → select → submit → see result), integration tests for the daily challenge flow (browse → start → play → share), and smoke tests for auth (login/logout, guest path).
 - **See**: New `__tests__/` directory under `frontend-react/`; Vitest + React Testing Library setup.
-
-### Error boundaries
-- **What**: The entire app has one `<Suspense fallback={null}>` and no React error boundaries. If a game component throws, the whole page goes white. A shipped app needs error boundaries around the game screen, lobby, daily challenge, and admin sections. Each boundary should show a recovery UI ("Something went wrong — reload this section").
-- **Why deferred**: Individual component stability is still being worked on; error boundaries are cheap to add once components settle but should land before users see the app.
-- **See**: New `ErrorBoundary.tsx` component; wrap in `MatchView.tsx`, `LobbyView.tsx`, `page.tsx` (home), admin `page.tsx`.
 
 ### Data population — run the scraper against the live database
 - **What**: The Python scraper service (`trivia-501-scraper/`) has never been run against the Supabase production database. Geography and Film categories were only just activated. Question difficulty scores were computed on whatever data existed at the time — the scores are only as good as the underlying answer counts. Without a full data population pass, question pools are thin and difficulty ratings are unreliable.
