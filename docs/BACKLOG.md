@@ -1,6 +1,6 @@
 # Trivia 501 — Backlog & Future Work
 
-**Last updated**: 2026-06-09 (frontend test suite: Phase 1 behaviour tests complete — 99 tests across 5 files; Phase 2 component/integration tests deferred until design freeze)  
+**Last updated**: 2026-06-11 (post-redesign backlog audit: MatchView clock item resolved, dead `questionHierarchy.ts` deleted, two new UI-consistency items added)  
 **Purpose**: Living document capturing all deferred work, stretch goals, and improvement ideas regardless of size or urgency. Update this whenever a decision is made to defer something, or when a backlog item is completed or abandoned.
 
 **Product direction** (2026-06-08): The game is now focused on **single-player daily challenges** as the core experience — Wordle-style social trivia where everyone plays the same question with the same parameters each day and shares results with friends. A separate **Free Play** mode (formerly "practice") lets players pick any category/question to play on their own terms. Async friend challenges (play the same question and compare) are a planned social feature. The ranking/MMR/league-tier system and real-time multiplayer are deferred indefinitely.
@@ -32,6 +32,10 @@
 | Auth: Guest play with 24-hour session timeout | — | `OptionalJwtFilter` already handled anonymous UUID cookie creation; added 24-hour sliding MaxAge — cookie renewed on every request so active players keep their session, abandoned sessions auto-expire after a day. No sign-in walls exist anywhere in the core game loop. |
 | Error boundaries | — | `ErrorBoundary` class component catches render errors; wrapped around lobby, game, and admin sections with per-section recovery UI + reload button. Admin sidebar lives outside the boundary so navigation survives page crashes. |
 | Solo forfeit game completion | — | Wired `handleGameCompletion` into `processPlayerMove` and `handleTimeout` (was previously only called from tests). Solo forfeit (null winner) → match ABANDONED instead of stuck IN_PROGRESS. Uses `@Lazy MatchService` to break the circular dep. |
+| UI/UX redesign — unified design system with dark/light themes | — | Replaced the dual editorial/teletext aesthetic with one token-based design system (`globals.css`): semantic CSS variables (bg/surface/ink/muted/line/accent/ok/gold/danger) for dark + light themes, toggled via `data-theme` on `<html>` (ThemeToggle component, localStorage + system-preference default, no-FOUC inline script in `layout.tsx`). Monochrome chrome — colour reserved for game state (green=valid, red=bust, gold=checkout) + bullseye-red brand accent. VT323/teletext retired; fonts now Bricolage (display), Hanken (body), Plex Mono (labels). Redesigned: LobbyView (dartboard-ring motif), MatchView (score hero + checkout progress track + win overlay with ring-burst), EntitySearch dropdown, HowToPlayPanel, AnimatedScorePopup, daily pages, toasts, ConfirmDialog, DebugPanel. Deleted dead `CategoryPopup.tsx`. Admin pages out of scope (re-pinned `--color-surface` in admin layout). Verified in browser: both themes, mobile 375px + desktop, full game flow incl. bust/checkout. |
+| Flyway V31 version collision fix | V36 | `V31__unmark_test_questions_daily.sql` collided with `V31__activate_geography_and_film_questions.sql` — backend could not boot (FlywayException). Renamed to `V36__unmark_test_questions_daily.sql`; safe because the duplicate version meant it had never been applied anywhere. |
+| MatchView 30s clock re-render | — | Resolved by the UI redesign: the teletext header status line was deleted and the `setInterval`/`setNow` state went with it. Was an Architecture & Code Quality finding (2026-06-09 review). |
+| Delete dead `questionHierarchy.ts` | — | Orphaned when the lobby drill-down nav replaced `CategoryPopup.tsx` (deleted in the UI redesign); grep confirmed zero remaining imports. Closes the "deferred cleanup" note on the lobby redesign row below. |
 | Frontend test suite — Phase 1 | — | 99 behaviour tests across 5 files: share-grid emoji encoding (21 tests, exhaustive), country/flag utilities (18 tests), `apiFetch` auth injection (7 tests), `adminApi` URL construction + error handling (24 tests), `useGameLoop` state transitions + submit + popup + session restore (29 tests). Vitest + React Testing Library + jsdom configured. Extracted `buildShareText` pure utility from `page.tsx` to make share logic testable. `package.json` scripts: `npm test` (vitest run), `npm run test:watch` (vitest). TypeScript compiles clean. |
 
 ---
@@ -125,8 +129,8 @@ Findings from the 2026-06-09 architectural review. Ordered by severity. None are
 
 ### `useGameLoop` does too much — theme manipulation and session persistence mixed with game logic
 - **Severity**: Medium
-- **What**: The 430-line hook owns game state, API calls, session persistence, popup coordination, restore-on-mount, and **DOM body class manipulation** (`document.body.classList.remove/add("theme-*")`) — 3 call sites inside a game-loop hook. Theme switching belongs in `page.tsx` as a `useEffect` on `gameStatus`. Session persistence helpers (`saveGameState`, `loadSavedGameState`, `clearSavedGameState`) should be extracted to a separate utility module.
-- **Files**: `useGameLoop.ts:214,312,402`
+- **What**: The 430-line hook owns game state, API calls, session persistence, popup coordination, restore-on-mount, and **DOM body class manipulation** (`document.body.classList.remove/add("theme-*")`) — 4 call sites inside a game-loop hook. **Note (2026-06-11 redesign): the `theme-home`/`theme-teletext` classes are now pure dead code** — they have zero occurrences in `globals.css` (the unified design system themes via `data-theme` on `<html>` instead) and are held alive only by assertions in `useGameLoop.test.ts`. Deleting the `classList` calls and the test assertions together is a trivial standalone cleanup that doesn't need to wait for the larger hook decomposition. Session persistence helpers (`saveGameState`, `loadSavedGameState`, `clearSavedGameState`) should be extracted to a separate utility module.
+- **Files**: `useGameLoop.ts:214,270,315,402`
 
 ### `DailyChallengeController.getShareData()` linear-scans all challenges to find one by question ID
 - **Severity**: Medium
@@ -138,11 +142,6 @@ Findings from the 2026-06-09 architectural review. Ordered by severity. None are
 - **What**: `findTopAnswers()` returns the full answer list; `.stream().limit(limit)` discards the excess. The limit should be pushed into the JPQL query via `Pageable` or a `LIMIT` clause.
 - **Files**: `AnswerEvaluator.java:225–229`
 
-### `MatchView.tsx` re-renders entirely every 30s for a header clock
-- **Severity**: Medium
-- **What**: A `setInterval` on `setNow(new Date())` causes the full 348-line component tree to re-render every 30 seconds just to update a time display. Extract `<Clock />` as its own component.
-- **Files**: `MatchView.tsx:84–89`
-
 ### `PlayerProfileService` referenced by FQCN in both controllers (missing import)
 - **Severity**: Low — cosmetic but signals a hidden name conflict
 - **What**: Both controllers use `com.trivia501.service.PlayerProfileService` as a fully-qualified name in the field declaration. Add the import and resolve whatever conflict caused this.
@@ -152,6 +151,16 @@ Findings from the 2026-06-09 architectural review. Ordered by severity. None are
 - **Severity**: Low
 - **What**: `LEAGUES` and `STAT_TYPES` are baked into the component. If the backend adds a league, the frontend silently omits it. Extract to `src/lib/constants/lobbyOptions.ts`. Separately: the "RND" target score button picks from `[501, 301, 101]` only; the backend pool now has 30 values. Either defer to backend for random selection or expand the client pool.
 - **Files**: `LobbyView.tsx:16–46`
+
+### `ThemeToggle` placement is inconsistent across pages (2026-06-11 redesign)
+- **Severity**: Medium — UX gap on the share deep-link page
+- **What**: The dark/light toggle is rendered ad-hoc in three places (`LobbyView` header, `MatchView` header, `/daily` page) but is **missing from `/daily/[category]`** — the deep-link target for shared results, i.e. the first page a new player arriving via a share URL ever sees. That player has no way to switch theme. The structural fix is hoisting the toggle into a shared header component (or `layout.tsx`) instead of duplicating it per-page; a shared header would also give the "mode label/badge component" frontend guardrail a natural home.
+- **Files**: `frontend-react/src/components/ui/ThemeToggle.tsx`, `frontend-react/src/app/daily/[category]/page.tsx`, `LobbyView.tsx`, `MatchView.tsx`, `frontend-react/src/app/daily/page.tsx`
+
+### Admin pages opted out of the unified design system (2026-06-11 redesign)
+- **Severity**: Low — deliberate stopgap, will rot as the design system evolves
+- **What**: The redesign scoped admin pages out. `admin/layout.tsx` re-pins `--color-surface: #1a1a1a` inline so admin keeps its original dark palette regardless of the `data-theme` toggle. This works but means admin diverges from the token system — it ignores light theme, and any future token rename or removal silently breaks the pin. Bring admin pages into the unified design system (semantic tokens, both themes) and remove the `--color-surface` re-pin.
+- **Files**: `frontend-react/src/app/admin/layout.tsx:14–20`, admin components under `frontend-react/src/components/admin/`
 
 ---
 
@@ -373,7 +382,7 @@ Items that only become relevant once the game has real traffic.
 | Game UI reads question from game state | bf2f57a | `useGameLoop` sets question from API response; `MatchView` receives it as a prop — not hardcoded |
 | Autocomplete: cancel debounce on submit, auto-submit on selection, fix focus on click | (current) | `selectEntity` clears debounce + calls `onSelect`; Enter path cancels stale timer; `onMouseDown` uses `preventDefault` to keep focus on input |
 | Daily Challenge mode (Wordle-style) | (current) | One challenge per category per day, variable starting scores (101–501), emoji-grid sharing, lazy creation + midnight cron. V19 schema + V20 data backfill. No leaderboards/replay enforcement — trust-based. |
-| Lobby redesign: target score toggle + category flow | (current) | Two-column layout; 501/301/101/RND toggle drives `startingScore` POST param; Football 2-step (Random / Select League → 5 leagues); other categories 1-click start. `questionHierarchy.ts` and `CategoryPopup.tsx` are now unused — deferred cleanup. |
+| Lobby redesign: target score toggle + category flow | (current) | Two-column layout; 501/301/101/RND toggle drives `startingScore` POST param; Football 2-step (Random / Select League → 5 leagues); other categories 1-click start. `questionHierarchy.ts` and `CategoryPopup.tsx` are now unused — both deleted 2026-06-11 (CategoryPopup in the UI redesign, questionHierarchy in the post-redesign backlog audit). |
 | Football question hierarchy + structured filter | (current) | V24 migration (q_scope/q_league/q_club/q_stat + unique index); FootballFilter DTO; 6 new repo query methods; QuestionService.selectQuestionByFilter; FootballController GET /api/football/clubs; SecurityConfig /api/football/** permitAll; LobbyView 4-screen navStack (root→football→league→club) with slide animations + DB-driven club list + stat type picker (7 stat types). V25 backfill migration for q_* columns on existing questions. V26 seeds 4 combined-stat templates. FootballTeamCompetitionMetricSinceMaterializer extended with goals_assists/goals_appearances/assists_appearances/goals_assists_appearances. QuestionGeneratorService now populates q_* columns on new draft questions. |
 | Guardrails: `game_mode` on matches, `suitable_for_daily` on questions | (current) | V19 migration. `game_mode` defaults to `'STANDARD'`; `suitable_for_daily` backfilled for viable easy/medium questions. |
 | Geography + Film category seed data (CSV-based Java migrations) | (current) | V21/V22: Replaced ~12K lines of hardcoded SQL INSERTs with CSV data files (`db/data/*.csv`) loaded by `BaseJavaMigration` subclasses. Pattern is now standard for new category seeding. `.gitignore` updated: `!**/db/data/*.csv`. |

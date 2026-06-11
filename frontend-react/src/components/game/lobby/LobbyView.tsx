@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 const LoginButton = dynamic(() => import("@/components/auth/LoginButton"), { ssr: false });
 import HowToPlayPanel from "../HowToPlayPanel";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 import { useAuth } from "@/context/AuthContext";
 import { fetchClubs, type FootballClub, type FootballFilter } from "@/lib/api/footballApi";
 import type { CategoryChallenge } from "@/hooks/useDailyChallenge";
@@ -33,8 +34,8 @@ const STAT_TYPES = [
 ] as const;
 
 const OTHER_CATEGORIES = [
-  { id: "film",      name: "Film",      description: "Worldwide box office hits",           color: "#f59e0b" },
-  { id: "geography", name: "Geography", description: "Populations, capitals & world facts", color: "#3b82f6" },
+  { id: "film",      name: "Film",      description: "Worldwide box office hits" },
+  { id: "geography", name: "Geography", description: "Populations, capitals & world facts" },
 ];
 
 function resolveTarget(t: TargetScore): number {
@@ -100,7 +101,7 @@ export default function LobbyView({
     [onStartGame, target],
   );
 
-  const displayTarget = target === "random" ? "RND" : String(target);
+  const displayTarget = target === "random" ? "?" : String(target);
   const currentScreen = stack[stack.length - 1];
 
   // Build breadcrumb label for the right-column header
@@ -115,63 +116,67 @@ export default function LobbyView({
     .join(" › ");
 
   return (
-    <div className="relative min-h-screen bg-[#f5f1e8] text-[#18171a] flex flex-col font-hanken overflow-hidden">
-      {/* Dart trajectory — draws in on page load */}
-      <div className="absolute inset-0 pointer-events-none z-0" aria-hidden="true">
-        <svg viewBox="0 0 1440 900" className="absolute inset-0 w-full h-full opacity-20">
+    <div className="relative min-h-screen bg-bg text-ink flex flex-col font-sans overflow-hidden">
+      {/* Background motif — dartboard rings + dart trajectory, barely there */}
+      <div className="absolute inset-0 pointer-events-none z-0 text-ink" aria-hidden="true">
+        <svg viewBox="0 0 1440 900" className="absolute inset-0 w-full h-full opacity-[0.13]" preserveAspectRatio="xMidYMid slice">
+          <g fill="none" stroke="currentColor" strokeWidth="1">
+            <circle cx="1190" cy="180" r="60" />
+            <circle cx="1190" cy="180" r="130" />
+            <circle cx="1190" cy="180" r="210" />
+            <circle cx="1190" cy="180" r="300" />
+            <circle cx="1190" cy="180" r="400" />
+          </g>
+          <circle cx="1190" cy="180" r="5" fill="currentColor" />
           <path
-            d="M-100,600 C300,500 800,800 1540,100"
-            fill="none"
+            d="M-100,640 C300,540 800,820 1190,180"
             stroke="currentColor"
             strokeWidth="1.5"
+            fill="none"
             className="animate-draw"
           />
         </svg>
       </div>
 
       {/* Header */}
-      <header className="relative flex items-center justify-between px-6 md:px-10 py-4 border-b border-[rgba(24,23,26,0.1)]">
-        <div className="flex items-center gap-4">
-          <span className="font-plex text-[11px] tracking-[0.2em] bg-[#18171a] text-[#f5f1e8] px-2.5 py-1">
-            TRIVIA 501
+      <header className="relative z-10 flex items-center justify-between px-5 md:px-10 py-4 border-b border-line">
+        <div className="flex items-center gap-3">
+          <span className="bullseye" aria-hidden="true" />
+          <span className="font-display font-extrabold text-lg tracking-tight leading-none">
+            TRIVIA <span className="text-accent">501</span>
           </span>
-          <span className="font-plex text-[10px] tracking-widest text-[#6f6a62] uppercase hidden sm:block">
-            The Trivia Darts Championship
-          </span>
+          <span className="kicker hidden sm:block ml-2">The trivia darts championship</span>
         </div>
         <div className="flex items-center gap-3">
           {isAdmin && (
-            <a
-              href="/admin"
-              className="font-plex text-[10px] tracking-widest text-[#6f6a62] uppercase hover:text-[#18171a] transition-colors"
-            >
+            <a href="/admin" className="kicker hover:text-ink transition-colors">
               Admin
             </a>
           )}
+          <ThemeToggle />
           <LoginButton />
         </div>
       </header>
 
       {/* Two-column layout */}
-      <main className="flex-1 flex flex-col md:flex-row">
+      <main className="relative z-10 flex-1 flex flex-col md:flex-row">
 
         {/* ── Left column: target score + daily challenges ── */}
-        <div className="flex-1 flex flex-col px-6 md:px-10 py-8 md:border-r border-[rgba(24,23,26,0.1)]">
+        <div className="flex-1 flex flex-col px-5 md:px-10 py-8 md:border-r border-line min-w-0">
 
           {/* Target Score */}
           <div className="mb-10">
-            <div className="font-plex text-[10px] tracking-[0.25em] text-[#6f6a62] uppercase mb-4">
-              Target Score
-            </div>
+            <div className="kicker mb-4">Target Score</div>
             <div className="flex gap-2 mb-6 flex-wrap">
               {TARGET_OPTIONS.map((opt) => (
                 <button
                   key={opt}
                   onClick={() => setTarget(opt)}
-                  className={`font-plex text-[11px] tracking-widest px-5 py-2.5 rounded-full border transition-all duration-200 ${
+                  aria-pressed={target === opt}
+                  className={`font-mono text-[11px] tracking-[0.15em] px-5 py-2.5 rounded-full border transition-all duration-200 ${
                     target === opt
-                      ? "bg-[#18171a] text-[#f5f1e8] border-[#18171a]"
-                      : "bg-transparent text-[#6f6a62] border-[rgba(24,23,26,0.2)] hover:border-[#18171a] hover:text-[#18171a]"
+                      ? "bg-ink text-bg border-ink"
+                      : "bg-transparent text-muted border-line hover:border-line-strong hover:text-ink"
                   }`}
                 >
                   {opt === "random" ? "RND" : opt}
@@ -179,52 +184,46 @@ export default function LobbyView({
               ))}
             </div>
             <div
-              className="font-bricolage font-extrabold leading-none tracking-tight text-[#18171a] select-none transition-all duration-300"
-              style={{ fontSize: "clamp(72px, 11vw, 160px)", fontVariationSettings: "'wdth' 80" }}
+              className="display-num select-none transition-all duration-300"
+              style={{ fontSize: "clamp(88px, 12vw, 180px)" }}
             >
               {displayTarget}
             </div>
             {target === "random" && (
-              <div className="font-plex text-[10px] tracking-widest text-[#6f6a62] uppercase mt-2">
-                Picked randomly when you start
-              </div>
+              <div className="kicker mt-2">Picked randomly when you start</div>
             )}
           </div>
 
           {/* Daily Challenges */}
           {!dailyLoading && dailyChallenges.length > 0 && (
             <div className="mb-8">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="w-5 h-5 rounded-full bg-[#e84545] text-white text-[9px] flex items-center justify-center font-plex font-bold">
-                  D
-                </span>
-                <span className="font-plex text-[10px] tracking-widest text-[#6f6a62] uppercase">
-                  Today&apos;s Challenges
-                </span>
-                <span className="ml-auto font-plex text-[9px] tracking-widest text-[#6f6a62]/60 uppercase hidden sm:block">
+              <div className="flex items-center gap-2.5 mb-3">
+                <span className="w-2 h-2 rounded-full bg-gold" aria-hidden="true" />
+                <span className="kicker">Today&apos;s Challenges</span>
+                <span className="ml-auto kicker opacity-60 hidden sm:block">
                   One attempt · Share with friends
                 </span>
               </div>
-              <div className="flex gap-3 overflow-x-auto pb-2">
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
                 {dailyChallenges.map((dc) => (
                   <button
                     key={dc.categorySlug}
                     onClick={() => onStartDailyChallenge(dc.categorySlug, dc.categoryName)}
-                    className="flex-shrink-0 flex flex-col bg-[#18171a] rounded-sm p-4 w-52 text-left hover:-translate-y-0.5 transition-transform duration-200"
+                    className="group flex-shrink-0 flex flex-col bg-surface border border-line rounded-md p-4 w-56 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[var(--shadow-card)]"
                   >
-                    <div className="flex items-baseline justify-between mb-1">
-                      <span className="font-bricolage font-bold text-sm text-[#f5f1e8]">{dc.categoryName}</span>
-                      <span className="font-plex text-[9px] tracking-widest text-[#f5f1e8]/50">DAILY</span>
+                    <div className="flex items-baseline justify-between mb-2">
+                      <span className="font-display font-bold text-sm">{dc.categoryName}</span>
+                      <span className="font-mono text-[9px] tracking-[0.2em] text-gold">DAILY</span>
                     </div>
-                    <div className="font-vt323 text-[24px] text-[#e84545] tracking-widest mb-1">
-                      TARGET: {dc.startingScore.toString().padStart(3, "0")}
+                    <div className="display-num text-[34px] mb-1.5">
+                      {dc.startingScore}
                     </div>
-                    <div className="font-plex text-[10px] text-[#f5f1e8]/60 leading-snug line-clamp-2 mb-3">
+                    <div className="font-sans text-[12px] text-muted leading-snug line-clamp-2 mb-3">
                       {dc.questionText || "Loading..."}
                     </div>
                     <div className="mt-auto flex items-center justify-between">
-                      <span className="font-plex text-[9px] tracking-widest text-[#e84545] uppercase">PLAY NOW</span>
-                      <span className="font-bricolage font-bold text-[#e84545]">→</span>
+                      <span className="font-mono text-[9px] tracking-[0.2em] text-accent uppercase">Play now</span>
+                      <span className="font-display font-bold text-accent transition-transform group-hover:translate-x-0.5">→</span>
                     </div>
                   </button>
                 ))}
@@ -235,26 +234,20 @@ export default function LobbyView({
         </div>
 
         {/* ── Right column: drill-down navigator ── */}
-        <div className="w-full md:w-96 lg:w-[440px] flex flex-col px-6 md:px-8 py-8 overflow-hidden relative bg-[#f5f1e8]">
+        <div className="w-full md:w-96 lg:w-[440px] flex flex-col px-5 md:px-8 py-8 overflow-hidden relative">
 
           {/* Back + breadcrumb */}
           {stack.length > 1 && (
             <button
               onClick={pop}
-              className="flex items-center gap-2 font-plex text-[10px] tracking-widest text-[#6f6a62] uppercase mb-4 hover:text-[#18171a] transition-colors self-start"
+              className="flex items-center gap-2 kicker mb-4 hover:text-ink transition-colors self-start"
             >
               ← {breadcrumb || "Back"}
             </button>
           )}
 
           {/* Animated screen area */}
-          <div
-            key={animKey}
-            className="flex-1"
-            style={{
-              animation: `slideIn${slideDir === 1 ? "Right" : "Left"} 220ms ease-out both`,
-            }}
-          >
+          <div key={animKey} className={`flex-1 ${slideDir === 1 ? "animate-nav-push" : "animate-nav-pop"}`}>
             <NavScreenRenderer
               screen={currentScreen}
               onPush={push}
@@ -263,12 +256,6 @@ export default function LobbyView({
           </div>
         </div>
       </main>
-
-      {/* Slide-in keyframes injected once */}
-      <style>{`
-        @keyframes slideInRight { from { transform: translateX(28px); opacity: 0; } to { transform: none; opacity: 1; } }
-        @keyframes slideInLeft  { from { transform: translateX(-28px); opacity: 0; } to { transform: none; opacity: 1; } }
-      `}</style>
     </div>
   );
 }
@@ -310,13 +297,10 @@ function RootScreen({
 }) {
   return (
     <>
-      <div className="font-plex text-[10px] tracking-[0.25em] text-[#6f6a62] uppercase mb-5">
-        Choose Your Board
-      </div>
+      <div className="kicker mb-5">Choose Your Board</div>
 
       {/* Football — drill-down */}
       <NavRow
-        accentColor="#22c55e"
         name="Football"
         sub="Goals · assists · 5 leagues"
         onClick={() => onPush({ id: "football" })}
@@ -327,7 +311,6 @@ function RootScreen({
       {OTHER_CATEGORIES.map((cat) => (
         <NavRow
           key={cat.id}
-          accentColor={cat.color}
           name={cat.name}
           sub={cat.description}
           onClick={() => onStartGame(cat.id, cat.name)}
@@ -335,7 +318,7 @@ function RootScreen({
       ))}
 
       <div className="mt-8">
-        <HowToPlayPanel variant="home" />
+        <HowToPlayPanel />
       </div>
     </>
   );
@@ -352,32 +335,27 @@ function FootballScreen({
 }) {
   return (
     <>
-      <div className="font-plex text-[10px] tracking-[0.25em] text-[#6f6a62] uppercase mb-5">Football</div>
+      <div className="kicker mb-5">Football</div>
 
       <NavRow
-        icon="✦"
+        random
         name="Random Question"
         sub="Any club, any league, any stat"
         onClick={() => onStartGame("football", "Football — Random", { scope: "random_any" })}
       />
 
       <NavRow
-        icon="✦"
+        random
         name="Random League Question"
         sub="League-wide stat, picked at random"
         onClick={() => onStartGame("football", "Football — Random League", { scope: "random_league_level" })}
       />
 
-      <div className="py-3 flex items-center gap-3">
-        <div className="flex-1 border-t border-[rgba(24,23,26,0.1)]" />
-        <span className="font-plex text-[9px] tracking-widest text-[#6f6a62] uppercase">or pick a league</span>
-        <div className="flex-1 border-t border-[rgba(24,23,26,0.1)]" />
-      </div>
+      <NavDivider label="or pick a league" />
 
       {LEAGUES.map((league) => (
         <NavRow
           key={league.id}
-          accentColor="#22c55e"
           name={league.name}
           onClick={() => onPush({ id: "football-league", league })}
           hasChildren
@@ -413,11 +391,11 @@ function LeagueScreen({
 
   return (
     <>
-      <div className="font-plex text-[10px] tracking-[0.25em] text-[#6f6a62] uppercase mb-5">{league.name}</div>
+      <div className="kicker mb-5">{league.name}</div>
 
       {/* League-scope questions */}
       <NavRow
-        icon="✦"
+        random
         name="League Questions"
         sub={`Stats across the full ${league.name}`}
         onClick={() => onStartGame(`football:${league.id}`, `Football › ${league.name} › League`, {
@@ -440,14 +418,10 @@ function LeagueScreen({
         />
       ))}
 
-      <div className="py-3 flex items-center gap-3">
-        <div className="flex-1 border-t border-[rgba(24,23,26,0.1)]" />
-        <span className="font-plex text-[9px] tracking-widest text-[#6f6a62] uppercase">or pick a club</span>
-        <div className="flex-1 border-t border-[rgba(24,23,26,0.1)]" />
-      </div>
+      <NavDivider label="or pick a club" />
 
       <NavRow
-        icon="✦"
+        random
         name="Random Club"
         sub={`Any club from the ${league.name}`}
         onClick={() => onStartGame(`football:${league.id}:random`, `Football › ${league.name} › Random Club`, {
@@ -456,18 +430,13 @@ function LeagueScreen({
       />
 
       {loadingClubs ? (
-        <div className="font-plex text-[10px] tracking-widest text-[#6f6a62] py-4 animate-pulse">
-          Loading clubs…
-        </div>
+        <div className="kicker py-4 animate-pulse">Loading clubs…</div>
       ) : clubs.length === 0 ? (
-        <div className="font-plex text-[10px] tracking-widest text-[#6f6a62] py-4">
-          No clubs available yet — data coming soon.
-        </div>
+        <div className="kicker py-4">No clubs available yet — data coming soon.</div>
       ) : (
         clubs.map((club) => (
           <NavRow
             key={club.id}
-            accentColor="#22c55e"
             name={club.name}
             onClick={() => onPush({ id: "football-club", league, club })}
             hasChildren
@@ -491,10 +460,10 @@ function ClubScreen({
 }) {
   return (
     <>
-      <div className="font-plex text-[10px] tracking-[0.25em] text-[#6f6a62] uppercase mb-5">{club.name}</div>
+      <div className="kicker mb-5">{club.name}</div>
 
       <NavRow
-        icon="✦"
+        random
         name="Random Question"
         sub="Any stat type for this club"
         onClick={() => onStartGame(
@@ -504,11 +473,7 @@ function ClubScreen({
         )}
       />
 
-      <div className="py-3 flex items-center gap-3">
-        <div className="flex-1 border-t border-[rgba(24,23,26,0.1)]" />
-        <span className="font-plex text-[9px] tracking-widest text-[#6f6a62] uppercase">or pick a stat</span>
-        <div className="flex-1 border-t border-[rgba(24,23,26,0.1)]" />
-      </div>
+      <NavDivider label="or pick a stat" />
 
       {STAT_TYPES.map((stat) => (
         <NavRow
@@ -527,19 +492,28 @@ function ClubScreen({
   );
 }
 
-// ─── Shared row component ─────────────────────────────────────────────────────
+// ─── Shared pieces ────────────────────────────────────────────────────────────
+
+function NavDivider({ label }: { label: string }) {
+  return (
+    <div className="py-3 flex items-center gap-3">
+      <div className="flex-1 border-t border-line" />
+      <span className="kicker text-[9px]">{label}</span>
+      <div className="flex-1 border-t border-line" />
+    </div>
+  );
+}
 
 function NavRow({
-  accentColor,
-  icon,
+  random = false,
   name,
   sub,
   onClick,
   hasChildren = false,
   small = false,
 }: {
-  accentColor?: string;
-  icon?: string;
+  /** Marks "surprise me" rows with a die glyph instead of the accent tick. */
+  random?: boolean;
   name: string;
   sub?: string;
   onClick: () => void;
@@ -549,26 +523,22 @@ function NavRow({
   return (
     <button
       onClick={onClick}
-      className="group flex items-center gap-4 py-3.5 border-b border-[rgba(24,23,26,0.08)] hover:bg-[rgba(24,23,26,0.025)] transition-colors text-left w-full"
+      className="group flex items-center gap-4 py-3.5 px-2 -mx-2 rounded-sm border-b border-line hover:bg-surface transition-colors text-left w-full"
     >
-      {icon ? (
-        <span className="text-[#22c55e] font-bricolage font-bold text-lg leading-none flex-shrink-0 w-4 text-center">
-          {icon}
+      {random ? (
+        <span className="text-accent font-display font-bold text-lg leading-none flex-shrink-0 w-4 text-center" aria-hidden="true">
+          ✦
         </span>
-      ) : accentColor ? (
-        <div className="w-0.5 self-stretch rounded-full flex-shrink-0" style={{ backgroundColor: accentColor }} />
       ) : (
-        <div className="w-4 flex-shrink-0" />
+        <span className="w-1 self-stretch rounded-full flex-shrink-0 bg-line group-hover:bg-accent transition-colors" aria-hidden="true" />
       )}
 
       <div className="flex-1 min-w-0">
-        <div className={`font-bricolage font-bold leading-tight ${small ? "text-base" : "text-xl"}`}>{name}</div>
-        {sub && (
-          <div className="font-plex text-[10px] tracking-wider text-[#6f6a62] uppercase mt-0.5">{sub}</div>
-        )}
+        <div className={`font-display font-bold leading-tight ${small ? "text-base" : "text-xl"}`}>{name}</div>
+        {sub && <div className="hint mt-0.5 text-[10px]">{sub}</div>}
       </div>
 
-      <span className="font-bricolage font-bold text-base text-[#6f6a62] group-hover:text-[#18171a] group-hover:translate-x-0.5 transition-all flex-shrink-0">
+      <span className="font-display font-bold text-base text-muted group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" aria-hidden="true">
         {hasChildren ? "→" : "↵"}
       </span>
     </button>

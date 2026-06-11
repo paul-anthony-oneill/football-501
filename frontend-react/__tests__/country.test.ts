@@ -64,8 +64,28 @@ describe("getFlagEmoji", () => {
     expect(getFlagEmoji("en_GB")).toBe("🇬🇧");
   });
 
-  it("returns input unchanged for non-country strings", () => {
-    expect(getFlagEmoji("hello")).toBe("hello");
+  it("returns empty string for non-country strings", () => {
+    expect(getFlagEmoji("hello")).toBe("");
+  });
+
+  it("returns England subdivision flag for ENG", () => {
+    expect(getFlagEmoji("ENG")).toBe("🏴󠁧󠁢󠁥󠁮󠁧󠁿");
+  });
+
+  it("returns Scotland subdivision flag for SCO", () => {
+    expect(getFlagEmoji("SCO")).toBe("🏴󠁧󠁢󠁳󠁣󠁴󠁿");
+  });
+
+  it("returns Wales subdivision flag for WAL", () => {
+    expect(getFlagEmoji("WAL")).toBe("🏴󠁧󠁢󠁷󠁬󠁳󠁿");
+  });
+
+  it("returns Union Jack for NIR (no subdivision emoji exists)", () => {
+    expect(getFlagEmoji("NIR")).toBe("🇬🇧");
+  });
+
+  it("handles lowercase home nation codes", () => {
+    expect(getFlagEmoji("eng")).toBe("🏴󠁧󠁢󠁥󠁮󠁧󠁿");
   });
 
   it("converts US to flag", () => {

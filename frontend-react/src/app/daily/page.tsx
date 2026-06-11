@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDailyChallenge, type CategoryChallenge } from "@/hooks/useDailyChallenge";
 import { apiFetch } from "@/lib/api/client";
 import { useToast } from "@/context/ToastContext";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 export default function DailyPage() {
   const router = useRouter();
@@ -41,80 +42,83 @@ export default function DailyPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
+      <div className="min-h-screen flex items-center justify-center bg-bg">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-h-accent mx-auto mb-4" />
-          <p className="text-gray-400 text-lg font-vt323 tracking-widest">Loading challenges...</p>
+          <div className="animate-spin-slow rounded-full h-10 w-10 border-2 border-line border-t-accent mx-auto mb-4" />
+          <p className="kicker">Loading challenges…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white font-vt323">
-      <div className="max-w-4xl mx-auto px-6 py-10">
-        <header className="border-b border-h-rule pb-6 mb-8">
-          <div className="flex items-baseline justify-between">
-            <h1 className="text-h-accent text-[40px] tracking-widest">DAILY CHALLENGES</h1>
-            <span className="text-h-dim text-[14px] tracking-widest uppercase">
-              {date ? new Date(date).toLocaleDateString("en-GB", {
-                weekday: "short", day: "numeric", month: "short", year: "numeric",
-              }) : "Today"}
-            </span>
+    <div className="min-h-screen bg-bg text-ink font-sans">
+      <div className="max-w-4xl mx-auto px-5 md:px-6 py-8 md:py-10">
+        <header className="border-b border-line pb-6 mb-8">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="w-2 h-2 rounded-full bg-gold" aria-hidden="true" />
+                <span className="kicker">
+                  {date ? new Date(date).toLocaleDateString("en-GB", {
+                    weekday: "short", day: "numeric", month: "short", year: "numeric",
+                  }) : "Today"}
+                </span>
+              </div>
+              <h1 className="font-display font-extrabold text-3xl md:text-4xl tracking-tight">
+                Daily Challenges
+              </h1>
+            </div>
+            <ThemeToggle />
           </div>
-          <p className="text-h-dim text-[14px] mt-2 tracking-wider">
+          <p className="text-muted text-sm mt-3 max-w-md">
             One question per category. Everyone gets the same target. Share your result.
           </p>
         </header>
 
         {error && (
-          <div className="text-red-500 text-center py-6 text-[18px]">{error}</div>
+          <div className="text-danger text-center py-6 text-sm">{error}</div>
         )}
 
         {!error && challenges.length === 0 && (
           <div className="text-center py-16">
-            <div className="text-h-dim text-[24px] tracking-widest mb-4">NO CHALLENGES TODAY</div>
-            <p className="text-h-dim text-[14px]">Check back at midnight UTC for new challenges.</p>
+            <div className="font-display font-bold text-xl mb-2">No challenges today</div>
+            <p className="text-muted text-sm">Check back at midnight UTC for new challenges.</p>
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
           {challenges.map((dc: CategoryChallenge) => (
             <div
               key={dc.categorySlug}
-              className="border-2 border-h-accent rounded-sm p-6 bg-black flex flex-col"
+              className="bg-surface border border-line rounded-md p-6 flex flex-col transition-all duration-200 hover:border-line-strong hover:shadow-[var(--shadow-card)]"
             >
               <div className="flex items-baseline justify-between mb-3">
-                <span className="font-bricolage font-bold text-[22px] tracking-tight">
+                <span className="font-display font-bold text-xl tracking-tight">
                   {dc.categoryName}
                 </span>
-                <span className="font-plex text-[10px] tracking-widest text-h-dim uppercase">
-                  Daily
-                </span>
+                <span className="font-mono text-[9px] tracking-[0.2em] text-gold uppercase">Daily</span>
               </div>
-              <div className="text-h-accent text-[48px] tracking-widest mb-3">
-                {dc.startingScore.toString().padStart(3, "0")}
+              <div className="display-num text-[56px] mb-2">
+                {dc.startingScore}
               </div>
-              <div className="text-h-dim text-[14px] leading-snug mb-4 line-clamp-2">
-                {dc.questionText || "Loading..."}
+              <div className="text-muted text-sm leading-snug mb-5 line-clamp-2">
+                {dc.questionText || "Loading…"}
               </div>
               <button
                 onClick={() => handlePlay(dc.categorySlug, dc.categoryName)}
                 disabled={starting === dc.categorySlug}
-                className="mt-auto border-2 border-h-accent text-h-accent text-[20px] tracking-widest py-3 px-6 hover:bg-h-accent hover:text-black transition-colors disabled:opacity-50"
+                className="btn-primary mt-auto h-12 text-base w-full"
               >
-                {starting === dc.categorySlug ? "STARTING..." : "PLAY NOW"}
+                {starting === dc.categorySlug ? "Starting…" : "Play now"}
               </button>
             </div>
           ))}
         </div>
 
-        <footer className="mt-12 pt-6 border-t border-h-rule text-center">
-          <a
-            href="/"
-            className="text-h-dim text-[14px] tracking-widest hover:text-h-accent transition-colors"
-          >
-            ← BACK TO LOBBY
+        <footer className="mt-12 pt-6 border-t border-line text-center">
+          <a href="/" className="kicker hover:text-ink transition-colors">
+            ← Back to lobby
           </a>
         </footer>
       </div>

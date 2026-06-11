@@ -72,10 +72,10 @@ export default function DailyCategoryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
+      <div className="min-h-screen flex items-center justify-center bg-bg">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-h-accent mx-auto mb-4" />
-          <p className="text-gray-400 text-lg font-vt323 tracking-widest">Loading...</p>
+          <div className="animate-spin-slow rounded-full h-10 w-10 border-2 border-line border-t-accent mx-auto mb-4" />
+          <p className="kicker">Loading…</p>
         </div>
       </div>
     );
@@ -83,12 +83,9 @@ export default function DailyCategoryPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white font-vt323 gap-6">
-        <div className="text-red-500 text-[24px] tracking-widest">{error}</div>
-        <a
-          href="/daily"
-          className="text-h-accent text-[18px] tracking-widest hover:underline"
-        >
+      <div className="min-h-screen flex flex-col items-center justify-center bg-bg text-ink font-sans gap-5 p-6">
+        <div className="font-display font-bold text-xl text-center">{error}</div>
+        <a href="/daily" className="kicker text-accent hover:underline">
           ← View all challenges
         </a>
       </div>
@@ -98,44 +95,42 @@ export default function DailyCategoryPage() {
   if (!status) return null;
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white font-vt323 p-6">
-      <div className="max-w-md w-full border-2 border-h-accent rounded-sm p-8 bg-black">
-        <div className="flex items-baseline justify-between mb-4">
-          <h1 className="text-h-accent text-[28px] tracking-widest">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-bg text-ink font-sans p-5">
+      <div className="max-w-md w-full bg-surface border border-line rounded-md p-7 md:p-8 shadow-[var(--shadow-card)]">
+        <div className="flex items-baseline justify-between mb-5">
+          <h1 className="font-display font-extrabold text-2xl tracking-tight">
             {status.categoryName} Daily
           </h1>
-          <span className="text-h-dim text-[12px] tracking-widest uppercase">Today</span>
+          <span className="font-mono text-[9px] tracking-[0.2em] text-gold uppercase">Today</span>
         </div>
 
-        <div className="text-h-accent text-[64px] tracking-widest text-center mb-4">
-          {status.startingScore.toString().padStart(3, "0")}
+        <div className="display-num text-[84px] text-center mb-4">
+          {status.startingScore}
         </div>
+        <div className="kicker text-center mb-6">Target score</div>
 
-        <p className="text-h-dim text-[14px] leading-snug mb-8 text-center">
+        <p className="text-muted text-sm leading-relaxed mb-8 text-center">
           {status.questionText}
         </p>
 
         <button
           onClick={handlePlay}
           disabled={starting}
-          className="w-full border-2 border-h-accent text-h-accent text-[24px] tracking-widest py-4 hover:bg-h-accent hover:text-black transition-colors disabled:opacity-50"
+          className="btn-primary w-full h-13 text-lg py-3.5"
         >
-          {starting ? "STARTING..." : "PLAY NOW"}
+          {starting ? "Starting…" : "Play now"}
         </button>
 
         <div className="mt-6 text-center">
-          <a
-            href="/daily"
-            className="text-h-dim text-[14px] tracking-widest hover:text-h-accent transition-colors"
-          >
+          <a href="/daily" className="kicker hover:text-ink transition-colors">
             ← All challenges
           </a>
         </div>
       </div>
 
-      <footer className="mt-8 text-h-dim text-[12px] tracking-widest">
+      <footer className="mt-8 kicker">
         Shared via Trivia 501 ·{" "}
-        <a href="/daily" className="text-h-accent hover:underline">
+        <a href="/daily" className="text-accent hover:underline">
           trivia501.com/daily
         </a>
       </footer>

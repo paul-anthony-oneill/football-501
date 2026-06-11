@@ -93,16 +93,14 @@ export default function AnimatedScorePopup({
 
   if (phase === "invalid") {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 font-vt323">
-        <div className="text-center flex flex-col items-center gap-4">
-          <div className="text-[140px] text-tele-danger leading-none animate-pulse">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/90 backdrop-blur-sm animate-fade-in">
+        <div className="text-center flex flex-col items-center gap-3 px-6">
+          <div className="display-num text-danger" style={{ fontSize: "110px" }}>
             ✗
           </div>
-          <div className="text-tele-danger text-[32px] tracking-widest uppercase">
-            Invalid Answer
-          </div>
+          <div className="kicker text-danger text-[13px]">Invalid answer</div>
           {reason && (
-            <div className="text-[#888] text-[20px] uppercase tracking-wide max-w-md leading-relaxed">
+            <div className="text-muted text-sm max-w-md leading-relaxed">
               {reason}
             </div>
           )}
@@ -115,22 +113,21 @@ export default function AnimatedScorePopup({
   const showBustText = phase === "showing" && result === "BUST";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 font-vt323">
-      <div className="text-center flex flex-col items-center gap-2">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/90 backdrop-blur-sm animate-fade-in">
+      <div className="text-center flex flex-col items-center gap-2 px-6">
         <div
-          className={`text-[160px] leading-none font-normal transition-colors duration-150 ${
-            isRedPhase ? "text-tele-danger" : "text-tele-green"
+          className={`display-num transition-colors duration-150 ${
+            isRedPhase ? "text-danger" : "text-ok"
           } ${phase === "flashing" ? "animate-pulse" : ""}`}
+          style={{ fontSize: "clamp(120px, 24vw, 180px)" }}
         >
           {showBustText ? "BUST" : display}
         </div>
         {phase === "showing" && result !== "BUST" && (
-          <div className="text-tele-cyan text-[24px] tracking-widest uppercase">
-            Points Scored
-          </div>
+          <div className="kicker text-[13px]">Points scored</div>
         )}
         {phase === "showing" && result === "BUST" && reason && (
-          <div className="text-[#888] text-[20px] uppercase tracking-wide max-w-md leading-relaxed mt-2">
+          <div className="text-muted text-sm max-w-md leading-relaxed mt-2">
             {reason}
           </div>
         )}

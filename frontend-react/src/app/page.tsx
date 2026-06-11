@@ -140,11 +140,11 @@ export default function GamePage() {
 
   if (gameStatus === "RESTORING") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950">
+      <div className="min-h-screen flex items-center justify-center bg-bg">
         {authRedirect}
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4" />
-          <p className="text-gray-400 text-lg">Restoring game...</p>
+          <div className="animate-spin-slow rounded-full h-10 w-10 border-2 border-line border-t-accent mx-auto mb-4" />
+          <p className="kicker">Restoring game…</p>
         </div>
       </div>
     );

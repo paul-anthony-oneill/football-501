@@ -40,13 +40,15 @@ export default function ConfirmDialog({
 
   if (!open) return null;
 
-  const confirmBg =
-    type === "danger" ? "bg-[#ef4444]" : "bg-[#3b82f6]";
+  const confirmClasses =
+    type === "danger"
+      ? "bg-danger text-white hover:opacity-90"
+      : "bg-ink text-bg hover:opacity-90";
 
   return (
     <div
       ref={dialogRef}
-      className="fixed inset-0 bg-black/70 flex justify-center items-center z-[1000] animate-fade-in"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[1000] animate-fade-in"
       onClick={onCancel}
       role="dialog"
       aria-modal="true"
@@ -54,20 +56,20 @@ export default function ConfirmDialog({
       aria-describedby="confirm-message"
     >
       <div
-        className="bg-[#2a2a2a] p-8 rounded-xl w-[90%] max-w-[400px] shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
+        className="bg-surface border border-line text-ink p-7 rounded-md w-[90%] max-w-[400px] shadow-[var(--shadow-pop)] animate-rise"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 id="confirm-title" className="m-0 mb-4 text-white">{title}</h3>
-        <p id="confirm-message" className="text-[#d1d5db] mb-8 leading-relaxed">{message}</p>
-        <div className="flex justify-end gap-4">
+        <h3 id="confirm-title" className="m-0 mb-3 font-display font-bold text-xl tracking-tight">{title}</h3>
+        <p id="confirm-message" className="text-muted text-sm mb-7 leading-relaxed">{message}</p>
+        <div className="flex justify-end gap-3">
           <button
-            className="px-6 py-3 rounded-lg bg-[#444] text-white font-medium text-base hover:opacity-90 transition-opacity"
+            className="px-5 py-2.5 rounded-sm border border-line text-muted font-medium text-sm hover:text-ink hover:border-line-strong transition-colors"
             onClick={onCancel}
           >
             {cancelText}
           </button>
           <button
-            className={`px-6 py-3 rounded-lg text-white font-medium text-base hover:opacity-90 transition-opacity ${confirmBg}`}
+            className={`px-5 py-2.5 rounded-sm font-medium text-sm transition-opacity ${confirmClasses}`}
             onClick={onConfirm}
           >
             {confirmText}

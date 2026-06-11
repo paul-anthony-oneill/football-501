@@ -153,39 +153,39 @@ export default function EntitySearch({
       />
 
       {value.length > 0 && value.length < 4 && (
-        <p className="mt-1 text-xs text-tele-cyan px-1 opacity-80">
+        <p className="mt-1.5 font-mono text-[11px] text-muted px-1">
           Keep typing for suggestions…
         </p>
       )}
 
       {loading && value.length >= 4 && (
-        <p className="mt-1 text-xs text-tele-cyan px-1 opacity-80">
+        <p className="mt-1.5 font-mono text-[11px] text-muted px-1">
           Loading…
         </p>
       )}
 
       {noMatch && !loading && value.length >= 4 && (
-        <p className="mt-1 text-xs text-tele-danger px-1">
+        <p className="mt-1.5 font-mono text-[11px] text-danger px-1">
           No match — try a different spelling
         </p>
       )}
 
       {showSuggestions && (
-        <ul className="ta-list absolute bottom-full left-0 right-0 mb-2 p-0 m-0 list-none bg-black border-2 border-white overflow-y-auto max-h-[300px] z-50 shadow-[0_-12px_32px_rgba(0,0,0,0.5)]">
+        <ul className="absolute bottom-full left-0 right-0 mb-2 p-1.5 m-0 list-none bg-surface border border-line-strong rounded-md overflow-y-auto max-h-[300px] z-50 shadow-[var(--shadow-pop)] scrollbar-thin">
           {suggestions.map((entity, idx) => (
             <li key={entity.id}>
               <button
                 onMouseDown={(e) => { e.preventDefault(); selectSuggestion(entity); }}
                 data-active={activeIndex === idx ? "1" : "0"}
-                className={`ta-opt w-full text-left grid grid-cols-[1fr_auto] gap-4 items-center px-5.5 py-3 bg-transparent border-0 border-b border-white border-dashed last:border-b-0 cursor-pointer transition-colors active:bg-[#00008c] ${
-                  activeIndex === idx ? "bg-[#00008c]" : "hover:bg-[#00008c]"
+                className={`w-full text-left grid grid-cols-[1fr_auto] gap-4 items-center px-3.5 py-2.5 rounded-sm border-0 cursor-pointer transition-colors ${
+                  activeIndex === idx ? "bg-surface-2" : "hover:bg-surface-2"
                 }`}
               >
-                <span className="ta-opt-name text-white text-[22px] tracking-wide overflow-hidden text-ellipsis whitespace-nowrap">
-                  {entity.name.toUpperCase()}
+                <span className="text-ink font-medium text-[15px] overflow-hidden text-ellipsis whitespace-nowrap">
+                  {entity.name}
                 </span>
                 {entity.nationality && (
-                  <span className="ta-opt-club text-tele-cyan text-[18px] whitespace-nowrap">
+                  <span className="font-mono text-[11px] text-muted whitespace-nowrap">
                     {getFlagEmoji(entity.nationality)} {formatNationality(entity.nationality)}
                   </span>
                 )}

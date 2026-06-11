@@ -11,7 +11,13 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen">
+    // Admin keeps its original dark palette regardless of the app theme —
+    // --color-surface is re-pinned here because the global token now follows
+    // the dark/light toggle.
+    <div
+      className="flex min-h-screen"
+      style={{ "--color-surface": "#1a1a1a" } as React.CSSProperties}
+    >
       <Sidebar />
       {/* Main content offset by sidebar width (set via CSS custom property) */}
       <ErrorBoundary section="admin page">

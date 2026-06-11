@@ -59,7 +59,7 @@ export default function DebugPanel({ gameId, gameType }: DebugPanelProps) {
       {/* Toggle button */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-4 right-4 z-50 border border-tele-accent bg-black text-tele-accent px-2 py-1 text-sm font-vt323 hover:bg-tele-accent hover:text-black transition-colors"
+        className="fixed bottom-4 right-4 z-50 border border-line-strong bg-surface text-muted rounded-sm px-2 py-1 font-mono text-[11px] hover:text-ink transition-colors"
         title="Debug: Show all answers (Ctrl+Shift+D)"
       >
         {open ? "[x] DEBUG" : "[?] DEBUG"}
@@ -67,8 +67,8 @@ export default function DebugPanel({ gameId, gameType }: DebugPanelProps) {
 
       {/* Panel */}
       {open && (
-        <div className="fixed bottom-14 right-4 z-50 w-96 max-h-[70vh] border-2 border-tele-accent bg-black text-white font-vt323 shadow-lg flex flex-col">
-          <div className="bg-tele-accent text-black px-3 py-1 text-sm flex justify-between items-center">
+        <div className="fixed bottom-14 right-4 z-50 w-96 max-h-[70vh] border border-line-strong bg-surface text-ink font-mono rounded-md shadow-[var(--shadow-pop)] flex flex-col overflow-hidden">
+          <div className="bg-surface-2 px-3 py-1.5 text-[11px] tracking-wider flex justify-between items-center">
             <span>ALL ANSWERS ({answers.length})</span>
             <button
               onClick={() => setOpen(false)}
@@ -77,12 +77,12 @@ export default function DebugPanel({ gameId, gameType }: DebugPanelProps) {
               ✕
             </button>
           </div>
-          <div className="overflow-y-auto flex-1 p-2 text-sm">
+          <div className="overflow-y-auto flex-1 p-2 text-[12px] scrollbar-thin">
             {loading && (
-              <div className="text-tele-cyan py-4 text-center">Loading...</div>
+              <div className="text-muted py-4 text-center">Loading...</div>
             )}
             {error && (
-              <div className="text-tele-danger py-4 text-center">
+              <div className="text-danger py-4 text-center">
                 Error: {error}
               </div>
             )}
@@ -91,37 +91,37 @@ export default function DebugPanel({ gameId, gameType }: DebugPanelProps) {
               answers.map((a) => (
                 <div
                   key={a.id}
-                  className={`flex justify-between items-baseline py-1 border-b border-[#333] ${
+                  className={`flex justify-between items-baseline py-1 border-b border-line ${
                     !a.isValidDarts || a.isBust ? "opacity-50" : ""
                   }`}
                 >
                   <span
                     className={`truncate flex-1 mr-2 ${
                       a.isBust
-                        ? "text-tele-danger line-through"
+                        ? "text-danger line-through"
                         : !a.isValidDarts
-                          ? "text-[#888]"
-                          : "text-tele-green"
+                          ? "text-muted"
+                          : "text-ok"
                     }`}
                   >
                     {a.displayText}
                   </span>
-                  <span className="text-tele-accent tabular-nums mr-2">
+                  <span className="text-ink tabular-nums mr-2">
                     {a.score}
                   </span>
                   <span className="text-[11px] tracking-wider w-14 text-right">
                     {a.isBust ? (
-                      <span className="text-tele-danger">BUST</span>
+                      <span className="text-danger">BUST</span>
                     ) : !a.isValidDarts ? (
-                      <span className="text-[#666]">INV</span>
+                      <span className="text-muted">INV</span>
                     ) : (
-                      <span className="text-tele-green">OK</span>
+                      <span className="text-ok">OK</span>
                     )}
                   </span>
                 </div>
               ))}
             {!loading && !error && answers.length === 0 && (
-              <div className="text-[#888] py-4 text-center">
+              <div className="text-muted py-4 text-center">
                 No answers found
               </div>
             )}

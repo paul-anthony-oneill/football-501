@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Hanken_Grotesk, IBM_Plex_Mono, Bricolage_Grotesque, VT323 } from "next/font/google";
+import { Hanken_Grotesk, IBM_Plex_Mono, Bricolage_Grotesque } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/context/ToastContext";
 import { AuthProvider } from "@/context/AuthContext";
@@ -24,18 +24,14 @@ const bricolage = Bricolage_Grotesque({
   display: "swap",
 });
 
-const vt323 = VT323({
-  weight: "400",
-  subsets: ["latin"],
-  variable: "--font-vt323",
-  display: "swap",
-});
-
 export const metadata: Metadata = {
   title: "Trivia 501",
   description: "Competitive football trivia — darts 501 scoring mechanics",
   manifest: "/manifest.json",
 };
+
+// Applies the saved (or system) theme before first paint to avoid a flash.
+const themeInit = `(function(){try{var t=localStorage.getItem("t501-theme");if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";}document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme="dark";}})();`;
 
 export default function RootLayout({
   children,
@@ -43,7 +39,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`h-full ${hanken.variable} ${plexMono.variable} ${bricolage.variable} ${vt323.variable}`}>
+    <html lang="en" className={`h-full ${hanken.variable} ${plexMono.variable} ${bricolage.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+      </head>
       <body className="min-h-full flex flex-col theme-home">
         <AuthProvider>
           <ToastProvider>{children}</ToastProvider>
