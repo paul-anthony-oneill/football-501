@@ -25,7 +25,11 @@ export interface GameHints {
   checkoutsLeft: number;
 }
 
-export type GameStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "RESTORING";
+export type GameStatus =
+  | "NOT_STARTED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "RESTORING";
 export type GameType = "freeplay" | "daily-challenge";
 
 // ─── sessionStorage helpers ────────────────────────────────────────────────────
@@ -40,8 +44,13 @@ interface SavedGameState {
 
 function saveGameState(gameId: string, label: string, gameType: GameType) {
   try {
-    sessionStorage.setItem(GAME_STORAGE_KEY, JSON.stringify({ gameId, label, gameType }));
-  } catch { /* storage full or unavailable — non-critical */ }
+    sessionStorage.setItem(
+      GAME_STORAGE_KEY,
+      JSON.stringify({ gameId, label, gameType }),
+    );
+  } catch {
+    /* storage full or unavailable — non-critical */
+  }
 }
 
 function loadSavedGameState(): SavedGameState | null {
@@ -53,17 +62,24 @@ function loadSavedGameState(): SavedGameState | null {
       return {
         gameId: parsed.gameId,
         label: parsed.label ?? "",
-        gameType: parsed.gameType === "daily-challenge" ? "daily-challenge" : "freeplay",
+        gameType:
+          parsed.gameType === "daily-challenge" ?
+            "daily-challenge"
+          : "freeplay",
       };
     }
-  } catch { /* corrupted data */ }
+  } catch {
+    /* corrupted data */
+  }
   return null;
 }
 
 function clearSavedGameState() {
   try {
     sessionStorage.removeItem(GAME_STORAGE_KEY);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Exposed so the page component can recover the saved label after a restore. */
@@ -106,7 +122,12 @@ export interface GameLoopActions {
   /** The current game type (freeplay or daily-challenge). */
   gameType: GameType;
   /** Start a new Free Play game for the given category slug. */
-  startNewGame: (categorySlug: string, label: string, targetScore?: number, footballFilter?: FootballFilter) => Promise<void>;
+  startNewGame: (
+    categorySlug: string,
+    label: string,
+    targetScore?: number,
+    footballFilter?: FootballFilter,
+  ) => Promise<void>;
   /** Start a daily challenge game for the given category slug. */
   startDailyChallenge: (categorySlug: string, label: string) => Promise<void>;
   /** Submit an answer for the current game turn. */
@@ -134,17 +155,20 @@ export interface PopupState {
 export function useGameLoop(): GameLoopState & GameLoopActions {
   const { addToast } = useToast();
 
-  const [score,      setScore]      = useState(501);
-  const { display: displayScore, isAnimating: scoreAnimating, flashVersion } =
-    useAnimatedScore(score);
-  const [question,   setQuestion]   = useState("");
-  const [turnCount,  setTurnCount]  = useState(0);
+  const [score, setScore] = useState(501);
+  const {
+    display: displayScore,
+    isAnimating: scoreAnimating,
+    flashVersion,
+  } = useAnimatedScore(score);
+  const [question, setQuestion] = useState("");
+  const [turnCount, setTurnCount] = useState(0);
   const [gameStatus, setGameStatus] = useState<GameStatus>("NOT_STARTED");
-  const [moves,      setMoves]      = useState<Move[]>([]);
+  const [moves, setMoves] = useState<Move[]>([]);
   const [entityType, setEntityType] = useState("footballer");
-  const [hints,      setHints]      = useState<GameHints | null>(null);
-  const [popup,      setPopup]      = useState<PopupState | null>(null);
-  const [gameType,   setGameType]   = useState<GameType>("freeplay");
+  const [hints, setHints] = useState<GameHints | null>(null);
+  const [popup, setPopup] = useState<PopupState | null>(null);
+  const [gameType, setGameType] = useState<GameType>("freeplay");
 
   // Internal game ID used to address subsequent move submissions
   const [gameId, setGameId] = useState<string | null>(null);
@@ -153,7 +177,9 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
   /** Returns the API base path for the current game type. */
   function apiBase(): string {
-    return gameType === "daily-challenge" ? "/api/daily-challenge" : "/api/freeplay";
+    return gameType === "daily-challenge" ?
+        "/api/daily-challenge"
+      : "/api/freeplay";
   }
 
   // Tracks whether we've already attempted a restore on this mount
@@ -176,7 +202,10 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
     const savedGameType = saved.gameType ?? "freeplay";
     setGameType(savedGameType);
-    const restoreBase = savedGameType === "daily-challenge" ? "/api/daily-challenge" : "/api/freeplay";
+    const restoreBase =
+      savedGameType === "daily-challenge" ?
+        "/api/daily-challenge"
+      : "/api/freeplay";
 
     setGameStatus("RESTORING");
 
@@ -193,20 +222,22 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
         setTurnCount(game.turnCount ?? 0);
         setEntityType(game.entityType ?? "footballer");
         setHints(game.hints ?? null);
-        setGameStatus(game.status === "COMPLETED" ? "COMPLETED" : "IN_PROGRESS");
+        setGameStatus(
+          game.status === "COMPLETED" ? "COMPLETED" : "IN_PROGRESS",
+        );
 
         // Restore move history (server returns oldest-first; we keep newest-first)
         if (game.moves && Array.isArray(game.moves)) {
           const restoredMoves: Move[] = [...game.moves]
             .reverse()
             .map((m: Record<string, unknown>) => ({
-              answer:        (m.answer as string) ?? "",
-              result:        (m.result as string) ?? "UNKNOWN",
-              scoreBefore:   (m.scoreBefore as number) ?? 0,
-              scoreAfter:    (m.scoreAfter as number) ?? 0,
+              answer: (m.answer as string) ?? "",
+              result: (m.result as string) ?? "UNKNOWN",
+              scoreBefore: (m.scoreBefore as number) ?? 0,
+              scoreAfter: (m.scoreAfter as number) ?? 0,
               matchedAnswer: (m.matchedAnswer as string) ?? undefined,
-              scoreValue:    (m.scoreValue as number) ?? undefined,
-              reason:        (m.reason as string) ?? undefined,
+              scoreValue: (m.scoreValue as number) ?? undefined,
+              reason: (m.reason as string) ?? undefined,
             }));
           setMoves(restoredMoves);
         }
@@ -228,18 +259,29 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
   async function abandonCurrentGame() {
     if (!gameId) return;
     // Fire-and-forget: server is idempotent; don't block the UI on network errors
-    apiFetch(`${apiBase()}/games/${gameId}/abandon`, { method: "POST" }).catch(() => {});
+    apiFetch(`${apiBase()}/games/${gameId}/abandon`, { method: "POST" }).catch(
+      () => {},
+    );
   }
 
-  async function startNewGame(categorySlug: string, label: string, targetScore?: number, footballFilter?: FootballFilter) {
+  async function startNewGame(
+    categorySlug: string,
+    label: string,
+    targetScore?: number,
+    footballFilter?: FootballFilter,
+  ) {
     setGameType("freeplay");
     await abandonCurrentGame();
     clearSavedGameState();
     try {
-      const res = await apiFetch(`${apiBase()}/start`, {
+      const res = await apiFetch(`/api/freeplay/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categorySlug, startingScore: targetScore, footballFilter }),
+        body: JSON.stringify({
+          categorySlug,
+          startingScore: targetScore,
+          footballFilter,
+        }),
       });
 
       if (!res.ok) {
@@ -265,7 +307,7 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
       setHints(game.hints ?? null);
       setGameStatus("IN_PROGRESS");
 
-      saveGameState(game.gameId, label, gameType);
+      saveGameState(game.gameId, label, "freeplay");
 
       document.body.classList.remove("theme-home");
       document.body.classList.add("theme-teletext");
@@ -282,10 +324,13 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
     clearSavedGameState();
     try {
       const base = "/api/daily-challenge";
-      const res = await apiFetch(`${base}/${encodeURIComponent(categorySlug)}/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await apiFetch(
+        `${base}/${encodeURIComponent(categorySlug)}/start`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -317,7 +362,10 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
       addToast("Daily Challenge started!", "success");
     } catch (err) {
-      addToast((err as Error).message || "Error starting daily challenge", "error");
+      addToast(
+        (err as Error).message || "Error starting daily challenge",
+        "error",
+      );
     }
   }
 
@@ -328,7 +376,10 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
       const res = await apiFetch(`${apiBase()}/games/${gameId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answer: answer.trim(), entityId: entityId ?? null }),
+        body: JSON.stringify({
+          answer: answer.trim(),
+          entityId: entityId ?? null,
+        }),
       });
 
       if (!res.ok) {
@@ -370,22 +421,27 @@ export function useGameLoop(): GameLoopState & GameLoopActions {
 
     const newMove: Move = {
       answer,
-      result:        (r.result as string) ?? "UNKNOWN",
-      scoreBefore:   score,
-      scoreAfter:    (r.scoreAfter as number) ?? score,
+      result: (r.result as string) ?? "UNKNOWN",
+      scoreBefore: score,
+      scoreAfter: (r.scoreAfter as number) ?? score,
       matchedAnswer: (r.matchedAnswer as string) ?? undefined,
-      scoreValue:    (r.scoreValue as number) ?? undefined,
-      reason:        reasonText,
+      scoreValue: (r.scoreValue as number) ?? undefined,
+      reason: reasonText,
     };
 
     setMoves((prev) => [newMove, ...prev]);
     setScore((r.scoreAfter as number) ?? score);
     setTurnCount((prev) => prev + 1);
-    setHints((r.gameState as Record<string, unknown>)?.hints as GameHints | null ?? null);
+    setHints(
+      ((r.gameState as Record<string, unknown>)?.hints as GameHints | null) ??
+        null,
+    );
 
-    if      (r.result === "VALID")   addToast(`Correct! -${r.scoreValue}`, "success");
-    else if (r.result === "BUST")    addToast(reasonText ? `BUST — ${reasonText}` : "BUST!", "error");
-    else if (r.result === "INVALID") addToast(reasonText || "Not a valid answer — try again", "error");
+    if (r.result === "VALID") addToast(`Correct! -${r.scoreValue}`, "success");
+    else if (r.result === "BUST")
+      addToast(reasonText ? `BUST — ${reasonText}` : "BUST!", "error");
+    else if (r.result === "INVALID")
+      addToast(reasonText || "Not a valid answer — try again", "error");
 
     if (r.isWin) {
       setGameStatus("COMPLETED");

@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState } from 'react';
-import EntitySearch from '../EntitySearch';
-import HowToPlayPanel from '../HowToPlayPanel';
-import DebugPanel from '../DebugPanel';
-import LoginButton from '@/components/auth/LoginButton';
-import ThemeToggle from '@/components/ui/ThemeToggle';
-import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import React, { useState } from "react";
+import EntitySearch from "../EntitySearch";
+import HowToPlayPanel from "../HowToPlayPanel";
+import DebugPanel from "../DebugPanel";
+import LoginButton from "@/components/auth/LoginButton";
+import ThemeToggle from "@/components/ui/ThemeToggle";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 interface StagedAnswer {
   name: string;
@@ -57,7 +57,7 @@ interface MatchViewProps {
   /** Current game ID, used by DebugPanel to fetch all answers. */
   gameId?: string | null;
   /** Current game type, used by DebugPanel to route API calls. */
-  debugGameType?: "freeplay" | "daily-challenge";
+  gameType?: "freeplay" | "daily-challenge";
 }
 
 export default function MatchView({
@@ -78,7 +78,7 @@ export default function MatchView({
   onShare,
   sharing = false,
   gameId = null,
-  debugGameType = "freeplay",
+  gameType: gameType = "freeplay",
 }: MatchViewProps) {
   const [staged, setStaged] = useState<StagedAnswer | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -95,16 +95,21 @@ export default function MatchView({
 
   // Newest move first. Used for the flash colour, bust shake and checkout track.
   const lastMove = moves[0] ?? null;
-  const lastWasBust = lastMove?.result === 'BUST';
+  const lastWasBust = lastMove?.result === "BUST";
   const flashColor =
-    lastMove?.result === 'VALID' ? 'var(--ok)'
-    : lastWasBust ? 'var(--danger)'
-    : 'var(--ink)';
+    lastMove?.result === "VALID" ? "var(--ok)"
+    : lastWasBust ? "var(--danger)"
+    : "var(--ink)";
 
   // The starting score is the score before the oldest move.
-  const startingScore = moves.length > 0 ? moves[moves.length - 1].scoreBefore : score;
-  const progress = startingScore > 0
-    ? Math.min(1, Math.max(0, (startingScore - Math.max(score, 0)) / startingScore))
+  const startingScore =
+    moves.length > 0 ? moves[moves.length - 1].scoreBefore : score;
+  const progress =
+    startingScore > 0 ?
+      Math.min(
+        1,
+        Math.max(0, (startingScore - Math.max(score, 0)) / startingScore),
+      )
     : 0;
 
   return (
@@ -141,7 +146,6 @@ export default function MatchView({
       {/* Main game area */}
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5 md:gap-8 p-4 md:p-8 max-w-7xl w-full mx-auto">
         <div className="flex flex-col gap-5 md:gap-7 min-w-0">
-
           {/* Score hero */}
           <section
             className="bg-surface border border-line rounded-md p-5 md:p-7 relative overflow-hidden"
@@ -149,15 +153,18 @@ export default function MatchView({
           >
             <div className="kicker">Points remaining</div>
 
-            <div key={lastWasBust ? `shake-${moves.length}` : 'steady'} className={lastWasBust ? 'animate-shake' : ''}>
+            <div
+              key={lastWasBust ? `shake-${moves.length}` : "steady"}
+              className={lastWasBust ? "animate-shake" : ""}
+            >
               <div
                 className="display-num"
-                style={{ fontSize: 'clamp(96px, 16vw, 170px)' }}
+                style={{ fontSize: "clamp(96px, 16vw, 170px)" }}
               >
                 <span
                   key={flashVersion}
                   className="animate-score-pop inline-block"
-                  style={{ '--flash': flashColor } as React.CSSProperties}
+                  style={{ "--flash": flashColor } as React.CSSProperties}
                 >
                   {score}
                 </span>
@@ -173,8 +180,12 @@ export default function MatchView({
                 />
               </div>
               <div className="flex justify-between mt-1.5">
-                <span className="font-mono text-[10px] text-muted tabular-nums">{startingScore}</span>
-                <span className="font-mono text-[10px] text-gold tabular-nums">◎ 0</span>
+                <span className="font-mono text-[10px] text-muted tabular-nums">
+                  {startingScore}
+                </span>
+                <span className="font-mono text-[10px] text-gold tabular-nums">
+                  ◎ 0
+                </span>
               </div>
             </div>
 
@@ -184,24 +195,39 @@ export default function MatchView({
                 <span className="kicker">Last score</span>
                 <span
                   className={`font-display font-bold text-lg tabular-nums ${
-                    lastMove ? (lastWasBust ? 'text-danger' : 'text-ok') : 'text-muted'
+                    lastMove ?
+                      lastWasBust ? "text-danger"
+                      : "text-ok"
+                    : "text-muted"
                   }`}
                 >
-                  {lastMove ? (lastMove.result === 'INVALID' ? '—' : lastMove.scoreValue) : '—'}
+                  {lastMove ?
+                    lastMove.result === "INVALID" ?
+                      "—"
+                    : lastMove.scoreValue
+                  : "—"}
                 </span>
               </div>
 
               {hints !== null && (
                 <>
-                  <div className={`flex items-baseline gap-2 transition-opacity ${score > 180 ? '' : 'opacity-30'}`}>
+                  <div
+                    className={`flex items-baseline gap-2 transition-opacity ${score > 180 ? "" : "opacity-30"}`}
+                  >
                     <span className="kicker">180s left</span>
-                    <span className="font-display font-bold text-lg tabular-nums">{hints.maxScoresLeft}</span>
+                    <span className="font-display font-bold text-lg tabular-nums">
+                      {hints.maxScoresLeft}
+                    </span>
                   </div>
-                  <div className={`flex items-baseline gap-2 transition-opacity ${score <= 180 ? '' : 'opacity-30'}`}>
+                  <div
+                    className={`flex items-baseline gap-2 transition-opacity ${score <= 180 ? "" : "opacity-30"}`}
+                  >
                     <span className="kicker">Checkouts</span>
                     <span
                       className={`font-display font-bold text-lg tabular-nums ${
-                        score <= 180 && hints.checkoutsLeft > 0 ? 'text-gold' : 'text-muted'
+                        score <= 180 && hints.checkoutsLeft > 0 ?
+                          "text-gold"
+                        : "text-muted"
                       }`}
                     >
                       {hints.checkoutsLeft}
@@ -224,7 +250,12 @@ export default function MatchView({
           <section className="flex flex-col gap-3.5" aria-label="Answer">
             <div className="relative">
               <div className="flex items-center gap-3 bg-surface border border-line-strong rounded-md px-4 md:px-5 h-14 md:h-16 focus-within:border-accent transition-colors">
-                <span className="text-accent font-display font-bold text-xl select-none" aria-hidden="true">›</span>
+                <span
+                  className="text-accent font-display font-bold text-xl select-none"
+                  aria-hidden="true"
+                >
+                  ›
+                </span>
                 <EntitySearch
                   entityType={entityType}
                   onSelect={handleStage}
@@ -236,11 +267,13 @@ export default function MatchView({
             </div>
 
             {/* Staged answer */}
-            {staged ? (
+            {staged ?
               <div className="flex items-center justify-between gap-4 bg-ok-soft border border-ok/40 rounded-md px-4 md:px-5 py-3 animate-rise">
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="kicker text-ok">Lined up</span>
-                  <span className="font-display font-bold text-lg truncate">{staged.name}</span>
+                  <span className="font-display font-bold text-lg truncate">
+                    {staged.name}
+                  </span>
                 </div>
                 <button
                   onClick={() => setStaged(null)}
@@ -250,11 +283,10 @@ export default function MatchView({
                   ✕
                 </button>
               </div>
-            ) : (
-              <div className="hint border border-dashed border-line rounded-md px-4 md:px-5 py-3.5">
+            : <div className="hint border border-dashed border-line rounded-md px-4 md:px-5 py-3.5">
                 Pick a name from the suggestions to line up your throw
               </div>
-            )}
+            }
 
             {/* Throw */}
             <button
@@ -273,56 +305,57 @@ export default function MatchView({
           <div className="flex items-baseline justify-between mb-3">
             <span className="kicker">Match history</span>
             <span className="font-mono text-[10px] text-muted tabular-nums">
-              TURN {turnCount.toString().padStart(2, '0')}
+              TURN {turnCount.toString().padStart(2, "0")}
             </span>
           </div>
 
           <div className="flex-1 overflow-y-auto scrollbar-thin -mr-2 pr-2">
-            {moves.length === 0 ? (
-              <div className="hint text-center py-8">
-                No darts thrown yet
-              </div>
-            ) : (
-              moves.map((move, i) => (
-                <div key={i} className="py-2.5 border-b border-line last:border-b-0">
+            {moves.length === 0 ?
+              <div className="hint text-center py-8">No darts thrown yet</div>
+            : moves.map((move, i) => (
+                <div
+                  key={i}
+                  className="py-2.5 border-b border-line last:border-b-0"
+                >
                   <div className="grid grid-cols-[24px_1fr_auto_52px] gap-2.5 items-baseline">
                     <span className="font-mono text-[10px] text-muted tabular-nums">
-                      {(moves.length - i).toString().padStart(2, '0')}
+                      {(moves.length - i).toString().padStart(2, "0")}
                     </span>
                     <span
                       className={`font-sans font-medium text-sm truncate ${
-                        move.result === 'BUST'
-                          ? 'text-muted line-through'
-                          : move.result === 'INVALID'
-                            ? 'text-muted'
-                            : 'text-ink'
+                        move.result === "BUST" ? "text-muted line-through"
+                        : move.result === "INVALID" ? "text-muted"
+                        : "text-ink"
                       }`}
                     >
                       {move.matchedAnswer || move.answer}
                     </span>
                     <span
                       className={`font-mono text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded-xs ${
-                        move.result === 'VALID'
-                          ? 'text-ok bg-ok-soft'
-                          : move.result === 'BUST'
-                            ? 'text-danger bg-danger-soft'
-                            : 'text-muted bg-surface-2'
+                        move.result === "VALID" ? "text-ok bg-ok-soft"
+                        : move.result === "BUST" ? "text-danger bg-danger-soft"
+                        : "text-muted bg-surface-2"
                       }`}
                     >
-                      {move.result === 'INVALID' ? '✗' : move.result === 'BUST' ? 'BUST' : `−${move.scoreValue}`}
+                      {move.result === "INVALID" ?
+                        "✗"
+                      : move.result === "BUST" ?
+                        "BUST"
+                      : `−${move.scoreValue}`}
                     </span>
                     <span className="font-display font-bold text-sm text-right tabular-nums">
                       {move.scoreAfter}
                     </span>
                   </div>
-                  {move.reason && (move.result === 'BUST' || move.result === 'INVALID') && (
-                    <div className="mt-1 ml-[34px] text-[11px] text-muted leading-snug">
-                      {move.reason}
-                    </div>
-                  )}
+                  {move.reason &&
+                    (move.result === "BUST" || move.result === "INVALID") && (
+                      <div className="mt-1 ml-[34px] text-[11px] text-muted leading-snug">
+                        {move.reason}
+                      </div>
+                    )}
                 </div>
               ))
-            )}
+            }
           </div>
 
           <div className="mt-4 pt-4 border-t border-line">
@@ -338,23 +371,32 @@ export default function MatchView({
             <span className="ring-burst" aria-hidden="true" />
             <span className="ring-burst ring-burst-2" aria-hidden="true" />
             <div className="text-center animate-rise">
-              <div className="display-num text-gold" style={{ fontSize: '96px' }}>
-                {(score <= 0 ? 0 : score)}
+              <div
+                className="display-num text-gold"
+                style={{ fontSize: "96px" }}
+              >
+                {score <= 0 ? 0 : score}
               </div>
               <div className="kicker text-gold mt-1">Checkout</div>
             </div>
           </div>
 
-          <div className="text-center animate-rise" style={{ animationDelay: '0.1s' }}>
+          <div
+            className="text-center animate-rise"
+            style={{ animationDelay: "0.1s" }}
+          >
             <div className="font-display font-extrabold text-3xl md:text-4xl tracking-tight">
               Game shot!
             </div>
             <div className="kicker mt-2">
-              {turnCount} {turnCount === 1 ? 'dart' : 'darts'} thrown
+              {turnCount} {turnCount === 1 ? "dart" : "darts"} thrown
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 items-center mt-2 w-full max-w-xs animate-rise" style={{ animationDelay: '0.2s' }}>
+          <div
+            className="flex flex-col gap-3 items-center mt-2 w-full max-w-xs animate-rise"
+            style={{ animationDelay: "0.2s" }}
+          >
             {onShare && (
               <button
                 onClick={onShare}
@@ -364,14 +406,16 @@ export default function MatchView({
                 {sharing ? "Copied!" : "Share result"}
               </button>
             )}
+            {gameType !== "daily-challenge" && (
+              <button
+                onClick={onPlayAgain}
+                className={`${onShare ? "btn-ghost" : "btn-primary"} w-full h-12 text-base`}
+              >
+                Play again
+              </button>
+            )}
             <button
-              onClick={onPlayAgain}
-              className={`${onShare ? 'btn-ghost' : 'btn-primary'} w-full h-12 text-base`}
-            >
-              Play again
-            </button>
-            <button
-              onClick={() => setShowExitConfirm(true)}
+              onClick={() => onExit()}
               className="kicker hover:text-ink transition-colors py-2"
             >
               Exit to lobby
@@ -388,12 +432,15 @@ export default function MatchView({
         confirmText="Exit"
         cancelText="Stay"
         type="danger"
-        onConfirm={() => { setShowExitConfirm(false); onExit(); }}
+        onConfirm={() => {
+          setShowExitConfirm(false);
+          onExit();
+        }}
         onCancel={() => setShowExitConfirm(false)}
       />
 
       {/* ── Debug panel (Ctrl+Shift+D) ────────────────────────────────────────── */}
-      <DebugPanel gameId={gameId} gameType={debugGameType} />
+      <DebugPanel gameId={gameId} gameType={gameType} />
     </div>
   );
 }

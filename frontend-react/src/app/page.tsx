@@ -69,7 +69,8 @@ export default function GamePage() {
   } = useGameLoop();
 
   // Daily challenge status
-  const { challenges: dailyChallenges, loading: dailyLoading } = useDailyChallenge();
+  const { challenges: dailyChallenges, loading: dailyLoading } =
+    useDailyChallenge();
 
   const { addToast } = useToast();
 
@@ -86,13 +87,21 @@ export default function GamePage() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
-  const handleStartGame = async (slug: string, label: string, targetScore: number, footballFilter?: FootballFilter) => {
+  const handleStartGame = async (
+    slug: string,
+    label: string,
+    targetScore: number,
+    footballFilter?: FootballFilter,
+  ) => {
     setLastSlug(slug);
     setLastLabel(label);
     await startNewGame(rootSlug(slug), label, targetScore, footballFilter);
   };
 
-  const handleStartDailyChallenge = async (categorySlug: string, label: string) => {
+  const handleStartDailyChallenge = async (
+    categorySlug: string,
+    label: string,
+  ) => {
     setLastSlug(categorySlug);
     setLastLabel(label);
     await startDailyChallenge(categorySlug, label);
@@ -189,7 +198,7 @@ export default function GamePage() {
         onShare={gameType === "daily-challenge" ? handleShare : undefined}
         sharing={sharing}
         gameId={gameId}
-        debugGameType={gameType}
+        gameType={gameType}
       />
       {popup && (
         <AnimatedScorePopup

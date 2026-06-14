@@ -2,39 +2,56 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useDailyChallenge, type CategoryChallenge } from "@/hooks/useDailyChallenge";
+import {
+  useDailyChallenge,
+  type CategoryChallenge,
+} from "@/hooks/useDailyChallenge";
 import { apiFetch } from "@/lib/api/client";
 import { useToast } from "@/context/ToastContext";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 
 export default function DailyPage() {
   const router = useRouter();
-  const { challenges, loading, error, date } = useDailyChallenge();
+  const { challenges, loading, error, date, refresh } = useDailyChallenge();
   const { addToast } = useToast();
   const [starting, setStarting] = useState<string | null>(null);
 
   const handlePlay = async (slug: string, label: string) => {
     setStarting(slug);
     try {
-      const res = await apiFetch(`/api/daily-challenge/${encodeURIComponent(slug)}/start`, {
-        method: "POST",
-      });
+      const res = await apiFetch(
+        `/api/daily-challenge/${encodeURIComponent(slug)}/start`,
+        {
+          method: "POST",
+        },
+      );
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         let msg = "Failed to start challenge";
-        try { const p = JSON.parse(text); msg = p.error || p.message || text; } catch { msg = text || msg; }
+        try {
+          const p = JSON.parse(text);
+          msg = p.error || p.message || text;
+        } catch {
+          msg = text || msg;
+        }
         throw new Error(msg);
       }
       const game = await res.json();
       // Store game state and redirect to main page (will restore from sessionStorage)
-      sessionStorage.setItem("activeGameState", JSON.stringify({
-        gameId: game.gameId,
-        label: label,
-        gameType: "daily-challenge",
-      }));
+      sessionStorage.setItem(
+        "activeGameState",
+        JSON.stringify({
+          gameId: game.gameId,
+          label: label,
+          gameType: "daily-challenge",
+        }),
+      );
       router.push("/");
     } catch (err) {
-      addToast((err as Error).message || "Error starting daily challenge", "error");
+      addToast(
+        (err as Error).message || "Error starting daily challenge",
+        "error",
+      );
     } finally {
       setStarting(null);
     }
@@ -58,11 +75,19 @@ export default function DailyPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2.5 mb-2">
-                <span className="w-2 h-2 rounded-full bg-gold" aria-hidden="true" />
+                <span
+                  className="w-2 h-2 rounded-full bg-gold"
+                  aria-hidden="true"
+                />
                 <span className="kicker">
-                  {date ? new Date(date).toLocaleDateString("en-GB", {
-                    weekday: "short", day: "numeric", month: "short", year: "numeric",
-                  }) : "Today"}
+                  {date ?
+                    new Date(date).toLocaleDateString("en-GB", {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : "Today"}
                 </span>
               </div>
               <h1 className="font-display font-extrabold text-3xl md:text-4xl tracking-tight">
@@ -72,18 +97,32 @@ export default function DailyPage() {
             <ThemeToggle />
           </div>
           <p className="text-muted text-sm mt-3 max-w-md">
-            One question per category. Everyone gets the same target. Share your result.
+            One question per category. Everyone gets the same target. Share your
+            result.
           </p>
         </header>
 
         {error && (
-          <div className="text-danger text-center py-6 text-sm">{error}</div>
+          <>
+            <div className="text-danger text-center py-6 text-sm">{error}</div>
+            <button
+              onClick={() => refresh()}
+              disabled={loading}
+              className="btn-primary mt-auto h-12 text-base w-full"
+            >
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+          </>
         )}
 
         {!error && challenges.length === 0 && (
           <div className="text-center py-16">
-            <div className="font-display font-bold text-xl mb-2">No challenges today</div>
-            <p className="text-muted text-sm">Check back at midnight UTC for new challenges.</p>
+            <div className="font-display font-bold text-xl mb-2">
+              No challenges today
+            </div>
+            <p className="text-muted text-sm">
+              Check back at midnight UTC for new challenges.
+            </p>
           </div>
         )}
 
@@ -97,7 +136,9 @@ export default function DailyPage() {
                 <span className="font-display font-bold text-xl tracking-tight">
                   {dc.categoryName}
                 </span>
-                <span className="font-mono text-[9px] tracking-[0.2em] text-gold uppercase">Daily</span>
+                <span className="font-mono text-[9px] tracking-[0.2em] text-gold uppercase">
+                  Daily
+                </span>
               </div>
               <div className="display-num text-[56px] mb-2">
                 {dc.startingScore}
