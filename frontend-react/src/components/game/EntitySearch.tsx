@@ -109,7 +109,7 @@ export default function EntitySearch({
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
-      if (value.trim().length != 0) {
+      if (value.trim().length !== 0) {
         e.stopPropagation();
       }
       e.preventDefault();
