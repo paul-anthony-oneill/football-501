@@ -57,8 +57,8 @@ type NavScreen =
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface LobbyViewProps {
-  onStartGame: (slug: string, label: string, targetScore: number, filter?: FootballFilter) => void;
-  onStartDailyChallenge: (slug: string, label: string) => void;
+  onStartGame: (slug: string, label: string, targetScore: number, filter?: FootballFilter) => Promise<void> | void;
+  onStartDailyChallenge: (slug: string, label: string) => Promise<void> | void;
   dailyChallenges: CategoryChallenge[];
   dailyLoading: boolean;
 }
@@ -72,6 +72,9 @@ export default function LobbyView({
   dailyLoading,
 }: LobbyViewProps) {
   const [target, setTarget] = useState<TargetScore>(501);
+  // Slug of the row that's currently starting a game (null = nothing in flight).
+  // Used to disable every row while a start is pending, preventing duplicate POSTs.
+  const [starting, setStarting] = useState<string | null>(null);
   const { user, loading } = useAuth();
   const isAdmin = !loading && user?.app_metadata?.role === "admin";
 
@@ -95,10 +98,29 @@ export default function LobbyView({
   }, [stack.length]);
 
   const startGame = useCallback(
-    (slug: string, label: string, filter?: FootballFilter) => {
-      onStartGame(slug, label, resolveTarget(target), filter);
+    async (slug: string, label: string, filter?: FootballFilter) => {
+      if (starting) return;
+      setStarting(slug);
+      try {
+        await onStartGame(slug, label, resolveTarget(target), filter);
+      } finally {
+        setStarting(null);
+      }
     },
-    [onStartGame, target],
+    [onStartGame, target, starting],
+  );
+
+  const startDailyChallenge = useCallback(
+    async (slug: string, label: string) => {
+      if (starting) return;
+      setStarting(slug);
+      try {
+        await onStartDailyChallenge(slug, label);
+      } finally {
+        setStarting(null);
+      }
+    },
+    [onStartDailyChallenge, starting],
   );
 
   const displayTarget = target === "random" ? "?" : String(target);
@@ -205,28 +227,34 @@ export default function LobbyView({
                 </span>
               </div>
               <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-                {dailyChallenges.map((dc) => (
-                  <button
-                    key={dc.categorySlug}
-                    onClick={() => onStartDailyChallenge(dc.categorySlug, dc.categoryName)}
-                    className="group flex-shrink-0 flex flex-col bg-surface border border-line rounded-md p-4 w-56 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[var(--shadow-card)]"
-                  >
-                    <div className="flex items-baseline justify-between mb-2">
-                      <span className="font-display font-bold text-sm">{dc.categoryName}</span>
-                      <span className="font-mono text-[9px] tracking-[0.2em] text-gold">DAILY</span>
-                    </div>
-                    <div className="display-num text-[34px] mb-1.5">
-                      {dc.startingScore}
-                    </div>
-                    <div className="font-sans text-[12px] text-muted leading-snug line-clamp-2 mb-3">
-                      {dc.questionText || "Loading..."}
-                    </div>
-                    <div className="mt-auto flex items-center justify-between">
-                      <span className="font-mono text-[9px] tracking-[0.2em] text-accent uppercase">Play now</span>
-                      <span className="font-display font-bold text-accent transition-transform group-hover:translate-x-0.5">→</span>
-                    </div>
-                  </button>
-                ))}
+                {dailyChallenges.map((dc) => {
+                  const isThisStarting = starting === dc.categorySlug;
+                  return (
+                    <button
+                      key={dc.categorySlug}
+                      onClick={() => startDailyChallenge(dc.categorySlug, dc.categoryName)}
+                      disabled={starting !== null}
+                      className="group flex-shrink-0 flex flex-col bg-surface border border-line rounded-md p-4 w-56 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[var(--shadow-card)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                    >
+                      <div className="flex items-baseline justify-between mb-2">
+                        <span className="font-display font-bold text-sm">{dc.categoryName}</span>
+                        <span className="font-mono text-[9px] tracking-[0.2em] text-gold">DAILY</span>
+                      </div>
+                      <div className="display-num text-[34px] mb-1.5">
+                        {dc.startingScore}
+                      </div>
+                      <div className="font-sans text-[12px] text-muted leading-snug line-clamp-2 mb-3">
+                        {dc.questionText || "Loading..."}
+                      </div>
+                      <div className="mt-auto flex items-center justify-between">
+                        <span className="font-mono text-[9px] tracking-[0.2em] text-accent uppercase">
+                          {isThisStarting ? "Starting…" : "Play now"}
+                        </span>
+                        <span className="font-display font-bold text-accent transition-transform group-hover:translate-x-0.5">→</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -252,6 +280,7 @@ export default function LobbyView({
               screen={currentScreen}
               onPush={push}
               onStartGame={startGame}
+              starting={starting}
             />
           </div>
         </div>
@@ -266,22 +295,24 @@ function NavScreenRenderer({
   screen,
   onPush,
   onStartGame,
+  starting,
 }: {
   screen: NavScreen;
   onPush: (s: NavScreen) => void;
   onStartGame: (slug: string, label: string, filter?: FootballFilter) => void;
+  starting: string | null;
 }) {
   if (screen.id === "root") {
-    return <RootScreen onPush={onPush} onStartGame={onStartGame} />;
+    return <RootScreen onPush={onPush} onStartGame={onStartGame} starting={starting} />;
   }
   if (screen.id === "football") {
-    return <FootballScreen onPush={onPush} onStartGame={onStartGame} />;
+    return <FootballScreen onPush={onPush} onStartGame={onStartGame} starting={starting} />;
   }
   if (screen.id === "football-league") {
-    return <LeagueScreen league={screen.league} onPush={onPush} onStartGame={onStartGame} />;
+    return <LeagueScreen league={screen.league} onPush={onPush} onStartGame={onStartGame} starting={starting} />;
   }
   if (screen.id === "football-club") {
-    return <ClubScreen league={screen.league} club={screen.club} onStartGame={onStartGame} />;
+    return <ClubScreen league={screen.league} club={screen.club} onStartGame={onStartGame} starting={starting} />;
   }
   return null;
 }
@@ -291,10 +322,13 @@ function NavScreenRenderer({
 function RootScreen({
   onPush,
   onStartGame,
+  starting,
 }: {
   onPush: (s: NavScreen) => void;
   onStartGame: (slug: string, label: string, filter?: FootballFilter) => void;
+  starting: string | null;
 }) {
+  const isStarting = starting !== null;
   return (
     <>
       <div className="kicker mb-5">Choose Your Board</div>
@@ -305,6 +339,7 @@ function RootScreen({
         sub="Goals · assists · 5 leagues"
         onClick={() => onPush({ id: "football" })}
         hasChildren
+        disabled={isStarting}
       />
 
       {/* Other categories — one click */}
@@ -314,6 +349,8 @@ function RootScreen({
           name={cat.name}
           sub={cat.description}
           onClick={() => onStartGame(cat.id, cat.name)}
+          disabled={isStarting}
+          loading={starting === cat.id}
         />
       ))}
 
@@ -329,10 +366,13 @@ function RootScreen({
 function FootballScreen({
   onPush,
   onStartGame,
+  starting,
 }: {
   onPush: (s: NavScreen) => void;
   onStartGame: (slug: string, label: string, filter?: FootballFilter) => void;
+  starting: string | null;
 }) {
+  const isStarting = starting !== null;
   return (
     <>
       <div className="kicker mb-5">Football</div>
@@ -342,6 +382,8 @@ function FootballScreen({
         name="Random Question"
         sub="Any club, any league, any stat"
         onClick={() => onStartGame("football", "Football — Random", { scope: "random_any" })}
+        disabled={isStarting}
+        loading={starting === "football"}
       />
 
       <NavRow
@@ -349,6 +391,7 @@ function FootballScreen({
         name="Random League Question"
         sub="League-wide stat, picked at random"
         onClick={() => onStartGame("football", "Football — Random League", { scope: "random_league_level" })}
+        disabled={isStarting}
       />
 
       <NavDivider label="or pick a league" />
@@ -359,6 +402,7 @@ function FootballScreen({
           name={league.name}
           onClick={() => onPush({ id: "football-league", league })}
           hasChildren
+          disabled={isStarting}
         />
       ))}
     </>
@@ -371,11 +415,14 @@ function LeagueScreen({
   league,
   onPush,
   onStartGame,
+  starting,
 }: {
   league: League;
   onPush: (s: NavScreen) => void;
   onStartGame: (slug: string, label: string, filter?: FootballFilter) => void;
+  starting: string | null;
 }) {
+  const isStarting = starting !== null;
   const [clubs, setClubs] = useState<FootballClub[]>([]);
   const [loadingClubs, setLoadingClubs] = useState(true);
   const mounted = useRef(true);
@@ -401,22 +448,29 @@ function LeagueScreen({
         onClick={() => onStartGame(`football:${league.id}`, `Football › ${league.name} › League`, {
           scope: "league", league: league.id,
         })}
+        disabled={isStarting}
+        loading={starting === `football:${league.id}`}
       />
 
       {/* Stat type drill-down for league */}
-      {STAT_TYPES.map((stat) => (
-        <NavRow
-          key={`league-${stat.id}`}
-          name={stat.name}
-          sub={stat.sub}
-          small
-          onClick={() => onStartGame(
-            `football:${league.id}:league:${stat.id}`,
-            `Football › ${league.name} › ${stat.name}`,
-            { scope: "league", league: league.id, statType: stat.id },
-          )}
-        />
-      ))}
+      {STAT_TYPES.map((stat) => {
+        const slug = `football:${league.id}:league:${stat.id}`;
+        return (
+          <NavRow
+            key={`league-${stat.id}`}
+            name={stat.name}
+            sub={stat.sub}
+            small
+            onClick={() => onStartGame(
+              slug,
+              `Football › ${league.name} › ${stat.name}`,
+              { scope: "league", league: league.id, statType: stat.id },
+            )}
+            disabled={isStarting}
+            loading={starting === slug}
+          />
+        );
+      })}
 
       <NavDivider label="or pick a club" />
 
@@ -427,6 +481,8 @@ function LeagueScreen({
         onClick={() => onStartGame(`football:${league.id}:random`, `Football › ${league.name} › Random Club`, {
           scope: "random_club_level", league: league.id,
         })}
+        disabled={isStarting}
+        loading={starting === `football:${league.id}:random`}
       />
 
       {loadingClubs ? (
@@ -440,6 +496,7 @@ function LeagueScreen({
             name={club.name}
             onClick={() => onPush({ id: "football-club", league, club })}
             hasChildren
+            disabled={isStarting}
           />
         ))
       )}
@@ -453,11 +510,15 @@ function ClubScreen({
   league,
   club,
   onStartGame,
+  starting,
 }: {
   league: League;
   club: FootballClub;
   onStartGame: (slug: string, label: string, filter?: FootballFilter) => void;
+  starting: string | null;
 }) {
+  const isStarting = starting !== null;
+  const randomSlug = `football:${league.id}:${club.id}`;
   return (
     <>
       <div className="kicker mb-5">{club.name}</div>
@@ -467,27 +528,34 @@ function ClubScreen({
         name="Random Question"
         sub="Any stat type for this club"
         onClick={() => onStartGame(
-          `football:${league.id}:${club.id}`,
+          randomSlug,
           `Football › ${league.name} › ${club.name}`,
           { scope: "club", league: league.id, club: club.id },
         )}
+        disabled={isStarting}
+        loading={starting === randomSlug}
       />
 
       <NavDivider label="or pick a stat" />
 
-      {STAT_TYPES.map((stat) => (
-        <NavRow
-          key={stat.id}
-          name={stat.name}
-          sub={stat.sub}
-          small
-          onClick={() => onStartGame(
-            `football:${league.id}:${club.id}:${stat.id}`,
-            `Football › ${league.name} › ${club.name} › ${stat.name}`,
-            { scope: "club", league: league.id, club: club.id, statType: stat.id },
-          )}
-        />
-      ))}
+      {STAT_TYPES.map((stat) => {
+        const slug = `football:${league.id}:${club.id}:${stat.id}`;
+        return (
+          <NavRow
+            key={stat.id}
+            name={stat.name}
+            sub={stat.sub}
+            small
+            onClick={() => onStartGame(
+              slug,
+              `Football › ${league.name} › ${club.name} › ${stat.name}`,
+              { scope: "club", league: league.id, club: club.id, statType: stat.id },
+            )}
+            disabled={isStarting}
+            loading={starting === slug}
+          />
+        );
+      })}
     </>
   );
 }
@@ -511,6 +579,8 @@ function NavRow({
   onClick,
   hasChildren = false,
   small = false,
+  disabled = false,
+  loading = false,
 }: {
   /** Marks "surprise me" rows with a die glyph instead of the accent tick. */
   random?: boolean;
@@ -519,11 +589,14 @@ function NavRow({
   onClick: () => void;
   hasChildren?: boolean;
   small?: boolean;
+  disabled?: boolean;
+  loading?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="group flex items-center gap-4 py-3.5 px-2 -mx-2 rounded-sm border-b border-line hover:bg-surface transition-colors text-left w-full"
+      disabled={disabled}
+      className="group flex items-center gap-4 py-3.5 px-2 -mx-2 rounded-sm border-b border-line hover:bg-surface transition-colors text-left w-full disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
     >
       {random ? (
         <span className="text-accent font-display font-bold text-lg leading-none flex-shrink-0 w-4 text-center" aria-hidden="true">
@@ -534,12 +607,15 @@ function NavRow({
       )}
 
       <div className="flex-1 min-w-0">
-        <div className={`font-display font-bold leading-tight ${small ? "text-base" : "text-xl"}`}>{name}</div>
+        <div className={`font-display font-bold leading-tight ${small ? "text-base" : "text-xl"}`}>
+          {name}
+          {loading && <span className="ml-2 kicker">Starting…</span>}
+        </div>
         {sub && <div className="hint mt-0.5 text-[10px]">{sub}</div>}
       </div>
 
       <span className="font-display font-bold text-base text-muted group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" aria-hidden="true">
-        {hasChildren ? "→" : "↵"}
+        {loading ? "…" : hasChildren ? "→" : "↵"}
       </span>
     </button>
   );
