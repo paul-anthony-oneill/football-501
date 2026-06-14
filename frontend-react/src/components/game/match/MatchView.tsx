@@ -56,7 +56,7 @@ interface MatchViewProps {
   sharing?: boolean;
   /** Current game ID, used by DebugPanel to fetch all answers. */
   gameId?: string | null;
-  /** Current game type, used by DebugPanel to route API calls. */
+  /** Current game type */
   gameType?: "freeplay" | "daily-challenge";
 }
 
@@ -78,7 +78,7 @@ export default function MatchView({
   onShare,
   sharing = false,
   gameId = null,
-  gameType: gameType = "freeplay",
+  gameType = "freeplay",
 }: MatchViewProps) {
   const [staged, setStaged] = useState<StagedAnswer | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);

@@ -81,7 +81,7 @@ export default function DailyPage() {
                 />
                 <span className="kicker">
                   {date ?
-                    new Date(date).toLocaleDateString("en-GB", {
+                    new Date(date + "T12:00:00").toLocaleDateString("en-GB", {
                       weekday: "short",
                       day: "numeric",
                       month: "short",
