@@ -1,6 +1,6 @@
 # Trivia 501 — Backlog & Future Work
 
-**Last updated**: 2026-06-11 (usability audit: 21 UX findings added to Architecture & Code Quality as a hand-coding practice set)  
+**Last updated**: 2026-06-13 (added P1 item: daily /status endpoint does not trigger lazy creation)  
 **Purpose**: Living document capturing all deferred work, stretch goals, and improvement ideas regardless of size or urgency. Update this whenever a decision is made to defer something, or when a backlog item is completed or abandoned.
 
 **Product direction** (2026-06-08): The game is now focused on **single-player daily challenges** as the core experience — Wordle-style social trivia where everyone plays the same question with the same parameters each day and shares results with friends. A separate **Free Play** mode (formerly "practice") lets players pick any category/question to play on their own terms. Async friend challenges (play the same question and compare) are a planned social feature. The ranking/MMR/league-tier system and real-time multiplayer are deferred indefinitely.
@@ -418,6 +418,13 @@ These don't block the first players but should follow quickly.
 - **What**: Around 60 references to loading states exist across components but there's no consistent pattern (some use inline conditionals, some use a `LoadingOverlay`, some don't handle loading at all). Certain flows lack error handling for API failures; others don't handle the empty/zero-results case (no autocomplete matches, no leagues found, no daily challenge available, no search results on admin pages). Every user-facing component must handle all three non-happy-path states.
 - **Why deferred**: Individual feature work is still adding new components; standardising patterns now would create churn. Better to audit and fix once the component landscape stabilises.
 - **See**: Audit `frontend-react/src/components/` for missing `isLoading`, `error`, and empty-state branches. Reference: `LoadingOverlay.tsx`.
+
+### Daily challenge `/status` endpoint does not trigger lazy creation
+
+- **What**: `GET /api/daily-challenge/status` is a plain DB read (`findByChallengeDate(today)`). Lazy creation only fires when something calls `GET /api/daily-challenge/{categorySlug}` — which the `/daily` page never does. If the midnight cron misses (server restart, Fly.io deployment after midnight, dev machine off), the status endpoint returns `{"challenges":[]}` and the page shows "No challenges today" even though lazy creation could produce valid challenges for every category.
+- **Why deferred**: The cron is reliable in production under normal operation. Fly.io deployments happen infrequently and usually not in the midnight UTC window. In dev the workaround is to hit `GET /api/daily-challenge/{slug}` directly to trigger lazy creation, or restart the backend before midnight.
+- **Fix options** (pick one): (1) Make `GET /status` call `getTodaysChallenge(categoryId)` for each eligible category before assembling the response — lazy creation fires as a side-effect. (2) Change the frontend `useDailyChallenge` hook to call per-category endpoints in parallel instead of `/status`. (3) Add a Spring `ApplicationReadyEvent` listener that runs `selectDailyChallenges()` if no challenges exist for today (idempotent — the scheduler's skip-if-exists guard makes this safe to call on every startup).
+- **See**: `DailyChallengeController.java:68–90`, `DailyChallengeService.java:54–56,63–67`, `useDailyChallenge.ts:31–44`.
 
 ### Open Graph metadata for daily challenge shares
 - **What**: Emoji-grid sharing exists and works end-to-end, but shared URLs render as raw links with no title, description, or image preview in messaging apps. The Wordle comparison sets a high bar — shared results should show a rich card with the category name, final score, and emoji grid. This is a small static metadata change with outsized social reach.
