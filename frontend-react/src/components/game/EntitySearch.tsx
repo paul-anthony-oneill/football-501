@@ -58,7 +58,13 @@ export default function EntitySearch({
   }, [entityType]);
 
   function applyResults(results: CachedEntity[]) {
-    setSuggestions(results.map((e) => ({ id: e.id, name: e.name, nationality: e.nationality ?? "" })));
+    setSuggestions(
+      results.map((e) => ({
+        id: e.id,
+        name: e.name,
+        nationality: e.nationality ?? "",
+      })),
+    );
     setShowSuggestions(results.length > 0);
     setNoMatch(results.length === 0);
     setActiveIndex(-1);
@@ -96,11 +102,16 @@ export default function EntitySearch({
   }
 
   useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
+      if (value.trim().length != 0) {
+        e.stopPropagation();
+      }
       e.preventDefault();
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (showSuggestions && suggestions.length > 0) {
@@ -112,7 +123,9 @@ export default function EntitySearch({
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       if (!showSuggestions && suggestions.length > 0) setShowSuggestions(true);
-      setActiveIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev));
+      setActiveIndex((prev) =>
+        prev < suggestions.length - 1 ? prev + 1 : prev,
+      );
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex((prev) => (prev > 0 ? prev - 1 : 0));
@@ -159,9 +172,7 @@ export default function EntitySearch({
       )}
 
       {loading && value.length >= 4 && (
-        <p className="mt-1.5 font-mono text-[11px] text-muted px-1">
-          Loading…
-        </p>
+        <p className="mt-1.5 font-mono text-[11px] text-muted px-1">Loading…</p>
       )}
 
       {noMatch && !loading && value.length >= 4 && (
@@ -175,7 +186,10 @@ export default function EntitySearch({
           {suggestions.map((entity, idx) => (
             <li key={entity.id}>
               <button
-                onMouseDown={(e) => { e.preventDefault(); selectSuggestion(entity); }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selectSuggestion(entity);
+                }}
                 data-active={activeIndex === idx ? "1" : "0"}
                 className={`w-full text-left grid grid-cols-[1fr_auto] gap-4 items-center px-3.5 py-2.5 rounded-sm border-0 cursor-pointer transition-colors ${
                   activeIndex === idx ? "bg-surface-2" : "hover:bg-surface-2"
@@ -186,7 +200,8 @@ export default function EntitySearch({
                 </span>
                 {entity.nationality && (
                   <span className="font-mono text-[11px] text-muted whitespace-nowrap">
-                    {getFlagEmoji(entity.nationality)} {formatNationality(entity.nationality)}
+                    {getFlagEmoji(entity.nationality)}{" "}
+                    {formatNationality(entity.nationality)}
                   </span>
                 )}
               </button>
