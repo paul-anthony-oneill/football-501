@@ -7,7 +7,7 @@ export default function LoginButton() {
 
   if (loading) {
     return (
-      <button className="h-auth-btn font-plex text-[11px] tracking-wider uppercase px-4 py-2 opacity-50" disabled>
+      <button className="kicker px-4 py-2 opacity-50" disabled>
         Loading…
       </button>
     );
@@ -16,30 +16,27 @@ export default function LoginButton() {
   if (user) {
     const authGap = !backendConfirmed;
     return (
-      <div className="h-auth-group flex items-center gap-3">
+      <div className="flex items-center gap-3">
         <div className="relative">
           {user.user_metadata?.avatar_url && (
             <img
               src={user.user_metadata.avatar_url}
               alt=""
-              className={`w-7 h-7 rounded-full ${authGap ? "ring-2 ring-amber-500/60" : ""}`}
+              className={`w-7 h-7 rounded-full ${authGap ? "ring-2 ring-gold/60" : ""}`}
             />
           )}
-          {/* Amber dot when Supabase has a session but backend doesn't see it */}
+          {/* Gold dot when Supabase has a session but backend doesn't see it */}
           {authGap && (
             <span
-              className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-500 rounded-full border border-black"
+              className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-gold rounded-full border border-bg"
               title="Backend auth not confirmed — your games may not be saved"
             />
           )}
         </div>
-        <span className="font-plex text-[11px] tracking-wider text-h-dim uppercase max-w-32 truncate">
+        <span className="kicker max-w-32 truncate hidden sm:block">
           {user.user_metadata?.full_name || user.email}
         </span>
-        <button
-          onClick={signOut}
-          className="h-auth-btn font-plex text-[11px] tracking-wider uppercase text-h-dim hover:text-h-fg transition-colors"
-        >
+        <button onClick={signOut} className="kicker hover:text-ink transition-colors">
           Sign out
         </button>
       </div>
@@ -47,10 +44,7 @@ export default function LoginButton() {
   }
 
   return (
-    <button
-      onClick={signInWithGoogle}
-      className="h-auth-btn font-plex text-[11px] tracking-wider uppercase border border-h-rule px-4 py-2 rounded-sm hover:border-h-fg hover:bg-white/5 transition-all"
-    >
+    <button onClick={signInWithGoogle} className="btn-ghost px-4 py-2">
       Sign in with Google
     </button>
   );

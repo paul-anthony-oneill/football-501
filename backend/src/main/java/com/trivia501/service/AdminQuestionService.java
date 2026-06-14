@@ -261,10 +261,20 @@ public class AdminQuestionService {
      *         {@code errors}, {@code remainingDraft}
      */
     public Map<String, Object> bulkActivateDraft(int limit) {
-        List<Question> drafts = questionRepository
-                .findByStatus(Question.STATUS_DRAFT,
-                        org.springframework.data.domain.PageRequest.of(0, limit))
-                .getContent();
+        return bulkActivateDraft(limit, null);
+    }
+
+    /**
+     * Activates and materializes up to {@code limit} draft questions.
+     * When {@code templateId} is non-null only drafts from that template are selected.
+     */
+    @Transactional
+    public Map<String, Object> bulkActivateDraft(int limit, UUID templateId) {
+        org.springframework.data.domain.PageRequest page =
+            org.springframework.data.domain.PageRequest.of(0, limit);
+        List<Question> drafts = templateId != null
+            ? questionRepository.findByTemplateIdAndStatus(templateId, Question.STATUS_DRAFT, page).getContent()
+            : questionRepository.findByStatus(Question.STATUS_DRAFT, page).getContent();
 
         int activated      = 0;
         int answersUpserted = 0;
@@ -340,6 +350,16 @@ public class AdminQuestionService {
         return mapToResponse(saved);
     }
 
+    @Transactional
+    public QuestionResponse updateSuitableForDaily(UUID id, boolean suitable) {
+        Question question = questionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Question not found with id: " + id));
+        question.setSuitableForDaily(suitable);
+        Question saved = questionRepository.save(question);
+        log.info("Question {} suitableForDaily → {}", id, suitable);
+        return mapToResponse(saved);
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private QuestionResponse mapToResponse(Question question) {
@@ -375,6 +395,7 @@ public class AdminQuestionService {
         response.setViabilityExclusionReason(question.getViabilityExclusionReason());
         response.setDifficultyScore(question.getDifficultyScore());
         response.setDifficultyLocked(question.isDifficultyLocked());
+        response.setSuitableForDaily(question.isSuitableForDaily());
 
         return response;
     }

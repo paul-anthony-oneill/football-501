@@ -1,30 +1,21 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import LobbyView from "@/components/game/lobby/LobbyView";
 import MatchView from "@/components/game/match/MatchView";
 import AnimatedScorePopup from "@/components/game/AnimatedScorePopup";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { useGameLoop, getSavedLabel } from "@/hooks/useGameLoop";
 import { useDailyChallenge } from "@/hooks/useDailyChallenge";
 import { useToast } from "@/context/ToastContext";
-import { useAuth } from "@/context/AuthContext";
-import { CATEGORIES } from "@/lib/questionHierarchy";
 import { apiFetch } from "@/lib/api/client";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface LobbyCategory {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  theme?: string;
-}
+import { buildShareText } from "@/utils/share";
+import type { FootballFilter } from "@/lib/api/footballApi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Extract the top-level category slug from a hierarchical path like "football:premier-league:goals:man-city" */
+/** Extract the top-level category slug from a hierarchical path like "football:premier-league" */
 function rootSlug(pathSlug: string): string {
   return pathSlug.split(":")[0] ?? pathSlug;
 }
@@ -78,40 +69,14 @@ export default function GamePage() {
   } = useGameLoop();
 
   // Daily challenge status
-  const { challenges: dailyChallenges, loading: dailyLoading } = useDailyChallenge();
+  const { challenges: dailyChallenges, loading: dailyLoading } =
+    useDailyChallenge();
 
   const { addToast } = useToast();
-  const { user } = useAuth();
 
   // Share state
   const [sharing, setSharing] = useState(false);
 
-  // Flatten the static hierarchy for the lobby card grid
-  const lobbyCategories: LobbyCategory[] = useMemo(
-    () =>
-      CATEGORIES.map((c) => ({
-        id: c.id,
-        name: c.name,
-        slug: c.id,
-        description: c.description,
-        theme: c.theme,
-      })),
-    [],
-  );
-
-  // Lobby state — default player name from Google profile when signed in
-  const [playerName, setPlayerName] = useState(
-    () => user?.user_metadata?.full_name || "GUEST_PLAYER",
-  );
-
-  // Sync player name when auth state changes (sign in / sign out)
-  useEffect(() => {
-    if (user?.user_metadata?.full_name) {
-      setPlayerName(user.user_metadata.full_name);
-    }
-  }, [user]);
-
-  const [gameMode, setGameMode] = useState<"solo" | "ranked">("solo");
   // Track the last selection so we can replay and display in MatchView.
   // On mount, try to recover the label from a saved game (refresh recovery).
   const [lastSlug, setLastSlug] = useState(() => getSavedLabel() ?? "football");
@@ -122,22 +87,21 @@ export default function GamePage() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
-  const handleStartGame = async (slug: string, label: string) => {
+  const handleStartGame = async (
+    slug: string,
+    label: string,
+    targetScore: number,
+    footballFilter?: FootballFilter,
+  ) => {
     setLastSlug(slug);
     setLastLabel(label);
-    // For now we pass the root category slug to the backend, which matches
-    // the flat /api/categories structure. The full hierarchical path is
-    // preserved in lastSlug/lastLabel for when the backend supports it.
-    await startNewGame(rootSlug(slug), label);
+    await startNewGame(rootSlug(slug), label, targetScore, footballFilter);
   };
 
-  const handleStartTestGame = async () => {
-    setLastSlug("test");
-    setLastLabel("Test Mode");
-    await startNewGame("test", "Test Mode");
-  };
-
-  const handleStartDailyChallenge = async (categorySlug: string, label: string) => {
+  const handleStartDailyChallenge = async (
+    categorySlug: string,
+    label: string,
+  ) => {
     setLastSlug(categorySlug);
     setLastLabel(label);
     await startDailyChallenge(categorySlug, label);
@@ -151,32 +115,7 @@ export default function GamePage() {
       if (!res.ok) throw new Error("Failed to get share data");
       const data = await res.json();
 
-      // Build Wordle-style share text
-      const emojiMap: Record<string, string> = {
-        VALID: "🟩",    // 🟩
-        BUST: "🟥",     // 🟥
-        INVALID: "⬜",
-        CHECKOUT: "🎯", // 🎯
-      };
-      const emojiLine = (data.moveEmojis as string[])
-        .map((e: string) => emojiMap[e] ?? "⬜")
-        .join("");
-
-      const dateStr = data.challengeDate
-        ? new Date(data.challengeDate).toLocaleDateString("en-GB", {
-            day: "numeric", month: "short", year: "numeric",
-          })
-        : "Today";
-
-      const shareText = [
-        `⚽ FOOTBALL 501 — ${data.categoryName?.toString().toUpperCase() ?? "DAILY"}`,
-        `${dateStr} — Target: ${data.startingScore}`,
-        "",
-        emojiLine,
-        `Score: ${(data.finalScore as number) <= 0 ? "000" : String(data.finalScore).padStart(3, "0")} | ${data.turnCount} turns`,
-        "",
-        `${window.location.origin}/daily/${data.categorySlug ?? "football"}`,
-      ].join("\n");
+      const shareText = buildShareText(data, window.location.origin);
 
       // Try native share on mobile, fall back to clipboard
       if (navigator.share) {
@@ -210,11 +149,11 @@ export default function GamePage() {
 
   if (gameStatus === "RESTORING") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950">
+      <div className="min-h-screen flex items-center justify-center bg-bg">
         {authRedirect}
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4" />
-          <p className="text-gray-400 text-lg">Restoring game...</p>
+          <div className="animate-spin-slow rounded-full h-10 w-10 border-2 border-line border-t-accent mx-auto mb-4" />
+          <p className="kicker">Restoring game…</p>
         </div>
       </div>
     );
@@ -224,28 +163,22 @@ export default function GamePage() {
 
   if (gameStatus === "NOT_STARTED") {
     return (
-      <>
+      <ErrorBoundary section="lobby">
         {authRedirect}
         <LobbyView
-          categories={lobbyCategories}
           onStartGame={handleStartGame}
           onStartDailyChallenge={handleStartDailyChallenge}
-          onStartTestGame={handleStartTestGame}
-          playerName={playerName}
-          onPlayerNameChange={setPlayerName}
-          gameMode={gameMode}
-          onGameModeChange={setGameMode}
           dailyChallenges={dailyChallenges}
           dailyLoading={dailyLoading}
         />
-      </>
+      </ErrorBoundary>
     );
   }
 
   const { name: catName, sub: catSub } = categoryLabel(lastLabel);
 
   return (
-    <>
+    <ErrorBoundary section="game">
       {authRedirect}
       <MatchView
         score={score}
@@ -264,14 +197,17 @@ export default function GamePage() {
         flashVersion={flashVersion}
         onShare={gameType === "daily-challenge" ? handleShare : undefined}
         sharing={sharing}
+        gameId={gameId}
+        gameType={gameType}
       />
       {popup && (
         <AnimatedScorePopup
           scoreValue={popup.scoreValue}
           result={popup.result}
+          reason={popup.reason}
           onComplete={onPopupComplete}
         />
       )}
-    </>
+    </ErrorBoundary>
   );
 }

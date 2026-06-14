@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 interface FormModalProps {
   open: boolean;
@@ -23,7 +24,9 @@ export default function FormModal({
   cancelText = "Cancel",
   children,
 }: FormModalProps) {
-  // Lock body scroll while modal is open
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open ? onCancel : undefined);
+
   useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden";
@@ -39,8 +42,12 @@ export default function FormModal({
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 bg-black/70 flex justify-center items-center z-[1000] animate-fade-in"
       onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="form-modal-title"
     >
       <div
         className="bg-[#2a2a2a] rounded-xl w-[90%] max-w-[600px] max-h-[90vh] flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
@@ -48,7 +55,7 @@ export default function FormModal({
       >
         {/* Header */}
         <div className="px-6 py-5 border-b border-white/10 flex justify-between items-center">
-          <h3 className="m-0 text-white font-semibold">{title}</h3>
+          <h3 id="form-modal-title" className="m-0 text-white font-semibold">{title}</h3>
           <button
             className="bg-transparent border-none text-[#9ca3af] text-2xl cursor-pointer p-0 leading-none hover:text-white transition-colors"
             onClick={onCancel}

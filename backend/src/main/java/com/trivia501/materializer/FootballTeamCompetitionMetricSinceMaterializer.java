@@ -40,11 +40,15 @@ public class FootballTeamCompetitionMetricSinceMaterializer implements QuestionM
 
     // Supported metric keys and their labels in question text
     private static final Map<String, String> METRIC_LABELS = Map.of(
-        "goals",           "Goals",
-        "appearances",     "Appearances",
-        "assists",         "Assists",
-        "clean_sheets",    "Clean sheets",
-        "sub_appearances", "Substitute appearances"
+        "goals",                    "Goals",
+        "appearances",              "Appearances",
+        "assists",                  "Assists",
+        "clean_sheets",             "Clean sheets",
+        "sub_appearances",          "Substitute appearances",
+        "goals_assists",            "Goals + Assists",
+        "goals_appearances",        "Goals + Appearances",
+        "assists_appearances",      "Assists + Appearances",
+        "goals_assists_appearances","Goals + Assists + Appearances"
     );
 
     // Default start-year used when the template param_schema doesn't override it.
@@ -208,11 +212,16 @@ public class FootballTeamCompetitionMetricSinceMaterializer implements QuestionM
 
     private int resolveMetric(PlayerSeasonStintRepository.StintAggregate agg, String metricKey) {
         return switch (metricKey) {
-            case "goals"           -> (int) agg.getTotalGoals();
-            case "appearances"     -> (int) agg.getTotalAppearances();
-            case "assists"         -> (int) agg.getTotalAssists();
-            case "clean_sheets"    -> (int) agg.getTotalCleanSheets();
-            case "sub_appearances" -> (int) agg.getTotalSubAppearances();
+            case "goals"                    -> (int) agg.getTotalGoals();
+            case "appearances"              -> (int) agg.getTotalAppearances();
+            case "assists"                  -> (int) agg.getTotalAssists();
+            case "clean_sheets"             -> (int) agg.getTotalCleanSheets();
+            case "sub_appearances"          -> (int) agg.getTotalSubAppearances();
+            case "goals_assists"            -> (int)(agg.getTotalGoals()       + agg.getTotalAssists());
+            case "goals_appearances"        -> (int)(agg.getTotalGoals()       + agg.getTotalAppearances());
+            case "assists_appearances"      -> (int)(agg.getTotalAssists()     + agg.getTotalAppearances());
+            case "goals_assists_appearances"-> (int)(agg.getTotalGoals()       + agg.getTotalAssists()
+                                                   + agg.getTotalAppearances());
             default -> throw new IllegalArgumentException("Unknown metric_key: " + metricKey);
         };
     }

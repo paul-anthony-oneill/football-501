@@ -2,6 +2,8 @@ package com.trivia501.repository;
 
 import com.trivia501.model.DailyChallenge;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -19,4 +21,20 @@ public interface DailyChallengeRepository extends JpaRepository<DailyChallenge, 
     Optional<DailyChallenge> findTopByCategoryIdOrderByChallengeDateDesc(UUID categoryId);
 
     List<DailyChallenge> findByChallengeDateAndStatus(LocalDate challengeDate, String status);
+
+    /**
+     * Returns the most recent daily challenge for a category (excluding today),
+     * so the scheduler can avoid repeating yesterday's starting score.
+     */
+    @Query("""
+        SELECT dc.startingScore FROM DailyChallenge dc
+        WHERE dc.categoryId = :categoryId
+          AND dc.challengeDate < :today
+        ORDER BY dc.challengeDate DESC
+        LIMIT 1
+        """)
+    Optional<Integer> findLatestStartingScoreBefore(
+        @Param("categoryId") UUID categoryId,
+        @Param("today") LocalDate today
+    );
 }

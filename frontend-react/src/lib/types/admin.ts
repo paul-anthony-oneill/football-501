@@ -20,7 +20,7 @@ export interface UpdateCategoryRequest {
 }
 
 /** Lifecycle status values for a question. */
-export type QuestionStatus = "draft" | "active" | "retired";
+export type QuestionStatus = "draft" | "active" | "retired" | "excluded";
 
 export interface Question {
   id: string;
@@ -40,6 +40,12 @@ export interface Question {
   totalPointsPool: number;
   /** Count of valid-darts answers with score 101–180. Indicates finishing power. */
   highValueAnswerCount: number;
+  /** Continuous difficulty score 0.00–10.00. */
+  difficultyScore: number;
+  /** true when score pool ≥ 501 and answer count ≥ 15. */
+  singleQuestionViable: boolean;
+  /** Admin-curated flag — eligible to appear in daily challenges. */
+  suitableForDaily: boolean;
   createdAt: string;
   updatedAt: string;
 }

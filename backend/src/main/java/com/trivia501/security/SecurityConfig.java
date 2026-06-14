@@ -29,7 +29,7 @@ import java.util.Arrays;
  * <h3>Endpoint access policy</h3>
  * <pre>
  *   /api/admin/**           → ROLE_ADMIN   (also @PreAuthorize at method level)
- *   /api/solo/**            → ROLE_USER / ROLE_ADMIN
+ *   /api/freeplay/**        → ROLE_USER / ROLE_ADMIN
  *   GET /api/daily-challenge/** → permitAll (public browsing of daily challenges)
  *   POST /api/daily-challenge/** → authenticated (game start, submit, abandon)
  *   /api/entities/**        → permitAll    (public autocomplete)
@@ -80,10 +80,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/entities/**").permitAll()
                 .requestMatchers("/api/categories/**").permitAll()
+                .requestMatchers("/api/football/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/daily-challenge/**").permitAll()
                 .requestMatchers("/api/daily-challenge/**").authenticated()
-                .requestMatchers("/api/solo/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers("/api/freeplay/**").hasAnyRole("USER", "ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             );

@@ -1,13 +1,16 @@
 package com.trivia501.service;
 
+import com.trivia501.engine.DifficultyConstants;
 import com.trivia501.model.Category;
 import com.trivia501.model.DailyChallenge;
 import com.trivia501.model.Game;
 import com.trivia501.model.Match;
 import com.trivia501.model.Question;
+import com.trivia501.repository.AnswerRepository;
 import com.trivia501.repository.CategoryRepository;
 import com.trivia501.repository.DailyChallengeRepository;
 import com.trivia501.repository.QuestionRepository;
+import com.trivia501.scheduler.DailyChallengeScheduler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,18 +19,14 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @Slf4j
 public class DailyChallengeService {
 
-    private static final int[] STARTING_SCORES = {501, 401, 351, 301, 251, 201, 167, 125, 101};
-    private static final double DAILY_MIN_DIFFICULTY = 0.0;
-    private static final double DAILY_MAX_DIFFICULTY = 5.5; // easy/medium only
-
     private final DailyChallengeRepository challengeRepository;
     private final QuestionRepository questionRepository;
+    private final AnswerRepository answerRepository;
     private final CategoryRepository categoryRepository;
     private final MatchService matchService;
     private final GameService gameService;
@@ -35,12 +34,14 @@ public class DailyChallengeService {
     public DailyChallengeService(
             DailyChallengeRepository challengeRepository,
             QuestionRepository questionRepository,
+            AnswerRepository answerRepository,
             CategoryRepository categoryRepository,
             MatchService matchService,
             GameService gameService
     ) {
         this.challengeRepository = challengeRepository;
         this.questionRepository = questionRepository;
+        this.answerRepository = answerRepository;
         this.categoryRepository = categoryRepository;
         this.matchService = matchService;
         this.gameService = gameService;
@@ -117,52 +118,58 @@ public class DailyChallengeService {
     }
 
     /**
-     * Picks a random valid starting score from the curated set.
+     * Picks a random starting score from the curated pool, optionally avoiding
+     * the score used yesterday for the same category.
      */
-    public int pickStartingScore() {
-        return STARTING_SCORES[ThreadLocalRandom.current().nextInt(STARTING_SCORES.length)];
+    public int pickStartingScore(UUID categoryId) {
+        int yesterday = challengeRepository
+            .findLatestStartingScoreBefore(categoryId, LocalDate.now())
+            .orElse(-1);
+        return DifficultyConstants.pickDailyStartingScore(yesterday);
     }
 
     /**
-     * Creates a daily challenge for the given category by selecting a random
-     * starting score and a viable question.
+     * Creates a daily challenge for the given category. Tries candidate scores
+     * from the expanded pool, falling back if the first choice doesn't pair with
+     * a viable question.
      *
-     * <p>If no question is viable for the first starting score, retries with
-     * progressively lower scores until one works or the list is exhausted.
+     * <p>Each candidate question is verified for first-move viability — at least
+     * one valid non-bust answer must be within the starting score + margin.
      */
     private DailyChallenge createChallenge(UUID categoryId) {
-        int score = pickStartingScore();
-        Optional<Question> questionOpt = questionRepository.findRandomDailyQuestion(
-                categoryId, score, DAILY_MIN_DIFFICULTY, DAILY_MAX_DIFFICULTY);
-
-        // Fallback: if no question found for the chosen score, try all scores
-        if (questionOpt.isEmpty()) {
-            for (int fallbackScore : STARTING_SCORES) {
-                questionOpt = questionRepository.findRandomDailyQuestion(
-                        categoryId, fallbackScore, DAILY_MIN_DIFFICULTY, DAILY_MAX_DIFFICULTY);
-                if (questionOpt.isPresent()) {
-                    score = fallbackScore;
-                    break;
-                }
-            }
+        // Defense-in-depth: the test category must never surface as a daily challenge.
+        Category category = categoryRepository.findById(categoryId).orElse(null);
+        if (category != null && "test".equals(category.getSlug())) {
+            throw new IllegalArgumentException("No daily challenge for the test category");
         }
 
-        Question question = questionOpt.orElseThrow(() ->
-                new IllegalStateException(
-                        "No suitable_for_daily question found for category " + categoryId +
-                        ". Mark at least one question with suitable_for_daily = true."));
+        LocalDate today = LocalDate.now();
+        int yesterdayScore = challengeRepository
+            .findLatestStartingScoreBefore(categoryId, today)
+            .orElse(-1);
+
+        DailyChallengeScheduler.QuestionScorePair result =
+            DailyChallengeScheduler.findViableQuestionAndScore(
+                questionRepository, answerRepository, categoryId, yesterdayScore);
+
+        if (result == null) {
+            throw new IllegalStateException(
+                "No suitable_for_daily question found for category " + categoryId +
+                " with a playable first move. " +
+                "Mark at least one question with suitable_for_daily = true.");
+        }
 
         DailyChallenge challenge = DailyChallenge.builder()
-                .challengeDate(LocalDate.now())
+                .challengeDate(today)
                 .categoryId(categoryId)
-                .questionId(question.getId())
-                .startingScore(score)
+                .questionId(result.question().getId())
+                .startingScore(result.score())
                 .status("active")
                 .build();
 
         challenge = challengeRepository.save(challenge);
         log.info("Daily challenge created for {}: questionId={}, startingScore={}",
-                LocalDate.now(), question.getId(), score);
+                today, result.question().getId(), result.score());
         return challenge;
     }
 

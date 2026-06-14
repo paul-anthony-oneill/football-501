@@ -1,8 +1,17 @@
 "use client";
 
-import React from 'react';
-import EntitySearch from '../EntitySearch';
-import LoginButton from '@/components/auth/LoginButton';
+import React, { useState } from "react";
+import EntitySearch from "../EntitySearch";
+import HowToPlayPanel from "../HowToPlayPanel";
+import DebugPanel from "../DebugPanel";
+import LoginButton from "@/components/auth/LoginButton";
+import ThemeToggle from "@/components/ui/ThemeToggle";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+
+interface StagedAnswer {
+  name: string;
+  entityId?: string;
+}
 
 interface Move {
   answer: string;
@@ -11,6 +20,7 @@ interface Move {
   scoreAfter: number;
   matchedAnswer?: string;
   scoreValue?: number;
+  reason?: string;
 }
 
 interface GameHints {
@@ -44,6 +54,10 @@ interface MatchViewProps {
   onShare?: () => void;
   /** True while a share copy operation is in progress. */
   sharing?: boolean;
+  /** Current game ID, used by DebugPanel to fetch all answers. */
+  gameId?: string | null;
+  /** Current game type */
+  gameType?: "freeplay" | "daily-challenge";
 }
 
 export default function MatchView({
@@ -63,188 +77,370 @@ export default function MatchView({
   flashVersion = 0,
   onShare,
   sharing = false,
+  gameId = null,
+  gameType = "freeplay",
 }: MatchViewProps) {
-  return (
-    <div className="game theme-teletext min-h-screen flex flex-col font-vt323 text-lg bg-black text-white relative">
-      {/* Teletext Header Status Line */}
-      <div className="bg-white text-black px-6 py-0.5 flex justify-between tracking-widest">
-        <span>P302 GAME IN PROGRESS</span>
-        <span>20:45</span>
-      </div>
+  const [staged, setStaged] = useState<StagedAnswer | null>(null);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
-      {/* Game Header */}
-      <header className="game-top flex items-center justify-between px-8 py-4.5 border-b-2 border-white">
-        <button onClick={onExit} className="btn-ghost text-tele-cyan border-2 border-tele-cyan px-5 py-2 hover:bg-white hover:text-black transition-colors">
-          ESC_EXIT
+  function handleStage(name: string, entityId?: string) {
+    setStaged({ name, entityId });
+  }
+
+  function handleThrowDart() {
+    if (!staged) return;
+    onSubmitAnswer(staged.name, staged.entityId);
+    setStaged(null);
+  }
+
+  // Newest move first. Used for the flash colour, bust shake and checkout track.
+  const lastMove = moves[0] ?? null;
+  const lastWasBust = lastMove?.result === "BUST";
+  const flashColor =
+    lastMove?.result === "VALID" ? "var(--ok)"
+    : lastWasBust ? "var(--danger)"
+    : "var(--ink)";
+
+  // The starting score is the score before the oldest move.
+  const startingScore =
+    moves.length > 0 ? moves[moves.length - 1].scoreBefore : score;
+  const progress =
+    startingScore > 0 ?
+      Math.min(
+        1,
+        Math.max(0, (startingScore - Math.max(score, 0)) / startingScore),
+      )
+    : 0;
+
+  return (
+    <div
+      className="min-h-screen flex flex-col bg-bg text-ink font-sans relative"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && staged && !disabled) {
+          handleThrowDart();
+        }
+      }}
+    >
+      {/* Top bar */}
+      <header className="flex items-center justify-between gap-3 px-4 md:px-8 py-3.5 border-b border-line">
+        <button
+          onClick={() => setShowExitConfirm(true)}
+          className="btn-ghost px-3.5 py-2 flex-shrink-0"
+        >
+          ← Exit
         </button>
-        <div className="game-cat text-center">
-          <div className="game-cat-name bg-tele-magenta text-black px-3 py-0.5 inline-block text-[22px]">
-            {categoryName.toUpperCase()}
+        <div className="text-center min-w-0">
+          <div className="font-display font-bold text-base md:text-lg leading-tight truncate">
+            {categoryName}
           </div>
-          <div className="game-cat-sub text-tele-cyan text-[18px] mt-1 uppercase tracking-wider">
-            {categorySub}
-          </div>
+          <div className="kicker truncate">{categorySub}</div>
         </div>
-        <div className="game-spacer w-20 flex justify-end">
-          <LoginButton />
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <ThemeToggle />
+          <div className="hidden md:block">
+            <LoginButton />
+          </div>
         </div>
       </header>
 
-      {/* Main Game Area */}
-      <main className="game-main flex-1 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8 p-8 overflow-hidden">
-        <div className="game-left flex flex-col gap-7 min-w-0">
+      {/* Main game area */}
+      <main className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5 md:gap-8 p-4 md:p-8 max-w-7xl w-full mx-auto">
+        <div className="flex flex-col gap-5 md:gap-7 min-w-0">
+          {/* Score hero */}
+          <section
+            className="bg-surface border border-line rounded-md p-5 md:p-7 relative overflow-hidden"
+            aria-label="Score"
+          >
+            <div className="kicker">Points remaining</div>
 
-          {/* Main Scoreboard */}
-          <div className="sb sb-on border-4 border-tele-accent p-6 bg-black relative shadow-[0_0_0_4px_inset_#ffff00]">
-            <div className="sb-label bg-tele-accent text-black px-2 py-0.5 inline-block text-[18px] tracking-widest font-bold">
-              POINTS REMAINING
-            </div>
-            <div className="sb-big text-[160px] text-tele-green leading-none mt-4 font-normal">
-              <span key={flashVersion} className="animate-score-flash inline-block">
-                {score.toString().padStart(3, '0')}
-              </span>
-            </div>
-            <div className="sb-foot flex items-baseline gap-2 mt-2">
-              <span className="sb-foot-k text-tele-cyan text-[18px] tracking-widest uppercase">LAST SCORE</span>
-              <span className="sb-foot-v text-tele-magenta text-[22px] font-bold">
-                {moves.length > 0 ? moves[0].scoreValue : '--'}
-              </span>
-            </div>
-
-            {/* ── In-game hints ──────────────────────────────────────────── */}
-            {hints !== null && (
-              <div className="sb-hints mt-3 pt-3 border-t border-[#333] flex gap-6">
-                {/* 180s LEFT — prominent above 180, dimmed at/below */}
-                <div className={score > 180 ? '' : 'opacity-30'}>
-                  <span className="text-tele-cyan text-[16px] tracking-widest uppercase">
-                    180s Left{' '}
-                  </span>
-                  <span className="text-tele-green text-[22px] font-bold">
-                    {hints.maxScoresLeft}
-                  </span>
-                </div>
-                {/* CHECKOUTS — prominent at/below 180, dimmed above */}
-                <div className={score <= 180 ? '' : 'opacity-30'}>
-                  <span className="text-tele-cyan text-[16px] tracking-widest uppercase">
-                    Checkouts{' '}
-                  </span>
-                  <span
-                    className={`text-[22px] font-bold ${
-                      score <= 180 && hints.checkoutsLeft > 0
-                        ? 'text-tele-accent'
-                        : 'text-[#666]'
-                    }`}
-                  >
-                    {hints.checkoutsLeft}
-                  </span>
-                </div>
+            <div
+              key={lastWasBust ? `shake-${moves.length}` : "steady"}
+              className={lastWasBust ? "animate-shake" : ""}
+            >
+              <div
+                className="display-num"
+                style={{ fontSize: "clamp(96px, 16vw, 170px)" }}
+              >
+                <span
+                  key={flashVersion}
+                  className="animate-score-pop inline-block"
+                  style={{ "--flash": flashColor } as React.CSSProperties}
+                >
+                  {score}
+                </span>
               </div>
-            )}
-          </div>
-
-          {/* Prompt & Input */}
-          <div className="prompt flex flex-col gap-4">
-            <div className="prompt-q text-tele-cyan text-[32px] leading-tight">
-              {question || "Loading question..."}
             </div>
 
-            <div className="ta-wrap relative">
-              <div className="ta-input-row flex items-center gap-3.5 bg-black border-2 border-tele-cyan p-0 px-5.5 h-16">
-                <span className="ta-caret text-tele-green text-[26px] animate-pulse">{'>'}</span>
+            {/* Checkout track — how far through the game you are */}
+            <div className="mt-4" aria-hidden="true">
+              <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-ok transition-all duration-700 ease-out"
+                  style={{ width: `${progress * 100}%` }}
+                />
+              </div>
+              <div className="flex justify-between mt-1.5">
+                <span className="font-mono text-[10px] text-muted tabular-nums">
+                  {startingScore}
+                </span>
+                <span className="font-mono text-[10px] text-gold tabular-nums">
+                  ◎ 0
+                </span>
+              </div>
+            </div>
+
+            {/* Last score + hints */}
+            <div className="mt-4 pt-4 border-t border-line flex flex-wrap items-center gap-x-6 gap-y-2">
+              <div className="flex items-baseline gap-2">
+                <span className="kicker">Last score</span>
+                <span
+                  className={`font-display font-bold text-lg tabular-nums ${
+                    lastMove ?
+                      lastWasBust ? "text-danger"
+                      : "text-ok"
+                    : "text-muted"
+                  }`}
+                >
+                  {lastMove ?
+                    lastMove.result === "INVALID" ?
+                      "—"
+                    : lastMove.scoreValue
+                  : "—"}
+                </span>
+              </div>
+
+              {hints !== null && (
+                <>
+                  <div
+                    className={`flex items-baseline gap-2 transition-opacity ${score > 180 ? "" : "opacity-30"}`}
+                  >
+                    <span className="kicker">180s left</span>
+                    <span className="font-display font-bold text-lg tabular-nums">
+                      {hints.maxScoresLeft}
+                    </span>
+                  </div>
+                  <div
+                    className={`flex items-baseline gap-2 transition-opacity ${score <= 180 ? "" : "opacity-30"}`}
+                  >
+                    <span className="kicker">Checkouts</span>
+                    <span
+                      className={`font-display font-bold text-lg tabular-nums ${
+                        score <= 180 && hints.checkoutsLeft > 0 ?
+                          "text-gold"
+                        : "text-muted"
+                      }`}
+                    >
+                      {hints.checkoutsLeft}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+
+          {/* Question */}
+          <section aria-label="Question">
+            <div className="kicker mb-2">Question</div>
+            <h1 className="font-display font-bold text-2xl md:text-[32px] leading-snug tracking-tight">
+              {question || "Loading question…"}
+            </h1>
+          </section>
+
+          {/* Answer input */}
+          <section className="flex flex-col gap-3.5" aria-label="Answer">
+            <div className="relative">
+              <div className="flex items-center gap-3 bg-surface border border-line-strong rounded-md px-4 md:px-5 h-14 md:h-16 focus-within:border-accent transition-colors">
+                <span
+                  className="text-accent font-display font-bold text-xl select-none"
+                  aria-hidden="true"
+                >
+                  ›
+                </span>
                 <EntitySearch
                   entityType={entityType}
-                  onSelect={onSubmitAnswer}
-                  placeholder="TYPE PLAYER NAME..."
-                  className="teletext-input flex-1 bg-transparent border-0 outline-none text-tele-accent text-[30px] font-vt323 p-0"
+                  onSelect={handleStage}
+                  placeholder="Type a name…"
+                  className="flex-1 bg-transparent border-0 outline-none text-ink text-lg md:text-xl font-sans font-medium placeholder:text-muted/60 p-0 min-w-0"
                   disabled={disabled}
                 />
               </div>
             </div>
 
-            <div className="prompt-sub text-white text-[18px]">
-              Type a player and press <b className="text-tele-danger">ENTER</b> to score.
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar / History */}
-        <aside className="game-right flex flex-col bg-black border-2 border-white p-5 overflow-hidden">
-          <div className="hist-head bg-tele-magenta text-black px-3 py-1 text-[18px] mb-3 uppercase font-bold">
-            MATCH HISTORY
-          </div>
-          <div className="hist-list flex-1 overflow-y-auto pr-2">
-            {moves.length === 0 ? (
-              <div className="hist-empty text-[#888] text-[18px] text-center py-6 tracking-widest">
-                NO DARTS THROWN
-              </div>
-            ) : (
-              moves.map((move, i) => (
-                <div key={i} className={`hist-row grid grid-cols-[28px_1fr_auto_60px] gap-3 items-baseline py-2.5 border-b border-[#444] border-dashed ${move.result === 'BUST' ? 'hist-bust' : ''}`}>
-                  <span className="hist-i text-[#888] text-[18px]">{(moves.length - i).toString().padStart(2, '0')}</span>
-                  <span className={`hist-name text-[18px] uppercase ${move.result === 'BUST' ? 'text-[#888] line-through' : move.result === 'INVALID' ? 'text-tele-danger' : 'text-white'}`}>
-                    {move.matchedAnswer || move.answer}
-                  </span>
-                  <span className={`hist-val text-[22px] font-bold ${move.result === 'BUST' ? 'text-tele-danger' : move.result === 'INVALID' ? 'text-[#888]' : 'text-tele-green'}`}>
-                    {move.result === 'INVALID' ? '✗' : move.scoreValue}
-                  </span>
-                  <span className="hist-rem text-tele-accent text-[22px] text-right font-bold">
-                    {move.scoreAfter}
+            {/* Staged answer */}
+            {staged ?
+              <div className="flex items-center justify-between gap-4 bg-ok-soft border border-ok/40 rounded-md px-4 md:px-5 py-3 animate-rise">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="kicker text-ok">Lined up</span>
+                  <span className="font-display font-bold text-lg truncate">
+                    {staged.name}
                   </span>
                 </div>
-              ))
-            )}
+                <button
+                  onClick={() => setStaged(null)}
+                  className="text-muted hover:text-danger text-lg leading-none transition-colors p-1"
+                  aria-label="Clear selection"
+                >
+                  ✕
+                </button>
+              </div>
+            : <div className="hint border border-dashed border-line rounded-md px-4 md:px-5 py-3.5">
+                Pick a name from the suggestions to line up your throw
+              </div>
+            }
+
+            {/* Throw */}
+            <button
+              onClick={handleThrowDart}
+              disabled={!staged || disabled}
+              className="btn-primary h-14 text-lg tracking-wide w-full md:w-auto md:self-start md:px-12"
+            >
+              Throw dart
+              <span aria-hidden="true">→</span>
+            </button>
+          </section>
+        </div>
+
+        {/* History */}
+        <aside className="flex flex-col bg-surface border border-line rounded-md p-5 min-h-0 lg:max-h-[calc(100vh-120px)] lg:sticky lg:top-8">
+          <div className="flex items-baseline justify-between mb-3">
+            <span className="kicker">Match history</span>
+            <span className="font-mono text-[10px] text-muted tabular-nums">
+              TURN {turnCount.toString().padStart(2, "0")}
+            </span>
           </div>
 
-          <div className="hist-foot mt-4 pt-3 border-t-2 border-white flex justify-between items-baseline text-tele-cyan text-[18px] uppercase">
-            <span>TURN COUNT</span>
-            <span className="text-tele-accent font-bold">{turnCount.toString().padStart(2, '0')}</span>
+          <div className="flex-1 overflow-y-auto scrollbar-thin -mr-2 pr-2">
+            {moves.length === 0 ?
+              <div className="hint text-center py-8">No darts thrown yet</div>
+            : moves.map((move, i) => (
+                <div
+                  key={i}
+                  className="py-2.5 border-b border-line last:border-b-0"
+                >
+                  <div className="grid grid-cols-[24px_1fr_auto_52px] gap-2.5 items-baseline">
+                    <span className="font-mono text-[10px] text-muted tabular-nums">
+                      {(moves.length - i).toString().padStart(2, "0")}
+                    </span>
+                    <span
+                      className={`font-sans font-medium text-sm truncate ${
+                        move.result === "BUST" ? "text-muted line-through"
+                        : move.result === "INVALID" ? "text-muted"
+                        : "text-ink"
+                      }`}
+                    >
+                      {move.matchedAnswer || move.answer}
+                    </span>
+                    <span
+                      className={`font-mono text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded-xs ${
+                        move.result === "VALID" ? "text-ok bg-ok-soft"
+                        : move.result === "BUST" ? "text-danger bg-danger-soft"
+                        : "text-muted bg-surface-2"
+                      }`}
+                    >
+                      {move.result === "INVALID" ?
+                        "✗"
+                      : move.result === "BUST" ?
+                        "BUST"
+                      : `−${move.scoreValue}`}
+                    </span>
+                    <span className="font-display font-bold text-sm text-right tabular-nums">
+                      {move.scoreAfter}
+                    </span>
+                  </div>
+                  {move.reason &&
+                    (move.result === "BUST" || move.result === "INVALID") && (
+                      <div className="mt-1 ml-[34px] text-[11px] text-muted leading-snug">
+                        {move.reason}
+                      </div>
+                    )}
+                </div>
+              ))
+            }
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-line">
+            <HowToPlayPanel />
           </div>
         </aside>
       </main>
 
-      {/* ── Win Overlay ─────────────────────────────────────────────────────── */}
+      {/* ── Win overlay ─────────────────────────────────────────────────────── */}
       {isWin && (
-        <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 gap-8 font-vt323">
-          <div className="text-tele-green text-[72px] tracking-widest text-center animate-pulse">
-            CHECKOUT!
-          </div>
-          <div className="text-center">
-            <div className="text-tele-accent text-[48px] tracking-widest">
-              {/* Checkout lands at 0 or within -10..0; always display as 000 */}
-              {(score <= 0 ? 0 : score).toString().padStart(3, '0')}
+        <div className="fixed inset-0 bg-bg/95 backdrop-blur-sm flex flex-col items-center justify-center z-50 gap-7 p-6 animate-fade-in">
+          <div className="relative flex items-center justify-center w-56 h-56">
+            <span className="ring-burst" aria-hidden="true" />
+            <span className="ring-burst ring-burst-2" aria-hidden="true" />
+            <div className="text-center animate-rise">
+              <div
+                className="display-num text-gold"
+                style={{ fontSize: "96px" }}
+              >
+                {score <= 0 ? 0 : score}
+              </div>
+              <div className="kicker text-gold mt-1">Checkout</div>
             </div>
-            <div className="text-tele-cyan text-[22px] tracking-widest mt-1">
-              FINAL SCORE
+          </div>
+
+          <div
+            className="text-center animate-rise"
+            style={{ animationDelay: "0.1s" }}
+          >
+            <div className="font-display font-extrabold text-3xl md:text-4xl tracking-tight">
+              Game shot!
+            </div>
+            <div className="kicker mt-2">
+              {turnCount} {turnCount === 1 ? "dart" : "darts"} thrown
             </div>
           </div>
-          <div className="text-white text-[26px] tracking-widest">
-            {turnCount.toString().padStart(2, '0')} TURNS
-          </div>
-          <div className="flex flex-col gap-4 items-center mt-4">
+
+          <div
+            className="flex flex-col gap-3 items-center mt-2 w-full max-w-xs animate-rise"
+            style={{ animationDelay: "0.2s" }}
+          >
             {onShare && (
               <button
                 onClick={onShare}
                 disabled={sharing}
-                className="border-2 border-tele-magenta text-tele-magenta px-10 py-4 text-[24px] tracking-widest hover:bg-tele-magenta hover:text-black transition-colors disabled:opacity-50"
+                className="btn-primary w-full h-12 text-base"
               >
-                {sharing ? "COPIED!" : "SHARE RESULT"}
+                {sharing ? "Copied!" : "Share result"}
+              </button>
+            )}
+            {gameType !== "daily-challenge" && (
+              <button
+                onClick={onPlayAgain}
+                className={`${onShare ? "btn-ghost" : "btn-primary"} w-full h-12 text-base`}
+              >
+                Play again
               </button>
             )}
             <button
-              onClick={onPlayAgain}
-              className="border-2 border-tele-cyan text-tele-cyan px-10 py-4 text-[28px] tracking-widest hover:bg-tele-cyan hover:text-black transition-colors"
+              onClick={() => onExit()}
+              className="kicker hover:text-ink transition-colors py-2"
             >
-              PLAY AGAIN
-            </button>
-            <button
-              onClick={onExit}
-              className="text-[#666] text-[20px] hover:text-white transition-colors tracking-widest"
-            >
-              EXIT TO LOBBY
+              Exit to lobby
             </button>
           </div>
         </div>
       )}
+
+      {/* ── Exit confirmation dialog ─────────────────────────────────────────── */}
+      <ConfirmDialog
+        open={showExitConfirm}
+        title="Exit Game?"
+        message="Are you sure you want to exit? Your progress in this game will be lost."
+        confirmText="Exit"
+        cancelText="Stay"
+        type="danger"
+        onConfirm={() => {
+          setShowExitConfirm(false);
+          onExit();
+        }}
+        onCancel={() => setShowExitConfirm(false)}
+      />
+
+      {/* ── Debug panel (Ctrl+Shift+D) ────────────────────────────────────────── */}
+      <DebugPanel gameId={gameId} gameType={gameType} />
     </div>
   );
 }

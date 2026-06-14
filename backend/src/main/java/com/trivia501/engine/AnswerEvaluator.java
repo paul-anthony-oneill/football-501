@@ -92,19 +92,8 @@ public class AnswerEvaluator {
         // Calculate new score using ScoringService
         ScoreResult scoreResult = scoringService.calculateScore(currentScore, answer.getScore());
 
-        // Determine bust condition
         boolean isBust = scoreResult.isBust() || answer.getIsBust();
-        String reason = null;
-
-        if (isBust) {
-            if (!answer.getIsValidDarts()) {
-                reason = "Invalid darts score";
-            } else if (scoreResult.isBust()) {
-                reason = "Bust";
-            }
-        } else if (scoreResult.isCheckout()) {
-            reason = "Win!";
-        }
+        String reason = scoreResult.getReason();
 
         return AnswerResult.valid(
             answer.getDisplayText(),

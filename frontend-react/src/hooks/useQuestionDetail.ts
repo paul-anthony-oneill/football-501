@@ -147,9 +147,10 @@ export function useQuestionDetail(questionId: string): UseQuestionDetailReturn {
     if (!question) return;
 
     const statusConfig = {
-      draft:   { nextStatus: "active"   as const },
-      active:  { nextStatus: "retired"  as const },
-      retired: { nextStatus: "active"   as const },
+      draft:    { nextStatus: "active"  as const },
+      active:   { nextStatus: "retired" as const },
+      retired:  { nextStatus: "active"  as const },
+      excluded: { nextStatus: "draft"   as const },
     };
 
     const { nextStatus } = statusConfig[question.status];

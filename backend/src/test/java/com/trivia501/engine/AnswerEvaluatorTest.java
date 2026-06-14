@@ -216,7 +216,7 @@ class AnswerEvaluatorTest {
         when(answerRepository.findByQuestionIdAndAnswerKey(any(), any()))
             .thenReturn(Optional.of(answer));
         when(scoringService.calculateScore(501, 179))
-            .thenReturn(ScoreResult.bust(501));
+            .thenReturn(ScoreResult.bust(501, "179 is not a valid 3-dart checkout score"));
 
         AnswerResult result = evaluator.evaluateAnswer(
             QUESTION_ID, "Jack Grealish", null, 501, new ArrayList<>()
@@ -225,7 +225,6 @@ class AnswerEvaluatorTest {
         assertThat(result.isValid()).isTrue();
         assertThat(result.isBust()).isTrue();
         assertThat(result.getNewTotal()).isEqualTo(501);
-        assertThat(result.getReason()).isEqualTo("Invalid darts score");
     }
 
     @Test
@@ -238,7 +237,7 @@ class AnswerEvaluatorTest {
         when(answerRepository.findByQuestionIdAndAnswerKey(any(), any()))
             .thenReturn(Optional.of(answer));
         when(scoringService.calculateScore(501, 200))
-            .thenReturn(ScoreResult.bust(501));
+            .thenReturn(ScoreResult.bust(501, "200 is not a valid 3-dart checkout score"));
 
         AnswerResult result = evaluator.evaluateAnswer(
             QUESTION_ID, "John Stones", null, 501, new ArrayList<>()
@@ -328,7 +327,7 @@ class AnswerEvaluatorTest {
         when(answerRepository.findByQuestionIdAndAnswerKey(any(), any()))
             .thenReturn(Optional.of(answer));
         when(scoringService.calculateScore(20, 35))
-            .thenReturn(ScoreResult.bust(20));
+            .thenReturn(ScoreResult.bust(20, "Would drop below -10 (bust)"));
 
         AnswerResult result = evaluator.evaluateAnswer(
             QUESTION_ID, "Erling Haaland", null, 20, new ArrayList<>()

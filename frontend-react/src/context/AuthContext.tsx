@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function verifyBackend() {
       try {
-        const res = await apiFetch("/api/solo/profile");
+        const res = await apiFetch("/api/freeplay/profile");
         if (!cancelled) {
           if (res.ok) {
             const data = await res.json();

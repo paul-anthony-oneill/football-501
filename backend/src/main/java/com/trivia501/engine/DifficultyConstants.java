@@ -1,5 +1,9 @@
 package com.trivia501.engine;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+
 /**
  * Tunable parameters for the question difficulty formula and viability checks.
  *
@@ -126,4 +130,60 @@ public final class DifficultyConstants {
      * a few turns; the game stalls and becomes a memory test.
      */
     public static final int MIN_ANSWER_COUNT = 15;
+
+    // ── Daily challenge eligibility ───────────────────────────────────────────
+    // A question is eligible for daily challenges only if its difficulty score
+    // falls within [DAILY_MIN_DIFFICULTY, DAILY_MAX_DIFFICULTY] AND it is viable.
+    // Recalibration automatically updates suitable_for_daily from these bounds.
+
+    /** Minimum difficulty score for daily challenge eligibility (inclusive). */
+    public static final double DAILY_MIN_DIFFICULTY = 0.0;
+
+    /**
+     * Maximum difficulty score for daily challenge eligibility (inclusive).
+     * Capped at 3.5 so daily challenges stay in the easy-to-moderate range.
+     * Scores above this are reserved for standard ranked play.
+     */
+    public static final double DAILY_MAX_DIFFICULTY = 3.5;
+
+    // ── Daily challenge starting scores ───────────────────────────────────────
+
+    /**
+     * Curated pool of starting scores for daily challenges (30 values).
+     * All scores are valid 3-dart finishes and span the 101–501 range to
+     * vary the strategic texture of each day's puzzle.
+     */
+    public static final int[] DAILY_STARTING_SCORES = {
+        501, 485, 471, 457, 441, 427, 413, 401, 385, 371,
+        357, 343, 329, 315, 301, 287, 273, 259, 245, 231,
+        217, 203, 189, 174, 170, 157, 141, 127, 114, 101,
+    };
+
+    /**
+     * Margin added to the starting score when checking first-move viability.
+     * A player can checkout from 170 by naming a 175-point answer (170 − 175 = −5,
+     * within the −10…0 checkout window). Without this margin we'd reject questions
+     * where the first playable answer doesn't hit exactly ≤ the starting score.
+     */
+    public static final int FIRST_MOVE_MARGIN = 10;
+
+    // ── Score selection helpers ───────────────────────────────────────────────
+
+    /**
+     * Picks a random starting score, avoiding {@code yesterdayScore} if the
+     * pool has at least 2 values to choose from.
+     */
+    public static int pickDailyStartingScore(int yesterdayScore) {
+        List<Integer> pool = new ArrayList<>(DAILY_STARTING_SCORES.length);
+        for (int s : DAILY_STARTING_SCORES) pool.add(s);
+        if (pool.size() > 1 && yesterdayScore > 0) {
+            pool.removeIf(s -> s == yesterdayScore);
+        }
+        return pool.get(ThreadLocalRandom.current().nextInt(pool.size()));
+    }
+
+    /** Picks a random starting score from the full pool (no exclusion). */
+    public static int pickDailyStartingScore() {
+        return pickDailyStartingScore(-1);
+    }
 }

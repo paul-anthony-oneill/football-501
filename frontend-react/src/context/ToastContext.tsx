@@ -32,38 +32,36 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 // ─── Individual Toast component ───────────────────────────────────────────────
 
 function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
-  // Auto-dismiss after 3 s
   useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
+    const duration = toast.type === "error" ? 8000 : 3000;
+    const timer = setTimeout(onClose, duration);
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, [onClose, toast.type]);
 
-  const icon = toast.type === "success" ? "✅" : toast.type === "error" ? "❌" : "ℹ️";
-
-  const borderColor =
+  const accentClass =
     toast.type === "success"
-      ? "border-l-[var(--color-primary)]"
+      ? "border-l-[var(--ok)]"
       : toast.type === "error"
-      ? "border-l-[var(--color-error)]"
-      : "border-l-[#7fcfff]";
+      ? "border-l-[var(--danger)]"
+      : "border-l-[var(--line-strong)]";
 
-  const bg =
+  const dotClass =
     toast.type === "success"
-      ? "bg-[#00522b]"
+      ? "bg-ok"
       : toast.type === "error"
-      ? "bg-[#93000a]"
-      : "bg-[#004a77]";
+      ? "bg-danger"
+      : "bg-muted";
 
   return (
     <div
-      className={`animate-slide-down flex items-center gap-4 min-w-80 max-w-[450px] rounded-xl border border-white/10 border-l-[6px] px-6 py-4 text-white shadow-[var(--shadow-3)] ${bg} ${borderColor}`}
+      className={`animate-slide-down flex items-center gap-3.5 min-w-72 max-w-[420px] rounded-md border border-line border-l-[3px] bg-surface text-ink px-5 py-3.5 shadow-[var(--shadow-pop)] ${accentClass}`}
       role="alert"
     >
-      <span className="text-xl">{icon}</span>
-      <span className="flex-1 text-[0.95rem] font-semibold">{toast.message}</span>
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotClass}`} aria-hidden="true" />
+      <span className="flex-1 text-sm font-medium">{toast.message}</span>
       <button
         onClick={onClose}
-        className="text-white/70 hover:text-white text-2xl leading-none p-1 bg-transparent border-none cursor-pointer transition-colors"
+        className="text-muted hover:text-ink text-xl leading-none p-1 bg-transparent border-none cursor-pointer transition-colors"
         aria-label="Close notification"
       >
         &times;

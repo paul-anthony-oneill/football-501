@@ -1,5 +1,6 @@
 package com.trivia501.service;
 
+import com.trivia501.dto.FootballFilter;
 import com.trivia501.model.Game;
 import com.trivia501.model.Match;
 import com.trivia501.model.Question;
@@ -105,7 +106,38 @@ public class MatchService {
      */
     @Transactional
     public GameStartRecord startNextGame(Match match) {
-        log.debug("Starting next game for match {}", match.getId());
+        return startNextGame(match, 501);
+    }
+
+    /** Variant of {@link #startNextGame} that uses a football filter to resolve the question. */
+    @Transactional
+    public GameStartRecord startNextGameWithFilter(Match match, int startingScore, FootballFilter filter) {
+        log.debug("Starting game for match {} with football filter (startingScore={})", match.getId(), startingScore);
+
+        if (match.getStatus() != Match.MatchStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Match is not in progress");
+        }
+
+        Question question = questionService.selectQuestionByFilter(filter)
+            .orElseThrow(() -> new IllegalStateException(
+                "No football question available for filter: scope=" + filter.getScope()
+                + ", league=" + filter.getLeague() + ", club=" + filter.getClub()
+                + ", stat=" + filter.getStatType()));
+
+        long completedGames = gameRepository.countByMatchIdAndStatus(match.getId(), Game.GameStatus.COMPLETED);
+        int gameNumber = (int) completedGames + 1;
+
+        Game game = gameService.createGame(match.getId(), question.getId(), gameNumber, startingScore);
+
+        log.info("Game started with filter: matchId={}, gameNumber={}, questionId={}, startingScore={}",
+            match.getId(), gameNumber, question.getId(), startingScore);
+
+        return new GameStartRecord(game, question);
+    }
+
+    @Transactional
+    public GameStartRecord startNextGame(Match match, int startingScore) {
+        log.debug("Starting next game for match {} (startingScore={})", match.getId(), startingScore);
 
         // Validate match is in progress
         if (match.getStatus() != Match.MatchStatus.IN_PROGRESS) {
@@ -114,8 +146,8 @@ public class MatchService {
 
         // Select random question with match difficulty
         Optional<Question> questionOpt = questionService.selectRandomQuestion(
-            match.getCategoryId(), 
-            match.getDifficulty(), 
+            match.getCategoryId(),
+            match.getDifficulty(),
             10 // DEFAULT_MIN_ANSWERS
         );
         if (questionOpt.isEmpty()) {
@@ -129,10 +161,10 @@ public class MatchService {
         int gameNumber = (int) completedGames + 1;
 
         // Create game
-        Game game = gameService.createGame(match.getId(), question.getId(), gameNumber, 501);
+        Game game = gameService.createGame(match.getId(), question.getId(), gameNumber, startingScore);
 
-        log.info("Game started: matchId={}, gameNumber={}, questionId={}",
-            match.getId(), gameNumber, question.getId());
+        log.info("Game started: matchId={}, gameNumber={}, questionId={}, startingScore={}",
+            match.getId(), gameNumber, question.getId(), startingScore);
 
         return new GameStartRecord(game, question);
     }
@@ -151,7 +183,13 @@ public class MatchService {
 
         // Increment win count for winner (winnerId is null for solo forfeits)
         if (completedGame.getWinnerId() == null) {
-            log.info("Game completed with no winner (solo forfeit): gameId={}", completedGame.getId());
+            // Solo forfeit — no winner means the player gave up. Mark the match
+            // as ABANDONED (not COMPLETED) since there is no opponent to declare.
+            match.setStatus(Match.MatchStatus.ABANDONED);
+            match.setCompletedAt(java.time.LocalDateTime.now());
+            matchRepository.save(match);
+            log.info("Match abandoned (solo forfeit): matchId={}, gameId={}", match.getId(), completedGame.getId());
+            return;
         } else if (completedGame.getWinnerId().equals(match.getPlayer1Id())) {
             match.setPlayer1GamesWon(match.getPlayer1GamesWon() + 1);
         } else if (match.getPlayer2Id() != null

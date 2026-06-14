@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Request DTO for starting a solo (single-player) game.
+ * Request DTO for starting a Free Play (single-player) game.
  *
  * <p>Player identity is never supplied by the client — it is derived from
  * the authenticated {@link java.security.Principal} in the controller.
@@ -15,9 +15,14 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class StartSoloGameRequest {
+public class StartFreePlayRequest {
 
     private String categorySlug;
 
     private Integer difficulty;
+
+    private Integer startingScore;
+
+    /** Optional football-specific question filter. When present, overrides random question selection. */
+    private FootballFilter footballFilter;
 }

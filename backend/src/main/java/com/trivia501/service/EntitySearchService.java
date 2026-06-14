@@ -1,5 +1,6 @@
 package com.trivia501.service;
 
+import com.trivia501.dto.EntityCacheEntry;
 import com.trivia501.dto.PlayerSearchResponse;
 import com.trivia501.model.NamedEntity;
 import com.trivia501.repository.NamedEntityRepository;
@@ -67,6 +68,20 @@ public class EntitySearchService {
                         .name(e.getDisplayName())
                         .nationality(e.getHint())
                         .build())
+                .toList();
+    }
+
+    /**
+     * Returns every entity of the given type, ordered alphabetically by normalizedName.
+     * Intended for the client-side cache endpoint — clients filter locally after
+     * a single load rather than querying on every keystroke.
+     */
+    @Transactional(readOnly = true)
+    public List<EntityCacheEntry> getAll(String entityType) {
+        return namedEntityRepository
+                .findAllByEntityTypeOrderByNormalizedName(entityType)
+                .stream()
+                .map(e -> new EntityCacheEntry(e.getId(), e.getDisplayName(), e.getNormalizedName(), e.getHint()))
                 .toList();
     }
 

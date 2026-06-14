@@ -1,7 +1,7 @@
 package com.trivia501.engine;
 
 import tools.jackson.databind.ObjectMapper;
-import com.trivia501.dto.StartSoloGameRequest;
+import com.trivia501.dto.StartFreePlayRequest;
 import com.trivia501.dto.SubmitAnswerRequest;
 import com.trivia501.model.Answer;
 import com.trivia501.model.Category;
@@ -121,7 +121,7 @@ class FuzzyMatchingContainerTest {
     void exactMatch_returnsValid() throws Exception {
         UUID gameId = startGame();
 
-        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{id}/submit", gameId)
                                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("Erling Haaland")))
             .andExpect(status().isOk())
@@ -136,7 +136,7 @@ class FuzzyMatchingContainerTest {
 
         // "Erling Haland" (missing one 'a') misses exact match, but fuzzy
         // fallback catches it via pg_trgm similarity against "erling haaland"
-        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{id}/submit", gameId)
                                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("Erling Haland")))
             .andExpect(status().isOk())
@@ -149,7 +149,7 @@ class FuzzyMatchingContainerTest {
     void unknownName_returnsInvalid() throws Exception {
         UUID gameId = startGame();
 
-        mockMvc.perform(post("/api/solo/games/{id}/submit", gameId)
+        mockMvc.perform(post("/api/freeplay/games/{id}/submit", gameId)
                                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("Zxqwerty Fakename9999")))
             .andExpect(status().isOk())
@@ -161,11 +161,11 @@ class FuzzyMatchingContainerTest {
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private UUID startGame() throws Exception {
-        StartSoloGameRequest req = StartSoloGameRequest.builder()
+        StartFreePlayRequest req = StartFreePlayRequest.builder()
             .categorySlug("football")
             .build();
 
-        String body = mockMvc.perform(post("/api/solo/start")
+        String body = mockMvc.perform(post("/api/freeplay/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
             .andExpect(status().isOk())

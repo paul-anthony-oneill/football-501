@@ -51,6 +51,9 @@ public interface NamedEntityRepository extends JpaRepository<NamedEntity, UUID> 
             @Param("limit") int limit
     );
 
+    /** All entities for a given type, sorted alphabetically — used to seed the client-side cache. */
+    List<NamedEntity> findAllByEntityTypeOrderByNormalizedName(String entityType);
+
     /** Exact lookup by type + normalized key — used for upsert deduplication. */
     Optional<NamedEntity> findByEntityTypeAndNormalizedName(String entityType, String normalizedName);
 

@@ -4,6 +4,7 @@ import com.trivia501.dto.admin.CreateQuestionRequest;
 import com.trivia501.dto.admin.DifficultyLockRequest;
 import com.trivia501.dto.admin.QuestionListResponse;
 import com.trivia501.dto.admin.QuestionResponse;
+import com.trivia501.dto.admin.SuitableForDailyRequest;
 import com.trivia501.dto.admin.UpdateQuestionRequest;
 import com.trivia501.dto.admin.UpdateStatusRequest;
 import com.trivia501.service.DifficultyRecalibrationService;
@@ -131,10 +132,11 @@ public class AdminQuestionController {
      */
     @PostMapping("/bulk-activate")
     public ResponseEntity<Map<String, Object>> bulkActivate(
-            @RequestParam(defaultValue = "100") int limit) {
+            @RequestParam(defaultValue = "100") int limit,
+            @RequestParam(required = false) UUID templateId) {
         int clampedLimit = Math.min(limit, 500);
-        log.info("Admin triggered bulk-activate (limit={})", clampedLimit);
-        Map<String, Object> result = adminQuestionService.bulkActivateDraft(clampedLimit);
+        log.info("Admin triggered bulk-activate (limit={}, templateId={})", clampedLimit, templateId);
+        Map<String, Object> result = adminQuestionService.bulkActivateDraft(clampedLimit, templateId);
         return ResponseEntity.ok(result);
     }
 
@@ -164,9 +166,10 @@ public class AdminQuestionController {
         DifficultyRecalibrationService.RecalibrationResult result =
             adminQuestionService.recalculateDifficulty();
         return ResponseEntity.ok(Map.of(
-            "total",      result.total(),
-            "updated",    result.updated(),
-            "reExcluded", result.reExcluded()
+            "total",                   result.total(),
+            "updated",                 result.updated(),
+            "reExcluded",              result.reExcluded(),
+            "dailyEligibilityChanged", result.dailyEligibilityChanged()
         ));
     }
 
@@ -181,6 +184,14 @@ public class AdminQuestionController {
      * <p>Useful when the formula computes an incorrect score for a specific question
      * (e.g. an unusual stat distribution) and you want to pin a manual value.
      */
+    @PatchMapping("/{id}/suitable-for-daily")
+    public ResponseEntity<QuestionResponse> updateSuitableForDaily(
+            @PathVariable UUID id,
+            @Valid @RequestBody SuitableForDailyRequest request) {
+        log.info("Admin set suitableForDaily={} for question {}", request.getSuitable(), id);
+        return ResponseEntity.ok(adminQuestionService.updateSuitableForDaily(id, request.getSuitable()));
+    }
+
     @PatchMapping("/{id}/difficulty-lock")
     public ResponseEntity<QuestionResponse> lockDifficulty(
             @PathVariable UUID id,

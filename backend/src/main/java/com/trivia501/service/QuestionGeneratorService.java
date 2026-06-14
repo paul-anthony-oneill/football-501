@@ -173,6 +173,11 @@ public class QuestionGeneratorService {
             .templateParams(params)
             .build();
 
+        // Populate football slug columns for club-scope questions (team_id + competition_id present).
+        if (params.containsKey("team_id") && params.containsKey("competition_id")) {
+            deriveFootballClubSlugs(draft, template, params);
+        }
+
         questionRepository.save(draft);
         log.debug("Created draft: {}", questionText);
         return true;
@@ -266,6 +271,31 @@ public class QuestionGeneratorService {
         config.put("materializer_key", template.getMaterializerKey());
         config.put("metric_key", template.getMetricKey());
         return config;
+    }
+
+    /**
+     * Populates {@code q_scope / q_league / q_club / q_stat} on a draft question
+     * when the template params include {@code team_id} and {@code competition_id}.
+     * These columns power the structured football question lookup API.
+     */
+    private void deriveFootballClubSlugs(Question draft, QuestionTemplate template, Map<String, Object> params) {
+        try {
+            teamRepository.findById(UUID.fromString(params.get("team_id").toString()))
+                .ifPresent(t -> draft.setQClub(toSlug(t.getNormalizedName())));
+            competitionRepository.findById(UUID.fromString(params.get("competition_id").toString()))
+                .ifPresent(c -> draft.setQLeague(toSlug(c.getNormalizedName())));
+            draft.setQScope("club");
+            draft.setQStat(template.getMetricKey());
+        } catch (Exception e) {
+            log.warn("Could not derive football slug columns for template {}: {}",
+                template.getSlug(), e.getMessage());
+        }
+    }
+
+    /** Converts a normalized_name (lowercase, spaces) to a URL slug by replacing spaces with hyphens. */
+    private static String toSlug(String normalizedName) {
+        if (normalizedName == null || normalizedName.isBlank()) return null;
+        return normalizedName.replace(' ', '-');
     }
 
     // ── Result record ────────────────────────────────────────────────────────
