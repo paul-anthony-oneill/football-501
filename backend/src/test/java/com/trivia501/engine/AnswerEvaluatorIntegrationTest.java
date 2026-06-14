@@ -117,7 +117,7 @@ class AnswerEvaluatorIntegrationTest {
         AnswerResult turn4 = evaluator.evaluateAnswer(questionId, "Answer E", null, currentScore, usedAnswers);
         assertThat(turn4.isValid()).isTrue();
         assertThat(turn4.isBust()).isTrue();
-        assertThat(turn4.getReason()).isEqualTo("Invalid darts score");
+        assertThat(turn4.getReason()).isEqualTo("179 is not a valid 3-dart checkout score");
         assertThat(turn4.getNewTotal()).isEqualTo(438); // Unchanged
         usedAnswers.add(turn4.getAnswerId());
 
