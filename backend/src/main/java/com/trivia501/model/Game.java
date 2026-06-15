@@ -82,7 +82,7 @@ public class Game {
 
     // Signed by go-signer on checkout. Null for games before the signing service existed,
     // or when the service was unavailable. Absence means unverified, not invalid.
-    @Column(name = "result_token", length = 512)
+    @Column(name = "result_token", columnDefinition = "TEXT")
     private String resultToken;
 
     @CreatedDate

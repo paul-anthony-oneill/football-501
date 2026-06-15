@@ -24,7 +24,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/pauloneill/football-501/go-signer/signer"
+	"github.com/paul-anthony-oneill/trivia-501/go-signer/signer"
 )
 
 func main() {

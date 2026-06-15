@@ -3,9 +3,19 @@
 //
 // Environment variables (set as Fly.io secrets in production):
 //
-//	SIGNING_KEY     — base64-encoded 64-byte ed25519 private key (required)
-//	SIGNING_KEY_ID  — short label for this key, embedded in tokens (required)
-//	PORT            — HTTP listen port, defaults to 8090
+//	SIGNING_KEY      — base64-encoded 64-byte ed25519 private key (required)
+//	SIGNING_KEY_ID   — short label for this key, embedded in tokens (required)
+//	INTERNAL_SECRET  — bearer token required on POST /sign (recommended in production)
+//	PORT             — HTTP listen port, defaults to 8090
+//
+// Security model:
+//
+//	POST /sign   — must only be callable by the trusted Java backend. Protect with
+//	               INTERNAL_SECRET (bearer token) AND Fly.io private networking
+//	               (.internal DNS) so the endpoint is never internet-reachable.
+//	               If INTERNAL_SECRET is empty the check is skipped (local dev only).
+//	POST /verify — intentionally public; verifying is what third parties should do.
+//	GET  /pubkey — intentionally public; needed for independent verification.
 package main
 
 import (
@@ -17,7 +27,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/pauloneill/football-501/go-signer/signer"
+	"github.com/paul-anthony-oneill/trivia-501/go-signer/signer"
 )
 
 func main() {
@@ -26,10 +36,15 @@ func main() {
 		log.Fatalf("cannot load signer: %v", err)
 	}
 
+	secret := os.Getenv("INTERNAL_SECRET")
+	if secret == "" {
+		log.Println("WARNING: INTERNAL_SECRET not set — /sign is unprotected (OK for local dev, not for production)")
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("GET /pubkey", handlePubKey(s))
-	mux.HandleFunc("POST /sign", handleSign(s))
+	mux.HandleFunc("POST /sign", requireSecret(secret, handleSign(s)))
 	mux.HandleFunc("POST /verify", handleVerify(s))
 
 	port := os.Getenv("PORT")
@@ -37,9 +52,30 @@ func main() {
 		port = "8090"
 	}
 
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
 	log.Printf("go-signer listening on :%s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("server error: %v", err)
+	}
+}
+
+// requireSecret is middleware that enforces a bearer token on the wrapped handler.
+// When secret is empty (local dev without INTERNAL_SECRET set) the check is skipped.
+func requireSecret(secret string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if secret != "" && r.Header.Get("Authorization") != "Bearer "+secret {
+			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+			return
+		}
+		next(w, r)
 	}
 }
 
@@ -81,13 +117,13 @@ type verifyRequest struct {
 }
 
 type verifyResponse struct {
-	Valid   bool           `json:"valid"`
+	Valid   bool            `json:"valid"`
 	Payload *signer.Payload `json:"payload,omitempty"`
-	Error   string         `json:"error,omitempty"`
+	Error   string          `json:"error,omitempty"`
 }
 
 type pubKeyResponse struct {
-	PublicKey string `json:"publicKey"` // base64-encoded ed25519 public key
+	PublicKey string `json:"publicKey"`
 	KeyID     string `json:"kid"`
 }
 
@@ -102,7 +138,6 @@ func handleHealth(w http.ResponseWriter, _ *http.Request) {
 }
 
 func handlePubKey(s *signer.Signer) http.HandlerFunc {
-	// Pre-encode once at startup; public key never changes at runtime.
 	encoded := base64.StdEncoding.EncodeToString(s.PublicKeyBytes())
 	return func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, pubKeyResponse{PublicKey: encoded})

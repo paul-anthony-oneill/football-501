@@ -43,6 +43,7 @@ server:
 # Set RESULT_SIGNER_URL as a Fly.io secret in production.
 result-signer:
   url: ${RESULT_SIGNER_URL:}
+  secret: ${RESULT_SIGNER_SECRET:}
 
 # Custom application properties
 trivia501:

@@ -32,9 +32,14 @@ public class ResultSignerClientImpl implements ResultSignerClient {
 
     private final RestClient restClient;
     private final String signerUrl;
+    private final String internalSecret;
 
-    public ResultSignerClientImpl(@Value("${result-signer.url:}") String signerUrl) {
+    public ResultSignerClientImpl(
+            @Value("${result-signer.url:}") String signerUrl,
+            @Value("${result-signer.secret:}") String internalSecret
+    ) {
         this.signerUrl = signerUrl;
+        this.internalSecret = internalSecret;
         this.restClient = RestClient.builder()
                 .baseUrl(signerUrl.isBlank() ? "http://localhost:8090" : signerUrl)
                 .build();
@@ -56,11 +61,13 @@ public class ResultSignerClientImpl implements ResultSignerClient {
                     completedAtIso
             );
 
-            SignResponse response = restClient.post()
+            var postSpec = restClient.post()
                     .uri("/sign")
-                    .body(request)
-                    .retrieve()
-                    .body(SignResponse.class);
+                    .body(request);
+            if (internalSecret != null && !internalSecret.isBlank()) {
+                postSpec = postSpec.header("Authorization", "Bearer " + internalSecret);
+            }
+            SignResponse response = postSpec.retrieve().body(SignResponse.class);
 
             if (response == null || response.token() == null) {
                 log.warn("go-signer returned empty response for game {}", gameId);

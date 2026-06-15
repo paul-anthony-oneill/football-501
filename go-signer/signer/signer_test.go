@@ -3,11 +3,12 @@ package signer_test
 import (
 	"crypto/ed25519"
 	"encoding/base64"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/pauloneill/football-501/go-signer/signer"
+	"github.com/paul-anthony-oneill/trivia-501/go-signer/signer"
 )
 
 // newTestSigner creates a fresh random keypair for use within a single test.
@@ -181,10 +182,11 @@ func TestPublicKeyBytes(t *testing.T) {
 	}
 }
 
-// isError checks if err wraps target using simple string containment as a
-// fallback for errors that don't implement unwrapping.
+// isError checks if err matches or wraps target. Uses errors.Is for sentinel
+// errors wrapped with %w; falls back to string containment for errors wrapped
+// with %v (where the inner error is not part of the chain).
 func isError(err, target error) bool {
-	if err == target {
+	if errors.Is(err, target) {
 		return true
 	}
 	return strings.Contains(err.Error(), target.Error())

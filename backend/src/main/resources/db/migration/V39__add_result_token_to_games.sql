@@ -3,4 +3,4 @@
 -- signing service was unavailable, will have NULL. A missing token means the result
 -- cannot be cryptographically verified, not that the game was invalid.
 ALTER TABLE games
-    ADD COLUMN IF NOT EXISTS result_token VARCHAR(512);
+    ADD COLUMN IF NOT EXISTS result_token TEXT;
